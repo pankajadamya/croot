@@ -926,7 +926,7 @@ table.data th {
   align-items: center;
   min-height: 44px;
   padding: 0.4rem 0.75rem;
-  border-radius: var(--radius-sm);
+  border-radius: 0;
   color: var(--muted);
   font-weight: 600;
   text-decoration: none;
