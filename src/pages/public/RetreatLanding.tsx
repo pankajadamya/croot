@@ -6,7 +6,7 @@ import { get } from '../../lib/api'
 import { formatDate } from '../../lib/format'
 import { RetreatDetails, type RetreatFacts } from '../../components/RetreatDetails'
 import { HeroSlideshow } from '../../components/HeroSlideshow'
-import { InterestDialog } from '../../components/InterestSignup'
+import { InterestDialog, InterestSignup } from '../../components/InterestSignup'
 import { HeartButton, useHearts } from '../../components/Hearts'
 import { HelpfulButton, useHelpful } from '../../components/Helpful'
 import { Stars, formatRating } from '../../components/Stars'
@@ -196,6 +196,11 @@ export default function RetreatLanding() {
             </div>
           </div>
         </section>
+
+        {/* A row of its own for people who want to hear about the next retreat. */}
+        <div className="container" id="next-retreat" style={{ marginTop: 'clamp(2rem, 5vw, 3rem)' }}>
+          <InterestSignup orgSlug={d.org.slug} orgName={d.org.name} retreatSlug={d.retreat.slug} />
+        </div>
 
         {/* Guest reviews last, each with the photos that guest chose to publish. */}
         <section className="container landing-reviews" aria-labelledby="reviews-title">

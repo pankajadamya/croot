@@ -31,10 +31,10 @@ export function AlbumTeaser({ album }: { album: AlbumSummary }) {
   )
 }
 
-/** After sending: a card that opens the full-page album. */
+/** After sending: a card that opens the full-page album in a new tab, so the thank-you page stays open. */
 export function AlbumLinkCard({ album, href }: { album: AlbumSummary; href: string }) {
   return (
-    <Link to={href} className="album-link-card">
+    <Link to={href} className="album-link-card" target="_blank" rel="noopener">
       {album.cover && <img src={album.cover} alt="" />}
       <span className="album-link-text">
         <span className="album-link-eyebrow">Unlocked: thank you</span>
@@ -42,7 +42,10 @@ export function AlbumLinkCard({ album, href }: { album: AlbumSummary; href: stri
         <span className="album-link-meta">
           {album.photoCount} photo{album.photoCount === 1 ? '' : 's'} · add your own too
         </span>
-        <span className="album-btn">Open the album →</span>
+        <span className="album-btn">
+          Open the album <span aria-hidden="true">↗</span>
+          <span className="sr-only"> (opens in a new tab)</span>
+        </span>
       </span>
     </Link>
   )

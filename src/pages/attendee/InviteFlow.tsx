@@ -390,7 +390,8 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
           <h1>{submitted ? `Thank you, ${view.firstName}` : 'This form is closed'}</h1>
           {submitted ? (
             <>
-              <p>Your response has been sent. You can view it, change your permissions or ask for an edit from your private response page.</p>
+              <p>We’ve received your review. If you agreed to publish it, it will appear on the retreat page soon, once it has been checked.</p>
+              <p>You can view it, change your permissions or ask for an edit from your private response page.</p>
               {view.retreat.album?.unlocked && (
                 <div style={{ margin: '1.5rem 0' }}>
                   <AlbumLinkCard album={view.retreat.album} href={albumPagePath(base)} />
@@ -457,7 +458,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
     update({ consents: { ...c, publicText: allow, firstName: allow, marketing: allow } })
     try {
       for (const photo of photos) {
-        const changes = { publishConsent: allow, ...(view.retreat.albumSharingAvailable ? { albumConsent: allow } : {}) }
+        const changes = { publishConsent: allow, ...(view?.retreat.albumSharingAvailable ? { albumConsent: allow } : {}) }
         const saved = await patch<Photo>(`${base}/photos/${photo.id}`, changes)
         setPhotos((current) => current.map((item) => item.id === photo.id ? { ...item, ...saved } : item))
       }

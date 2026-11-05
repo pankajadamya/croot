@@ -113,6 +113,13 @@ export default function Receipt() {
         <p className="eyebrow">{d.retreat.title}</p>
         <h1>{justSubmitted ? 'Thank you, your response has been sent' : 'Your response'}</h1>
         {justSubmitted && (
+          <p style={{ fontSize: '1.1rem', margin: 0 }}>
+            {c.publicText
+              ? 'We’ve received your review. It will be published on the retreat page soon, once it has been checked.'
+              : 'We’ve received your review. You chose not to publish it, so only the organiser will read it.'}
+          </p>
+        )}
+        {justSubmitted && (
           <div className="notice ok">
             <strong>Bookmark this page.</strong> It’s your private link to see what you sent, change your permissions or ask for an edit. Please don’t share it.
           </div>
