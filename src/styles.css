@@ -3432,3 +3432,46 @@ ol.album-admin-grid {
   outline: 3px solid var(--button);
   outline-offset: 2px;
 }
+
+/* "Helpful" on reviews. */
+.helpful-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 40px;
+  margin-top: 0.4rem;
+  padding: 0.35rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.helpful-btn svg path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+}
+.helpful-btn:hover {
+  border-color: var(--button);
+}
+.helpful-btn.on {
+  border-color: var(--button);
+  background: color-mix(in srgb, var(--button) 10%, var(--surface));
+}
+.helpful-btn.on svg path {
+  fill: color-mix(in srgb, var(--button) 25%, transparent);
+}
+.helpful-btn:focus-visible {
+  outline: 3px solid var(--button);
+  outline-offset: 2px;
+}
+.helpful-count {
+  padding-left: 0.45rem;
+  border-left: 1px solid var(--border);
+  color: var(--muted);
+}

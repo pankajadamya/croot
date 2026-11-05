@@ -2,6 +2,7 @@ import request from 'supertest'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { prisma, closeDatabase } from '../src/lib/prisma.js'
 import { redactPath } from '../src/lib/logger.js'
+import { resetHeartCaps } from '../src/lib/hearts.js'
 import { app, invite, login, makeTenant, resetDatabase } from './helpers.js'
 
 beforeEach(resetDatabase)
@@ -256,6 +257,33 @@ describe('anonymous notes', () => {
     const used = await agent.post(`/api/admin/orgs/alpha/retreats/${retreat.id}/share-kit/used`).set('X-CSRF-Token', csrf).send({ storyIds: [kit.body.stories[0].id], format: 'post' })
     expect(used.status).toBe(200)
     expect(await prisma.auditEvent.count({ where: { action: 'share_kit.used' } })).toBe(1)
+  })
+
+  it('lets anyone mark a published review helpful once, take it back, and caps repeats from one place', async () => {
+    resetHeartCaps()
+    const { org, user, retreat } = await makeTenant('alpha')
+    const { agent, csrf } = await login(user.email)
+    const { token } = await invite(org.id, retreat.id, 'Hana Guest', 'hana@example.test')
+    const draft = await request(app).put(`/api/invites/${token}/draft`).send({ revision: 0, storyText: 'A gentle, well-run week.', consents: { publicText: true } })
+    await request(app).post(`/api/invites/${token}/submit`).send({ revision: draft.body.revision })
+    const response = await prisma.response.findFirstOrThrow({ where: { attendee: { email: 'hana@example.test' } } })
+    const pub = await agent.post(`/api/admin/orgs/alpha/responses/${response.id}/publish`).set('X-CSRF-Token', csrf).send({})
+    const slug = pub.body.publicSlug as string
+    const voter = (n: number) => `helpful-visitor-${n}-abcdefghijklmnopqrst`
+    const vote = (v: string, on: boolean) => request(app).post(`/api/public/stories/${slug}/helpful`).send({ voter: v, on })
+
+    expect((await vote(voter(1), true)).body).toEqual({ helpful: 1, voted: true })
+    expect((await vote(voter(1), true)).body.helpful).toBe(1) // once per visitor
+    expect((await request(app).post('/api/public/stories/helpful/mine').send({ voter: voter(1), slugs: [slug] })).body.helpful).toEqual([slug])
+    expect((await request(app).get(`/api/public/orgs/alpha/retreats/${retreat.slug}`)).body.stories[0].helpful).toBe(1)
+    expect((await request(app).get(`/api/public/stories/${slug}`)).body.story.helpful).toBe(1)
+    expect((await vote(voter(1), false)).body.helpful).toBe(0)
+
+    for (let n = 2; n <= 5; n++) expect((await vote(voter(n), true)).status).toBe(200)
+    expect((await vote(voter(99), true)).status).toBe(429)
+    expect((await request(app).post('/api/public/stories/not-a-story/helpful').send({ voter: voter(7), on: true })).status).toBe(404)
+    // Nothing identifying is stored.
+    expect(Object.keys(await prisma.reviewHelpful.findFirstOrThrow()).sort()).toEqual(['responseId', 'voterHash'])
   })
 
   it('points guests to the retreat’s public page once they have sent their review', async () => {

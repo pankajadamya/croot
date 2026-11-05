@@ -23,15 +23,15 @@ const DAY_MS = 24 * 60 * 60 * 1000
 const PER_PHOTO_PER_IP = 5
 const seen = new Map<string, { n: number; until: number }>()
 
-/** Counts a new heart from this IP for this photo; refuses once the daily cap is reached. */
-export function checkIpPhotoCap(ip: string | undefined, photoId: string) {
-  const key = createHmac('sha256', authSecret).update(`heart-ip:${ip ?? 'unknown'}:${photoId}`).digest('base64url')
+/** Counts a new heart (or helpful vote) from this IP for this item; refuses once the daily cap is reached. */
+export function checkIpPhotoCap(ip: string | undefined, itemId: string) {
+  const key = createHmac('sha256', authSecret).update(`heart-ip:${ip ?? 'unknown'}:${itemId}`).digest('base64url')
   const now = Date.now()
   const entry = seen.get(key)
   if (!entry || entry.until < now) {
     seen.set(key, { n: 1, until: now + DAY_MS })
   } else if (entry.n >= PER_PHOTO_PER_IP) {
-    throw new HttpError(429, 'You’ve hearted this photo plenty today. Please try again tomorrow.')
+    throw new HttpError(429, 'That’s plenty from here today. Please try again tomorrow.')
   } else {
     entry.n += 1
   }

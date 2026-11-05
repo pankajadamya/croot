@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 
 export interface ShowcaseStory {
   slug: string
+  helpful?: number
   excerpt: string
   excerptIsFull: boolean
   displayName: string | null

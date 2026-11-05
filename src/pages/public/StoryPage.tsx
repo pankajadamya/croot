@@ -7,6 +7,7 @@ import { formatDate } from '../../lib/format'
 import { RetreatDetails, type RetreatFacts } from '../../components/RetreatDetails'
 import { Loading } from '../../components/States'
 import { Stars } from '../../components/Stars'
+import { HelpfulButton, useHelpful } from '../../components/Helpful'
 import { StoryViewer, type ViewerSlide } from '../../components/StoryViewer'
 import { ThemeScope } from '../../components/ThemeScope'
 import { AlbumPromo, SiteFooter, SiteHeader, type PublicAlbum } from './RetreatLanding'
@@ -21,6 +22,7 @@ interface StoryPublic {
   story: {
     slug: string
     postedAt: string
+    helpful: number
     title: string | null
     text: string
     excerpt: string
@@ -43,6 +45,7 @@ const short = (s: string, n: number) => (s.length > n ? `${s.slice(0, n).trimEnd
 export default function StoryPage() {
   const { slug = '' } = useParams()
   const q = useQuery({ queryKey: ['public-story', slug], queryFn: () => get<StoryPublic>(`/api/public/stories/${slug}`), retry: false })
+  const helpful = useHelpful(q.data ? [{ slug: q.data.story.slug, helpful: q.data.story.helpful }] : [])
   useEffect(() => {
     if (q.data) document.title = `${q.data.story.title ?? (q.data.story.displayName ? `${q.data.story.displayName}’s story` : 'A guest story')} · ${q.data.retreat.title}`
     window.scrollTo({ top: 0 })
@@ -125,6 +128,7 @@ export default function StoryPage() {
                 ))}
               </div>
               <div className="row" style={{ marginTop: '1.25rem' }}>
+                <HelpfulButton on={helpful.voted(story.slug)} count={helpful.count({ slug: story.slug, helpful: story.helpful })} onToggle={() => void helpful.toggle({ slug: story.slug, helpful: story.helpful })} />
                 <Link to={retreatPath} className="btn secondary small">
                   ← All stories from this retreat
                 </Link>

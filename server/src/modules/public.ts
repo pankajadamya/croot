@@ -11,6 +11,7 @@ import { anonymousLimiter, heartLimiter, publicFormLimiter } from '../middleware
 import { confirmInterest, interestWording, registerInterest, unsubscribeInterest } from '../lib/interest.js'
 import { albumListing, albumPagePath, publicAlbumLink, sendAlbumPhoto, sendAlbumVideo } from '../lib/album.js'
 import { heartCounts, heartedBy, setHeart, voterSchema } from '../lib/hearts.js'
+import { helpfulBy, helpfulCounts, setHelpful } from '../lib/helpful.js'
 
 /**
  * Public projections only. Every response here is built from PublicationRevision snapshots and
@@ -111,6 +112,7 @@ publicRouter.get(
       ).map((m) => [m.id, m]),
     )
     const reviewHearts = await heartCounts([...visible.keys()])
+    const helpful = await helpfulCounts(stories.map((s) => s.responseId))
     // The average of the overall ratings on published reviews (guests agreed to publish them with their story).
     const rated = retreat.showPublicRating ? stories.map((s) => s.overallRating).filter((n): n is number => typeof n === 'number') : []
     const rating = rated.length ? { average: Math.round((rated.reduce((a, b) => a + b, 0) / rated.length) * 10) / 10, count: rated.length } : null
@@ -125,6 +127,7 @@ publicRouter.get(
       hero,
       stories: stories.map((s) => ({
         slug: s.publicSlug,
+        helpful: helpful.get(s.responseId) ?? 0,
         excerpt: s.excerpt,
         excerptIsFull: s.excerpt.length === s.storyText.length,
         title: s.title,
@@ -201,6 +204,43 @@ publicRouter.post(
   route(async (req, res) => {
     res.set('Cache-Control', 'no-store')
     res.json(await unsubscribeInterest(String(req.params.token)))
+  }),
+)
+
+// "Found this review helpful": anyone can vote once per review (see lib/helpful.ts).
+
+/** The response behind a live, public story, or null. */
+async function liveStoryResponse(slug: string) {
+  const response = await prisma.response.findUnique({
+    where: { publicSlug: slug },
+    select: { id: true, retreat: { select: { publicReviewsEnabled: true, status: true, organisation: { select: { status: true } } } } },
+  })
+  if (!response || !response.retreat.publicReviewsEnabled || response.retreat.status === 'draft' || response.retreat.organisation.status !== 'active') return null
+  return (await livePublication(response.id)) ? response.id : null
+}
+
+publicRouter.post(
+  '/stories/helpful/mine',
+  heartLimiter,
+  route(async (req, res) => {
+    const { voter, slugs } = parseBody(z.object({ voter: voterSchema, slugs: z.array(z.string().max(120)).max(200) }), req.body)
+    const rows = await prisma.response.findMany({ where: { publicSlug: { in: slugs } }, select: { id: true, publicSlug: true } })
+    const voted = new Set(await helpfulBy(voter, rows.map((r) => r.id)))
+    res.set('Cache-Control', 'no-store')
+    res.json({ helpful: rows.filter((r) => voted.has(r.id)).map((r) => r.publicSlug) })
+  }),
+)
+
+publicRouter.post(
+  '/stories/:slug/helpful',
+  heartLimiter,
+  route(async (req, res) => {
+    const responseId = await liveStoryResponse(param(req, 'slug'))
+    if (!responseId) throw new HttpError(404, 'Story not found')
+    const { voter, on } = parseBody(z.object({ voter: voterSchema, on: z.boolean() }), req.body)
+    const count = await setHelpful(responseId, voter, on, req.ip)
+    res.set('Cache-Control', 'no-store')
+    res.json({ helpful: count, voted: on })
   }),
 )
 
@@ -330,6 +370,7 @@ publicRouter.get(
       story: {
         slug,
         postedAt: submitted?.submittedAt ?? live.createdAt,
+        helpful: (await helpfulCounts([response.id])).get(response.id) ?? 0,
         title: live.title,
         text: live.storyText,
         excerpt: live.excerpt,

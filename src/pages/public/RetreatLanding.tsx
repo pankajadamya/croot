@@ -8,6 +8,7 @@ import { RetreatDetails, type RetreatFacts } from '../../components/RetreatDetai
 import { HeroSlideshow } from '../../components/HeroSlideshow'
 import { InterestDialog, InterestSignup } from '../../components/InterestSignup'
 import { HeartButton, useHearts } from '../../components/Hearts'
+import { HelpfulButton, useHelpful } from '../../components/Helpful'
 import { Stars, formatRating } from '../../components/Stars'
 import { ErrorNotice, Loading } from '../../components/States'
 import type { ShowcaseStory } from '../../components/StoryShowcase'
@@ -109,6 +110,7 @@ export default function RetreatLanding() {
   // Hearts on the review photos (same one-per-browser rules as the album).
   const reviewPhotos = (q.data?.stories ?? []).flatMap((s) => s.photos ?? [])
   const hearts = useHearts('', reviewPhotos, `/api/public/orgs/${orgSlug}/retreats/${retreatSlug}/album`)
+  const helpful = useHelpful((q.data?.stories ?? []).map((s) => ({ slug: s.slug, helpful: s.helpful ?? 0 })))
   useEffect(() => {
     if (q.data) document.title = `${q.data.retreat.title} · Guest stories · ${q.data.org.name}`
   }, [q.data])
@@ -218,6 +220,7 @@ export default function RetreatLanding() {
                           <p key={i}>{p}</p>
                         ))}
                     </div>
+                    <HelpfulButton on={helpful.voted(s.slug)} count={helpful.count({ slug: s.slug, helpful: s.helpful ?? 0 })} onToggle={() => void helpful.toggle({ slug: s.slug, helpful: s.helpful ?? 0 })} />
                   </article>
                   {s.photos && s.photos.length > 0 && (
                     <div className={`review-photos count-${Math.min(s.photos.length, 4)}`}>

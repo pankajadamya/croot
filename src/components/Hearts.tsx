@@ -4,7 +4,7 @@ const VOTER_KEY = 'croot.visitor'
 let memoryVoter: string | null = null
 
 /** A random, anonymous id for this browser, so it can heart each photo once. Nothing else is kept. */
-function visitorId() {
+export function visitorId() {
   try {
     const existing = window.localStorage.getItem(VOTER_KEY)
     if (existing && /^[A-Za-z0-9_-]{22,64}$/.test(existing)) return existing
@@ -29,7 +29,7 @@ export function heartsApi(pageUrl: string) {
   return m ? `/api/public/orgs/${m[1]}/retreats/${m[2]}/album` : null
 }
 
-async function postJson<T>(url: string, body: unknown): Promise<T> {
+export async function postJson<T>(url: string, body: unknown): Promise<T> {
   // No cookies and no referrer: hearts never touch a session.
   const res = await fetch(url, { method: 'POST', credentials: 'omit', referrerPolicy: 'no-referrer', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   const data = (await res.json().catch(() => ({}))) as T & { error?: string }

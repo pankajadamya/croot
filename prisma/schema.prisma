@@ -416,6 +416,7 @@ model Response {
   media        MediaAsset[]
   consents     ConsentEvent[]
   publications PublicationRevision[]
+  helpfulVotes ReviewHelpful[]
   changeRequests ChangeRequest[]
 
   @@index([organisationId, retreatId, status])
@@ -575,6 +576,16 @@ model MediaAsset {
 
   @@index([organisationId, retreatId, kind])
   @@index([responseId])
+}
+
+/// "Found this review helpful". Like hearts: `voterHash` is an HMAC of a random id in the visitor's
+/// browser, never an IP address or account. One per review per visitor.
+model ReviewHelpful {
+  responseId String   @db.Uuid
+  voterHash  String
+  response   Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
+
+  @@id([responseId, voterHash])
 }
 
 /// A heart on an album photo. Visitors needn't sign in: `voterHash` is an HMAC of a random ID kept in
