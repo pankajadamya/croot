@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
 import type { ThemeTokens } from '../../../shared/themes'
@@ -6,7 +6,7 @@ import { get } from '../../lib/api'
 import { formatDate } from '../../lib/format'
 import { RetreatDetails, type RetreatFacts } from '../../components/RetreatDetails'
 import { HeroSlideshow } from '../../components/HeroSlideshow'
-import { InterestSignup } from '../../components/InterestSignup'
+import { InterestDialog, InterestSignup } from '../../components/InterestSignup'
 import { HeartButton, useHearts } from '../../components/Hearts'
 import { Stars, formatRating } from '../../components/Stars'
 import { ErrorNotice, Loading } from '../../components/States'
@@ -105,6 +105,7 @@ export default function RetreatLanding() {
     queryKey: ['public-retreat', orgSlug, retreatSlug],
     queryFn: () => get<RetreatPublic>(`/api/public/orgs/${orgSlug}/retreats/${retreatSlug}`),
   })
+  const [updatesOpen, setUpdatesOpen] = useState(false)
   // Hearts on the review photos (same one-per-browser rules as the album).
   const reviewPhotos = (q.data?.stories ?? []).flatMap((s) => s.photos ?? [])
   const hearts = useHearts('', reviewPhotos, `/api/public/orgs/${orgSlug}/retreats/${retreatSlug}/album`)
@@ -130,7 +131,8 @@ export default function RetreatLanding() {
         {/* The photo album leads, with the retreat's details in a narrow card beside it. */}
         <section className={`container landing-top ${d.album ? 'with-album' : ''}`}>
           {d.album && <AlbumPromo album={d.album} title={`Photos from ${d.retreat.title}`} />}
-          <RetreatDetails retreat={d.retreat} organiser={{ name: d.org.name, websiteUrl: d.org.websiteUrl ?? null, retreatsPath: `/o/${d.org.slug}`, interestAnchor: '#next-retreat' }} />
+          <RetreatDetails retreat={d.retreat} organiser={{ name: d.org.name, websiteUrl: d.org.websiteUrl ?? null, retreatsPath: `/o/${d.org.slug}`, onGetUpdates: () => setUpdatesOpen(true) }} />
+          <InterestDialog open={updatesOpen} onClose={() => setUpdatesOpen(false)} orgSlug={d.org.slug} orgName={d.org.name} retreatSlug={d.retreat.slug} />
         </section>
 
         {/* Photos on the left, the organiser's own words on the right (stacked on small screens). */}

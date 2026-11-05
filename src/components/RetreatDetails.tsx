@@ -94,17 +94,17 @@ function Fact({ icon, children }: { icon: keyof typeof ICONS; children: ReactNod
 }
 
 /** Compact facts panel, always open. Only confirmed facts; no invented session times. */
-export function RetreatDetails({ retreat, organiser }: { retreat: RetreatFacts; organiser?: { name: string; websiteUrl: string | null; retreatsPath?: string; interestAnchor?: string } }) {
+export function RetreatDetails({ retreat, organiser }: { retreat: RetreatFacts; organiser?: { name: string; websiteUrl: string | null; retreatsPath?: string; onGetUpdates?: () => void } }) {
   const website = retreat.retreatPageUrl || organiser?.websiteUrl || null
   const itinerary = retreat.itineraryUrl && retreat.itineraryUrl !== website ? retreat.itineraryUrl : null
   const dates = retreat.kind === 'itinerary' ? formatRange(retreat.startDate, retreat.endDate) : ''
   const place = retreat.propertyAddress || retreat.locationSummary
-  const actions: Array<{ icon: keyof typeof ICONS; label: string; title?: string; href?: string; to?: string; external?: boolean }> = []
+  const actions: Array<{ icon: keyof typeof ICONS; label: string; title?: string; href?: string; to?: string; onClick?: () => void }> = []
   if (retreat.contact?.email) actions.push({ icon: 'mail', label: 'Email', title: `Email ${retreat.contact.email}`, href: `mailto:${retreat.contact.email}` })
   // The number itself: readable on a computer, and a tap to call on a phone.
   if (retreat.contact?.phone) actions.push({ icon: 'phone', label: retreat.contact.phone, title: `Call ${retreat.contact.phone}`, href: `tel:${retreat.contact.phone.replace(/\s+/g, '')}` })
   if (organiser?.retreatsPath) actions.push({ icon: 'grid', label: 'More retreats', title: `More retreats by ${organiser.name}`, to: organiser.retreatsPath })
-  if (organiser?.interestAnchor) actions.push({ icon: 'bell', label: 'Get updates', title: 'Hear about the next retreat', href: organiser.interestAnchor })
+  if (organiser?.onGetUpdates) actions.push({ icon: 'bell', label: 'Get updates', title: 'Hear about the next retreat', onClick: organiser.onGetUpdates })
 
   return (
     <section className="details-card rd" aria-label={retreat.kind === 'property' ? 'About the property' : 'Retreat details'}>
@@ -156,7 +156,12 @@ export function RetreatDetails({ retreat, organiser }: { retreat: RetreatFacts; 
         <ul className="rd-actions">
           {actions.map((a) => (
             <li key={a.label}>
-              {a.to ? (
+              {a.onClick ? (
+                <button type="button" onClick={a.onClick} title={a.title} aria-haspopup="dialog">
+                  <Icon name={a.icon} />
+                  <span>{a.label}</span>
+                </button>
+              ) : a.to ? (
                 <Link to={a.to} title={a.title} aria-label={a.title}>
                   <Icon name={a.icon} />
                   <span>{a.label}</span>

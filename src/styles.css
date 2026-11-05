@@ -3362,3 +3362,73 @@ ol.album-admin-grid {
   width: auto;
   margin-bottom: 1rem;
 }
+
+/* Details card actions can be buttons too (Get updates opens a pop-up). */
+.rd-actions button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 42px;
+  padding: 0.4rem 0.6rem;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.rd-actions button:hover {
+  background: color-mix(in srgb, var(--button) 8%, transparent);
+}
+.rd-actions button:focus-visible {
+  outline: 3px solid var(--button);
+  outline-offset: 1px;
+}
+
+/* "Hear about the next retreat" pop-up. */
+.interest-dialog {
+  width: min(560px, calc(100vw - 2rem));
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+}
+.interest-dialog::backdrop {
+  background: rgba(10, 26, 25, 0.55);
+  backdrop-filter: blur(3px);
+}
+.interest-dialog-body {
+  position: relative;
+  padding: clamp(1.4rem, 4vw, 2.2rem);
+}
+.interest-dialog-body h2 {
+  margin: 0 2.5rem 0.3rem 0;
+  font-size: clamp(1.35rem, 3vw, 1.7rem);
+}
+.interest-dialog-body > p {
+  margin: 0;
+}
+.interest-dialog-close {
+  position: absolute;
+  top: 0.9rem;
+  right: 0.9rem;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--text);
+  font-size: 1rem;
+  cursor: pointer;
+}
+.interest-dialog-close:focus-visible {
+  outline: 3px solid var(--button);
+  outline-offset: 2px;
+}
