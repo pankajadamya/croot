@@ -1,18 +1,26 @@
 import type { ReactNode } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import { Link, Navigate, NavLink, useLocation, useNavigate } from 'react-router'
+import { useQuery } from '@tanstack/react-query'
+import { Navigate, useLocation } from 'react-router'
+import { get, orgApi } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
+import { AppHeader } from '../../components/AppHeader'
 import { Loading } from '../../components/States'
 
 /**
- * Frame for every signed-in organiser and platform page: brand, organisation, navigation, user and
- * sign-out. Sends signed-out visitors to the login page, remembering where they were going.
+ * Frame for every organiser and super admin page. The top bar is the shared AppHeader, the same one
+ * My reviews uses. Sends signed-out visitors to sign in, remembering where they were going.
  */
 export function AdminShell({ orgSlug, children }: { orgSlug?: string; children: ReactNode }) {
-  const { session, loading, logout } = useAuth()
+  const { session, loading } = useAuth()
   const location = useLocation()
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
+  const isMember = Boolean(orgSlug && session?.memberships.some((m) => m.slug === orgSlug))
+  // Super admins visiting an organisation they don't belong to: fetch its name for the header.
+  const orgName = useQuery({
+    enabled: Boolean(orgSlug && session && !isMember),
+    queryKey: ['admin', orgSlug, 'summary'],
+    queryFn: () => get<{ org: { name: string } }>(orgApi(orgSlug!)),
+    select: (d) => d.org.name,
+  })
 
   if (loading) {
     return (
@@ -23,64 +31,25 @@ export function AdminShell({ orgSlug, children }: { orgSlug?: string; children: 
       </div>
     )
   }
-  if (!session) return <Navigate to="/admin/login" replace state={{ from: location.pathname + location.search }} />
+  if (!session) return <Navigate to="/signin" replace state={{ from: location.pathname + location.search }} />
 
   const membership = orgSlug ? session.memberships.find((m) => m.slug === orgSlug) : undefined
-
-  async function signOut() {
-    await logout()
-    queryClient.clear()
-    navigate('/admin/login', { replace: true })
-  }
 
   return (
     <div className="admin">
       <a className="skip-link" href="#main">
         Skip to content
       </a>
-      <header className="admin-top">
-        <div className="container">
-          <div className="row">
-            <Link className="brand" to="/admin">
-              <img className="brand-logo" src="/croot-logo.svg" alt="Croot" />
-            </Link>
-            {orgSlug && (
-              <span className="muted" style={{ fontWeight: 600 }}>
-                {membership?.name ?? orgSlug}
-              </span>
-            )}
-          </div>
-          <nav aria-label="Workspace" className="admin-nav">
-            {orgSlug && (
-              <>
-                <NavLink to={`/admin/${orgSlug}`} end>
-                  Programmes
-                </NavLink>
-                <NavLink to={`/admin/${orgSlug}/team`}>Team</NavLink>
-                <NavLink to={`/admin/${orgSlug}/privacy`}>Privacy</NavLink>
-                <NavLink to={`/admin/${orgSlug}/audit`}>Audit log</NavLink>
-              </>
-            )}
-            {session.memberships.length > 1 && (
-              <NavLink to="/admin" end>
-                Organisations
-              </NavLink>
-            )}
-            {session.user.isPlatformAdmin && <NavLink to="/platform">Super admin</NavLink>}
-            <NavLink to="/my-reviews">My reviews</NavLink>
-          </nav>
-          <div className="row">
-            <span className="small muted">{session.user.name}</span>
-            <button type="button" className="btn secondary small" onClick={signOut}>
-              Sign out
-            </button>
-          </div>
-        </div>
-      </header>
+      <AppHeader session={session} orgSlug={orgSlug} orgName={orgName.data} />
       <main id="main" className="container admin-main">
         {membership?.status === 'suspended' && (
           <div className="notice warn" role="status">
             This organisation is suspended. Contact the platform team to restore access.
+          </div>
+        )}
+        {membership?.status === 'pending' && (
+          <div className="notice warn" role="status">
+            This organisation is awaiting approval. You can set everything up; invitations and public pages go live once it’s approved.
           </div>
         )}
         {children}

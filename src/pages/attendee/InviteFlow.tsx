@@ -274,6 +274,11 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
     return (
       <main className="calm">
         <div className="narrow" style={{ padding: '4rem 0' }}>
+          {viaSignIn && (
+            <Link to="/my-reviews" className="small" style={{ display: 'inline-block', marginBottom: '1.5rem' }}>
+              ← My reviews
+            </Link>
+          )}
           <p className="eyebrow">{view.retreat.title}</p>
           <h1>{submitted ? `Thank you, ${view.firstName}` : 'This form is closed'}</h1>
           {submitted ? (

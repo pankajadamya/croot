@@ -5,6 +5,8 @@ import { REVIEW_KINDS, type ReviewKind } from '../../../shared/categories'
 import { ApiError, get, post } from '../../lib/api'
 import { Field } from '../../components/Controls'
 import { Loading } from '../../components/States'
+import { workspacePath } from '../../components/AppHeader'
+import { useAuth } from '../../lib/auth'
 import { OrgSite } from './OrgHome'
 
 interface SiteInfo {
@@ -63,6 +65,15 @@ const COMPARISON: Array<[string, string, string]> = [
 ]
 
 function Landing() {
+  const { session } = useAuth()
+  // Signed in: the header leads to your own place instead of asking you to sign in again.
+  const account = session
+    ? session.user.isPlatformAdmin
+      ? { to: '/platform', label: 'Super admin' }
+      : session.memberships.length
+        ? { to: workspacePath(session), label: 'Organiser workspace' }
+        : { to: '/my-reviews', label: 'My reviews' }
+    : { to: '/signin', label: 'Sign in' }
   const [preselect, setPreselect] = useState<ReviewKind | null>(null)
   return (
     <div className="calm landing">
@@ -75,8 +86,8 @@ function Landing() {
           <a href="#types">Review types</a>
           <a href="#how">How it works</a>
           <a href="#request">Request access</a>
-          <Link to="/signin" className="btn secondary small">
-            Sign in
+          <Link to={account.to} className="btn secondary small">
+            {account.label}
           </Link>
         </nav>
       </header>
@@ -204,7 +215,7 @@ function Landing() {
             <Link to="/legal/privacy">Privacy</Link>
             <Link to="/legal/terms">Data processing terms</Link>
             <Link to="/legal/cookies">Cookies</Link>
-            <Link to="/signin">Sign in</Link>
+            <Link to={account.to}>{account.label}</Link>
           </nav>
         </div>
       </footer>

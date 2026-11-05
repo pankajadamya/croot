@@ -4,6 +4,7 @@ import { REVIEW_KINDS, type ReviewKind } from '../../../shared/categories'
 import { get } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
 import { formatDate, formatRange } from '../../lib/format'
+import { SignedInFrame } from '../../components/AppHeader'
 import { ErrorNotice, Loading } from '../../components/States'
 import { ReviewFlow } from './InviteFlow'
 
@@ -36,7 +37,7 @@ function useSignedIn() {
 
 /** A signed-in guest's reviews, across every organiser that invited their email address. */
 export default function MyReviews() {
-  const { session, loading, logout, redirect } = useSignedIn()
+  const { session, loading, redirect } = useSignedIn()
   const q = useQuery({
     enabled: Boolean(session),
     queryKey: ['my-reviews'],
@@ -45,19 +46,13 @@ export default function MyReviews() {
   if (loading) return <Loading />
   if (!session) return redirect
 
+  const isAdmin = session.user.isPlatformAdmin
+  const isOrganiser = session.memberships.length > 0
+
   return (
-    <main className="calm">
-      <div className="narrow" style={{ padding: '3rem 0 5rem' }}>
-        <div className="spread">
-          <span className="brand"><img className="brand-logo" src="/croot-logo.svg" alt="Croot" /></span>
-          <span className="row small">
-            {session.memberships.length > 0 && <Link to="/admin">Organiser workspace</Link>}
-            <button className="btn ghost small" onClick={() => void logout()}>
-              Sign out
-            </button>
-          </span>
-        </div>
-        <h1 style={{ marginTop: '2rem' }}>My reviews</h1>
+    <SignedInFrame session={session}>
+      <main className="narrow" style={{ padding: '2.5rem 0 5rem' }}>
+        <h1>My reviews</h1>
         <p className="muted">Signed in as {session.user.email}. Reviews you were invited to give with this address appear here.</p>
         {q.isLoading && <Loading />}
         {q.error && <ErrorNotice error={q.error} />}
@@ -65,7 +60,11 @@ export default function MyReviews() {
           <div className="notice warn">Sign in with an email code or Google to confirm this address before we can show reviews linked to it.</div>
         )}
         {q.data?.emailVerified && q.data.reviews.length === 0 && (
-          <p className="notice">There are no review invitations for this address. If your invitation went to a different email, sign in with that one.</p>
+          <p className="notice">
+            {isAdmin || isOrganiser
+              ? 'You haven’t been invited to review a retreat with this address. Reviews you’re invited to give as a guest will appear here.'
+              : 'There are no review invitations for this address. If your invitation went to a different email, sign in with that one.'}
+          </p>
         )}
         <div className="stack" style={{ marginTop: '1.5rem' }}>
           {q.data?.reviews.map((r) => {
@@ -99,8 +98,8 @@ export default function MyReviews() {
             )
           })}
         </div>
-      </div>
-    </main>
+      </main>
+    </SignedInFrame>
   )
 }
 
@@ -110,5 +109,9 @@ export function MyReviewFlow() {
   const { session, loading, redirect } = useSignedIn()
   if (loading) return <Loading />
   if (!session) return redirect
-  return <ReviewFlow base={`/api/me/reviews/${attendeeId}`} viaSignIn />
+  return (
+    <SignedInFrame session={session}>
+      <ReviewFlow base={`/api/me/reviews/${attendeeId}`} viaSignIn />
+    </SignedInFrame>
+  )
 }
