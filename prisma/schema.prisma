@@ -281,6 +281,12 @@ model Retreat {
   writingSlideshowEnabled  Boolean @default(false)
   heroSlideshowEnabled     Boolean @default(true)
   showPublicRating         Boolean @default(false)
+  /// Itinerary retreats: a photo album unlocked for each guest once they send their review.
+  rewardAlbumEnabled       Boolean @default(false)
+  /// Optional link to the full album elsewhere (e.g. full-resolution photos), shown once unlocked.
+  rewardAlbumUrl           String?
+  /// Optional thank-you note shown with the album.
+  rewardAlbumNote          String  @default("")
   /// [{ key, label }] — private feedback categories for this retreat.
   feedbackCategories Json     @default("[]")
   /// Below this many submitted responses, aggregate scores are hidden to protect identities.
@@ -504,6 +510,8 @@ model PublicationRevision {
 enum MediaKind {
   guest
   organiser
+  /// Thank-you photo album (itinerary retreats): never public; only guests who sent a review can see it.
+  album
 }
 
 enum ModerationStatus {

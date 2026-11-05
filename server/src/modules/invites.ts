@@ -4,6 +4,7 @@ import { z } from 'zod'
 import type { Invitation, Prisma } from '@prisma/client'
 import { CONSENT_WORDING_VERSION, type FeedbackCategory } from '../../../shared/categories.js'
 import { firstName } from '../../../shared/slug.js'
+import { albumListing, albumSummary, sendAlbumPhoto, sendTeaser } from '../lib/album.js'
 import { altFor } from '../lib/altText.js'
 import { audit } from '../lib/audit.js'
 import { env } from '../lib/env.js'
@@ -154,7 +155,11 @@ async function draftView(r: Review, req: Request) {
       slideshow: slideshow.map((s) => ({ url: `/media/${s.id}`, alt: altFor(s), caption: s.caption })),
       // The organiser's published opening (the same words as the public page), shown on the welcome step.
       opening: await publishedContent(r.retreat.id).then((c) => c && { headline: c.headline, introParagraphs: c.introParagraphs }),
+      // Itinerary retreats: the thank-you photo album, teased before sending and unlocked after.
+      album: await albumSummary(r.retreat, r.response, req.baseUrl),
     },
+    // Property stays: the guest's own dates, prefilled by the organiser when known, editable by the guest.
+    stay: r.retreat.kind === 'property' ? { start: r.attendee.stayStart, end: r.attendee.stayEnd } : null,
     response: response && {
       status: response.status,
       revision: response.revision,
@@ -209,6 +214,7 @@ const draftSchema = z.object({
     .object({ publicText: z.boolean(), firstName: z.boolean(), followUp: z.boolean(), marketing: z.boolean() })
     .partial()
     .optional(),
+  stay: z.object({ start: z.iso.date().nullable(), end: z.iso.date().nullable() }).optional(),
 })
 
 function requireEditable(req: Request, res: Response) {
@@ -238,12 +244,20 @@ reviewRoutes.put(
     if (body.consents?.firstName !== undefined) data.consentFirstName = body.consents.firstName
     if (body.consents?.followUp !== undefined) data.consentFollowUp = body.consents.followUp
     if (body.consents?.marketing !== undefined) data.consentMarketing = body.consents.marketing
+    const stay = r.retreat.kind === 'property' && body.stay ? body.stay : null
+    if (stay?.start && stay.end && stay.end < stay.start) throw new HttpError(400, 'Check-out is before check-in', { stay: ['Check-out is before check-in'] })
 
     const saved = await prisma.$transaction(async (tx) => {
       // Optimistic concurrency: a stale tab cannot overwrite newer text from another device.
       const updated = await tx.response.updateMany({ where: { id: response.id, revision: body.revision }, data })
       if (updated.count === 0) {
         throw new HttpError(409, 'This response was updated somewhere else. Reload to see the latest version.', { conflict: true })
+      }
+      if (stay) {
+        await tx.attendee.update({
+          where: { id: r.attendee.id },
+          data: { stayStart: stay.start ? new Date(`${stay.start}T00:00:00Z`) : null, stayEnd: stay.end ? new Date(`${stay.end}T00:00:00Z`) : null },
+        })
       }
       for (const rating of body.ratings ?? []) {
         if (!keys.has(rating.categoryKey)) continue
@@ -333,6 +347,32 @@ reviewRoutes.delete(
 )
 
 /** The guest's own preview of their upload (private, never cached). */
+// ---- Thank-you photo album (unlocked by sending the review) ----
+
+reviewRoutes.get(
+  '/album',
+  route(async (req, res) => {
+    const r = current(res)
+    res.set('Cache-Control', 'no-store')
+    res.json(await albumListing(r.retreat, r.response, req.baseUrl))
+  }),
+)
+
+reviewRoutes.get(
+  '/album/teaser/:photoId',
+  route(async (req, res) => {
+    await sendTeaser(res, current(res).retreat, uuidParam(req, 'photoId'))
+  }),
+)
+
+reviewRoutes.get(
+  '/album/:photoId',
+  route(async (req, res) => {
+    const r = current(res)
+    await sendAlbumPhoto(res, r.retreat, r.response, uuidParam(req, 'photoId'))
+  }),
+)
+
 reviewRoutes.get(
   '/photos/:photoId/image',
   route(async (req, res) => {

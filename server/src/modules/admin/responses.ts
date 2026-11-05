@@ -83,8 +83,8 @@ responsesRouter.get(
     const r = await prisma.response.findFirst({
       where: { id, organisationId: t.org.id, status: { not: 'draft' } },
       include: {
-        attendee: { select: { name: true, email: true } },
-        retreat: { select: { id: true, title: true, slug: true, feedbackCategories: true } },
+        attendee: { select: { name: true, email: true, stayStart: true, stayEnd: true } },
+        retreat: { select: { id: true, title: true, slug: true, kind: true, feedbackCategories: true } },
         ratings: true,
         media: { where: { removedAt: null }, orderBy: { displayOrder: 'asc' } },
         consents: { orderBy: { createdAt: 'desc' } },
@@ -99,7 +99,11 @@ responsesRouter.get(
     res.json({
       id: r.id,
       retreat: { id: r.retreat.id, title: r.retreat.title, slug: r.retreat.slug },
-      attendee: { name: r.attendee.name, email: r.consentFollowUp ? r.attendee.email : null },
+      attendee: {
+        name: r.attendee.name,
+        email: r.consentFollowUp ? r.attendee.email : null,
+        stay: r.retreat.kind === 'property' ? { start: r.attendee.stayStart, end: r.attendee.stayEnd } : null,
+      },
       status: r.status,
       submittedAt: r.submittedAt,
       organiserMessage: r.organiserMessage,

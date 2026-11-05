@@ -9,7 +9,7 @@ import { SCALE_LABELS } from '../../../shared/categories'
 import { Field } from '../../components/Controls'
 import { ErrorNotice, Loading } from '../../components/States'
 import { AdminShell } from './AdminShell'
-import { fieldError, MutationError, orgKey, PublicationBadge, ResponseStatusBadge, YesNo } from './adminUi'
+import { fieldError, MutationError, orgKey, programmeDates, PublicationBadge, ResponseStatusBadge, YesNo } from './adminUi'
 import type { ResponseDetailData } from './types'
 
 const SCOPE_LABELS: Record<string, string> = {
@@ -67,6 +67,14 @@ function Detail({ orgSlug, r, refresh }: { orgSlug: string; r: ResponseDetailDat
           <h1 style={{ margin: 0 }}>{r.attendee.name}</h1>
           <p className="muted" style={{ margin: '0.25rem 0 0' }}>
             Submitted {formatDateTime(r.submittedAt)}
+            {r.attendee.stay && (
+              <>
+                {' · '}
+                {r.attendee.stay.start || r.attendee.stay.end
+                  ? `Stayed ${programmeDates(r.attendee.stay.start, r.attendee.stay.end)}`
+                  : 'Stay dates not given'}
+              </>
+            )}
           </p>
         </div>
         <div className="row">

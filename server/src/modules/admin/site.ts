@@ -183,8 +183,9 @@ siteRouter.get(
     const t = tenantOf(req)
     const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
     const media = await prisma.mediaAsset.findMany({
-      where: { organisationId: t.org.id, retreatId: retreat.id, kind: 'organiser', removedAt: null },
-      orderBy: { displayOrder: 'asc' },
+      // ?album=1 lists the thank-you album instead of the slideshow images.
+      where: { organisationId: t.org.id, retreatId: retreat.id, kind: req.query.album ? 'album' : 'organiser', removedAt: null },
+      orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
     })
     res.json({ media: media.map((m) => organiserMediaView(t.org.slug, m)) })
   }),
@@ -200,16 +201,18 @@ siteRouter.post(
     if (!req.file) throw new HttpError(400, 'Choose an image')
     const image = await processImage(req.file.buffer)
     const id = crypto.randomUUID()
-    const prefix = `org/${t.org.id}/retreat/${retreat.id}/organiser/${id}`
+    // ?album=1: a thank-you album photo (never public; only guests who sent a review can see it).
+    const kind = req.query.album ? 'album' : 'organiser'
+    const prefix = `org/${t.org.id}/retreat/${retreat.id}/${kind}/${id}`
     await storage.put(`${prefix}/original`, image.original, image.originalMime)
     await storage.put(`${prefix}/web.webp`, image.derivative, 'image/webp')
-    const count = await prisma.mediaAsset.count({ where: { retreatId: retreat.id, kind: 'organiser', removedAt: null } })
+    const count = await prisma.mediaAsset.count({ where: { retreatId: retreat.id, kind, removedAt: null } })
     const m = await prisma.mediaAsset.create({
       data: {
         id,
         organisationId: t.org.id,
         retreatId: retreat.id,
-        kind: 'organiser',
+        kind,
         originalKey: `${prefix}/original`,
         derivativeKey: `${prefix}/web.webp`,
         mime: image.originalMime,
@@ -217,9 +220,11 @@ siteRouter.post(
         width: image.width,
         height: image.height,
         displayOrder: count,
-        // Included in both slideshows by default; it only appears once it has alt text and confirmed permission.
-        inHeroSlideshow: true,
-        inWritingSlideshow: true,
+        // Slideshow images: included in both slideshows by default; shown once permission is confirmed.
+        // Album photos: never in a slideshow, and ready at once (they are only for guests who reviewed).
+        inHeroSlideshow: kind === 'organiser',
+        inWritingSlideshow: kind === 'organiser',
+        ...(kind === 'album' ? { moderation: 'approved' as const } : {}),
       },
     })
     await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'media.uploaded', entityType: 'media', entityId: m.id })
@@ -244,7 +249,13 @@ siteRouter.patch(
   route(async (req, res) => {
     const t = tenantOf(req)
     const media = await tenantMedia(t.org.id, uuidParam(req, 'mediaId'))
-    if (media.kind !== 'organiser') throw new HttpError(403, "Guest photos are changed only by the guest's own choices")
+    if (media.kind === 'guest') throw new HttpError(403, "Guest photos are changed only by the guest's own choices")
+    if (media.kind === 'album') {
+      // Album photos: only their caption, alt text and order change.
+      const body = parseBody(mediaPatch.pick({ altText: true, caption: true, displayOrder: true }), req.body)
+      const updated = await prisma.mediaAsset.update({ where: { id: media.id }, data: body })
+      return res.json({ media: organiserMediaView(t.org.slug, updated) })
+    }
     const body = parseBody(mediaPatch, req.body)
     const { rightsConfirmed, ...rest } = body
     const next = { ...media, ...rest, publishConsent: rightsConfirmed ?? media.publishConsent }
@@ -266,7 +277,7 @@ siteRouter.delete(
   route(async (req, res) => {
     const t = tenantOf(req)
     const media = await tenantMedia(t.org.id, uuidParam(req, 'mediaId'))
-    if (media.kind !== 'organiser') throw new HttpError(403, 'Guest photos cannot be deleted here')
+    if (media.kind === 'guest') throw new HttpError(403, 'Guest photos cannot be deleted here')
     await prisma.mediaAsset.update({ where: { id: media.id }, data: { removedAt: new Date(), inHeroSlideshow: false, inWritingSlideshow: false } })
     await Promise.all([storage.remove(media.originalKey), storage.remove(media.derivativeKey)]).catch(() => {})
     await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'media.removed', entityType: 'media', entityId: media.id })

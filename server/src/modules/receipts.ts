@@ -2,7 +2,8 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { CONSENT_WORDING_VERSION } from '../../../shared/categories.js'
 import { audit } from '../lib/audit.js'
-import { HttpError, parseBody, route, text } from '../lib/http.js'
+import { HttpError, parseBody, route, text, uuidParam } from '../lib/http.js'
+import { albumListing, albumSummary, sendAlbumPhoto } from '../lib/album.js'
 import { eraseAttendee, exportGuestData } from '../lib/gdpr.js'
 import { prisma } from '../lib/prisma.js'
 import { dropNameFromLive, dropPhotoFromLive, livePublication, takeDown } from '../lib/publication.js'
@@ -23,7 +24,20 @@ async function resolveReceipt(token: unknown) {
   const response = await prisma.response.findUnique({
     where: { receiptTokenHash: hashToken(token) },
     include: {
-      retreat: { select: { slug: true, title: true, organiserName: true, contactEmail: true, organisation: { select: { name: true, slug: true, privacyEmail: true } } } },
+      retreat: {
+        select: {
+          id: true,
+          slug: true,
+          kind: true,
+          title: true,
+          organiserName: true,
+          contactEmail: true,
+          rewardAlbumEnabled: true,
+          rewardAlbumUrl: true,
+          rewardAlbumNote: true,
+          organisation: { select: { name: true, slug: true, privacyEmail: true } },
+        },
+      },
       media: { where: { removedAt: null }, orderBy: { displayOrder: 'asc' } },
       changeRequests: { orderBy: { createdAt: 'desc' }, take: 10 },
     },
@@ -59,6 +73,7 @@ receiptsRouter.get(
       photos: response.media.map((m) => ({ id: m.id, caption: m.caption, publishConsent: m.publishConsent, published: Boolean(live?.photoIds.includes(m.id)) })),
       publication: { status: response.publicationStatus, url: live && response.publicSlug ? `/stories/${response.publicSlug}` : null },
       organiserMessage: response.organiserMessage,
+      album: await albumSummary(response.retreat, response, req.baseUrl + '/' + req.params.token),
       changeRequests: response.changeRequests.map((c) => ({ kind: c.kind, message: c.message, status: c.status, createdAt: c.createdAt })),
     })
   }),
@@ -84,6 +99,24 @@ receiptsRouter.post(
     parseBody(z.object({ confirm: z.literal('DELETE') }), req.body)
     await eraseAttendee({ organisationId: response.organisationId, attendeeId: response.attendeeId, actorKind: 'attendee', reason: 'guest request' })
     res.json({ ok: true })
+  }),
+)
+
+// Thank-you photo album, unlocked by having sent the review.
+receiptsRouter.get(
+  '/:token/album',
+  route(async (req, res) => {
+    const response = await resolveReceipt(req.params.token)
+    res.set('Cache-Control', 'no-store')
+    res.json(await albumListing(response.retreat, response, `${req.baseUrl}/${req.params.token}`))
+  }),
+)
+
+receiptsRouter.get(
+  '/:token/album/:photoId',
+  route(async (req, res) => {
+    const response = await resolveReceipt(req.params.token)
+    await sendAlbumPhoto(res, response.retreat, response, uuidParam(req, 'photoId'))
   }),
 )
 

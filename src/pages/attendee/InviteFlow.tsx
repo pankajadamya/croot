@@ -6,6 +6,7 @@ import { formatRange } from '../../lib/format'
 import { Field, RatingScale, Switch } from '../../components/Controls'
 import { LinkUnavailable, Loading } from '../../components/States'
 import { PhotoPanel } from './PhotoPanel'
+import { AlbumGallery, AlbumTeaser, type AlbumSummary } from '../../components/AlbumGallery'
 
 interface Rating {
   categoryKey: string
@@ -44,7 +45,9 @@ interface InviteView {
     privacyNoticePath: string
     slideshow: Array<{ url: string; alt: string; caption: string }>
     opening: { headline: string; introParagraphs: string[] } | null
+    album: AlbumSummary | null
   }
+  stay: { start: string | null; end: string | null } | null
   response: {
     status: 'draft' | 'submitted' | 'changes_requested' | 'withdrawn'
     revision: number
@@ -68,6 +71,8 @@ interface Draft {
   changeText: string
   consents: Consents
   ratings: Record<string, Rating>
+  /** Property stays only: check-in / check-out as YYYY-MM-DD ('' when not given). */
+  stay: { start: string; end: string }
 }
 
 const STEPS = ['Welcome', 'Your story', 'Private feedback', 'Anonymous note', 'Photos & permissions', 'Review & send'] as const
@@ -87,6 +92,7 @@ function emptyDraft(view: InviteView): Draft {
     changeText: r?.changeText ?? '',
     consents: r?.consents ?? { publicText: false, firstName: false, followUp: false, marketing: false },
     ratings,
+    stay: { start: view.stay?.start?.slice(0, 10) ?? '', end: view.stay?.end?.slice(0, 10) ?? '' },
   }
 }
 
@@ -148,6 +154,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
         keepText: draft.keepText,
         changeText: draft.changeText,
         consents: draft.consents,
+        ...(view.stay ? { stay: { start: draft.stay.start || null, end: draft.stay.end || null } } : {}),
         ratings: Object.values(draft.ratings),
       }
       dirty.current = false
@@ -286,6 +293,11 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
           {submitted ? (
             <>
               <p>Your response has been sent. You can view it, change your permissions or ask for an edit from your private response page.</p>
+              {view.retreat.album?.unlocked && (
+                <div style={{ margin: '1.5rem 0' }}>
+                  <AlbumGallery listingUrl={`${base}/album`} />
+                </div>
+              )}
               <div className="row">
                 <button className="btn" onClick={openReceipt}>
                   Open my private response page
@@ -414,6 +426,23 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                 We’d love to hear about your time {isProperty ? 'at' : 'on the'} {view.retreat.title}. It takes about seven minutes, and every question is
                 optional.
               </p>
+              {view.stay && (
+                <fieldset className="stay-dates">
+                  <legend>When did you stay?</legend>
+                  <p className="small muted" style={{ margin: '0 0 0.6rem' }}>
+                    {view.stay.start || view.stay.end ? 'Check these are right.' : 'So the team knows which stay you’re reviewing.'} Only the organisers see your dates.
+                  </p>
+                  <div className="row" style={{ alignItems: 'flex-end' }}>
+                    <Field id="stay-start" label="Check-in">
+                      <input id="stay-start" type="date" value={draft.stay.start} max={draft.stay.end || undefined} onChange={(e) => update({ stay: { ...draft.stay, start: e.target.value } })} />
+                    </Field>
+                    <Field id="stay-end" label="Check-out">
+                      <input id="stay-end" type="date" value={draft.stay.end} min={draft.stay.start || undefined} onChange={(e) => update({ stay: { ...draft.stay, end: e.target.value } })} />
+                    </Field>
+                  </div>
+                </fieldset>
+              )}
+              {view.retreat.album && !view.retreat.album.unlocked && <AlbumTeaser album={view.retreat.album} />}
               <ul className="muted">
                 <li>A story others could read, if you choose to share it</li>
                 <li>Private feedback for the organisers only</li>
@@ -616,6 +645,9 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                 <li>{c.followUp ? 'Happy to be contacted' : 'Not to be contacted'}</li>
                 <li>{photos.length} photo{photos.length === 1 ? '' : 's'} ({photos.filter((p) => p.publishConsent).length} with publishing permission)</li>
               </ul>
+              {view.retreat.album && !view.retreat.album.unlocked && (
+                <p className="notice ok small">Sending unlocks the retreat photo album, our thank-you whatever you choose to share.</p>
+              )}
               {submitError && <div className="notice error" role="alert">{submitError}</div>}
               <div className="flow-actions">
                 <button className="btn secondary" onClick={() => goTo(4)}>

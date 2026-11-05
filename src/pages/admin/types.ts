@@ -31,6 +31,9 @@ export interface Retreat {
   writingSlideshowEnabled: boolean
   heroSlideshowEnabled: boolean
   showPublicRating: boolean
+  rewardAlbumEnabled: boolean
+  rewardAlbumUrl: string | null
+  rewardAlbumNote: string
   feedbackCategories: FeedbackCategory[]
   aggregateThreshold: number
   createdAt: string
@@ -119,7 +122,7 @@ export interface ResponseListItem {
 export interface ResponseDetailData {
   id: string
   retreat: { id: string; title: string; slug: string }
-  attendee: { name: string; email: string | null }
+  attendee: { name: string; email: string | null; stay: { start: string | null; end: string | null } | null }
   status: ResponseStatus
   submittedAt: string | null
   organiserMessage: string | null

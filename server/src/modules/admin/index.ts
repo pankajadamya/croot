@@ -100,6 +100,9 @@ const retreatSchema = z.object({
   writingSlideshowEnabled: z.boolean().optional(),
   heroSlideshowEnabled: z.boolean().optional(),
   showPublicRating: z.boolean().optional(),
+  rewardAlbumEnabled: z.boolean().optional(),
+  rewardAlbumUrl: z.url().max(500).nullable().optional().or(z.literal('').transform(() => null)),
+  rewardAlbumNote: text(600).optional(),
   aggregateThreshold: z.number().int().min(3).max(50).optional(),
   feedbackCategories: z.array(categorySchema).max(20).optional(),
 })

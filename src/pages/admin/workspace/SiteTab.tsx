@@ -8,6 +8,7 @@ import { ThemeScope } from '../../../components/ThemeScope'
 import { fieldError, fromLocalInput, MutationError, toLocalInput } from '../adminUi'
 import type { ContentRevision, OrganiserMedia, Retreat } from '../types'
 import { useRetreatTheme } from './AppearanceTab'
+import { AlbumSection } from './AlbumSection'
 import { MediaEditor } from './MediaEditor'
 import { SlideshowSettings } from './SlideshowSettings'
 
@@ -27,6 +28,7 @@ export function SiteTab({ orgSlug, retreat }: { orgSlug: string; retreat: Retrea
       {content.error && <ErrorNotice error={content.error} />}
       {content.data && <OpeningEditor key={content.data.draft?.id ?? 'new'} orgSlug={orgSlug} retreat={retreat} state={content.data} />}
       <ImageLibrary orgSlug={orgSlug} retreat={retreat} />
+      {retreat.kind === 'itinerary' && <AlbumSection orgSlug={orgSlug} retreat={retreat} />}
     </div>
   )
 }

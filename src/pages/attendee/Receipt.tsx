@@ -5,6 +5,7 @@ import { ApiError, get, post } from '../../lib/api'
 import { formatDate } from '../../lib/format'
 import { Field } from '../../components/Controls'
 import { LinkUnavailable, Loading } from '../../components/States'
+import { AlbumGallery, type AlbumSummary } from '../../components/AlbumGallery'
 
 interface ReceiptView {
   retreat: { title: string; organiserName: string; organisationName: string; contactEmail: string | null; privacyNoticePath: string }
@@ -17,6 +18,7 @@ interface ReceiptView {
   publication: { status: 'none' | 'published' | 'unpublished' | 'withdrawn'; url: string | null }
   organiserMessage: string | null
   changeRequests: Array<{ kind: 'edit' | 'withdraw'; message: string; status: 'open' | 'resolved'; createdAt: string }>
+  album: AlbumSummary | null
 }
 
 const PUBLICATION_LABEL: Record<ReceiptView['publication']['status'], string> = {
@@ -120,6 +122,8 @@ export default function Receipt() {
             Open your original invitation link to update your response.
           </div>
         )}
+
+        {d.album?.unlocked && <AlbumGallery listingUrl={`${base}/album`} />}
 
         <section className="card">
           <div className="spread">
