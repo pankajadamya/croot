@@ -1154,3 +1154,13 @@ table.data th {
   background: var(--accent);
   border-radius: 2px;
 }
+
+/* ---------- legal pages ---------- */
+
+.legal h2 {
+  font-size: 1.35rem;
+  margin-top: 2.25rem;
+}
+.legal li {
+  margin-bottom: 0.4rem;
+}

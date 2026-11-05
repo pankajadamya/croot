@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import type { PublicationRevision } from '@prisma/client'
+import { PROCESSING_TERMS_VERSION } from '../../../shared/legal.js'
 import { audit } from '../lib/audit.js'
 import { HttpError, param, parseBody, route, text, uuidParam } from '../lib/http.js'
 import { prisma } from '../lib/prisma.js'
@@ -134,6 +135,45 @@ publicRouter.get(
 )
 
 // ---------------------------------------------------------------------------------------------
+// Privacy notice (GDPR Arts. 13/14), generated from the controller's own settings.
+
+publicRouter.get(
+  '/orgs/:orgSlug/privacy',
+  route(async (req, res) => {
+    const slug = param(req, 'orgSlug')
+    const org = await prisma.organisation.findUnique({
+      where: { slug },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        legalName: true,
+        legalAddress: true,
+        privacyEmail: true,
+        contactEmail: true,
+        dpoContact: true,
+        websiteUrl: true,
+        draftRetentionDays: true,
+        nonResponderRetentionDays: true,
+        responseRetentionMonths: true,
+        originalPhotoRetentionDays: true,
+        anonymousNoteRetentionMonths: true,
+        updatedAt: true,
+      },
+    })
+    if (!org || org.status !== 'active') throw new HttpError(404, 'Not found')
+    const programmes = await prisma.retreat.findMany({
+      where: { organisationId: org.id, status: { not: 'draft' } },
+      select: { slug: true, title: true, kind: true, privacyUrl: true },
+      orderBy: { createdAt: 'asc' },
+    })
+    const { id: _id, status: _s, ...notice } = org
+    res.set('Cache-Control', 'public, max-age=300')
+    res.json({ controller: notice, programmes, platformPrivacyPath: '/legal/privacy' })
+  }),
+)
+
+// ---------------------------------------------------------------------------------------------
 // Anonymous notes: a separate path with no invite token, cookie, session or attendee key.
 
 publicRouter.get(
@@ -183,14 +223,17 @@ const tenantRequestSchema = z.object({
   websiteUrl: z.url().max(300).optional().or(z.literal('').transform(() => undefined)),
   message: text(2000).optional(),
   reviewKinds: z.array(z.enum(['itinerary', 'property'])).min(1, 'Choose at least one').max(2).default(['itinerary']),
+  acceptTerms: z.literal(true, { error: 'Please confirm you have read the privacy notice and processing terms' }),
 })
 
 publicRouter.post(
   '/tenant-requests',
   publicFormLimiter,
   route(async (req, res) => {
-    const body = parseBody(tenantRequestSchema, req.body)
-    const created = await prisma.tenantRequest.create({ data: { ...body, reviewKinds: [...new Set(body.reviewKinds)], email: body.email.toLowerCase() } })
+    const { acceptTerms: _accepted, ...body } = parseBody(tenantRequestSchema, req.body)
+    const created = await prisma.tenantRequest.create({
+      data: { ...body, reviewKinds: [...new Set(body.reviewKinds)], email: body.email.toLowerCase(), termsVersion: PROCESSING_TERMS_VERSION },
+    })
     await audit({ actorKind: 'system', action: 'tenant_request.created', entityType: 'tenant_request', entityId: created.id })
     res.status(201).json({ ok: true })
   }),

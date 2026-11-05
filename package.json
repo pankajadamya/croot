@@ -19,7 +19,8 @@
     "build": "prisma generate && tsc -b && vite build",
     "start": "prisma migrate deploy && NODE_ENV=production tsx server/src/index.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "retention": "tsx server/src/jobs/runRetention.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1079.0",

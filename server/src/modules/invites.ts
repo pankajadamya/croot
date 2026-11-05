@@ -60,6 +60,7 @@ async function draftView(r: ResolvedInvite) {
       privacyUrl: r.retreat.privacyUrl,
       // The anonymous page is addressed by public slugs only: no token or attendee key crosses over.
       anonymousPath: `/o/${r.retreat.organisation.slug}/r/${r.retreat.slug}/anonymous`,
+      privacyNoticePath: `/o/${r.retreat.organisation.slug}/privacy?programme=${r.retreat.slug}`,
       slideshow: slideshow.map((s) => ({ url: `/media/${s.id}`, alt: s.altText, caption: s.caption })),
     },
     response: response && {

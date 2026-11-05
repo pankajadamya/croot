@@ -7,7 +7,7 @@ import { Field } from '../../components/Controls'
 import { LinkUnavailable, Loading } from '../../components/States'
 
 interface ReceiptView {
-  retreat: { title: string; organiserName: string; organisationName: string; contactEmail: string | null }
+  retreat: { title: string; organiserName: string; organisationName: string; contactEmail: string | null; privacyNoticePath: string }
   status: 'draft' | 'submitted' | 'changes_requested' | 'withdrawn'
   submittedAt: string | null
   storyText: string
@@ -37,6 +37,8 @@ export default function Receipt() {
   const [notice, setNotice] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const [requestText, setRequestText] = useState('')
   const [busy, setBusy] = useState(false)
+  const [erased, setErased] = useState(false)
+  const [confirmText, setConfirmText] = useState('')
 
   async function withdraw(body: { scope: string; photoId?: string }, confirmText: string) {
     if (!window.confirm(confirmText)) return
@@ -66,6 +68,31 @@ export default function Receipt() {
     }
   }
 
+  async function eraseEverything() {
+    setBusy(true)
+    try {
+      await post(`${base}/erase`, { confirm: 'DELETE' })
+      setErased(true)
+    } catch (e) {
+      setNotice({ kind: 'error', text: e instanceof ApiError ? e.message : 'Something went wrong' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (erased)
+    return (
+      <main className="calm">
+        <div className="narrow" style={{ padding: '4rem 0' }} role="status">
+          <h1>Your information has been deleted</h1>
+          <p>
+            Your invitation, response, private feedback, photos and permissions have been erased, and anything published has been taken down. This
+            link no longer works.
+          </p>
+          <p className="small muted">Anonymous notes can’t be linked to you, so they are not affected.</p>
+        </div>
+      </main>
+    )
   if (q.isLoading) return <Loading />
   if (q.error) return <LinkUnavailable message={(q.error as Error).message} />
   const d = q.data!
@@ -162,6 +189,36 @@ export default function Receipt() {
               ))}
             </ul>
           )}
+        </section>
+        <section className="card" aria-labelledby="your-data">
+          <h2 id="your-data" style={{ fontSize: '1.3rem' }}>
+            Your data
+          </h2>
+          <p className="small muted">
+            You have the right to a copy of your information and to have it deleted.{' '}
+            <a href={d.retreat.privacyNoticePath} target="_blank" rel="noopener noreferrer">
+              Read the privacy notice
+            </a>
+            .
+          </p>
+          <a className="btn secondary" href={`${base}/export`} download>
+            Download my data (JSON)
+          </a>
+          <details style={{ marginTop: '1.25rem' }}>
+            <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Delete everything</summary>
+            <div className="stack" style={{ marginTop: '0.75rem' }}>
+              <p>
+                This permanently deletes your invitation, story, private feedback, photos and permissions, and takes down anything published. It can’t
+                be undone, and this page will stop working.
+              </p>
+              <Field id="confirm-delete" label="Type DELETE to confirm">
+                <input id="confirm-delete" type="text" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} autoComplete="off" />
+              </Field>
+              <button className="btn danger" disabled={busy || confirmText !== 'DELETE'} onClick={eraseEverything}>
+                Permanently delete my information
+              </button>
+            </div>
+          </details>
         </section>
         {d.retreat.contactEmail && (
           <p className="small muted">

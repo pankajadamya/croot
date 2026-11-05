@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { CONSENT_WORDING_VERSION } from '../../../shared/categories.js'
 import { audit } from '../lib/audit.js'
 import { HttpError, parseBody, route, text } from '../lib/http.js'
+import { eraseAttendee, exportGuestData } from '../lib/gdpr.js'
 import { prisma } from '../lib/prisma.js'
 import { dropNameFromLive, dropPhotoFromLive, livePublication, takeDown } from '../lib/publication.js'
 import { hashToken, looksLikeToken } from '../lib/tokens.js'
@@ -22,7 +23,7 @@ async function resolveReceipt(token: unknown) {
   const response = await prisma.response.findUnique({
     where: { receiptTokenHash: hashToken(token) },
     include: {
-      retreat: { select: { title: true, organiserName: true, contactEmail: true, organisation: { select: { name: true } } } },
+      retreat: { select: { slug: true, title: true, organiserName: true, contactEmail: true, organisation: { select: { name: true, slug: true, privacyEmail: true } } } },
       media: { where: { removedAt: null }, orderBy: { displayOrder: 'asc' } },
       changeRequests: { orderBy: { createdAt: 'desc' }, take: 10 },
     },
@@ -38,7 +39,13 @@ receiptsRouter.get(
     const live = await livePublication(response.id)
     res.set('Cache-Control', 'no-store')
     res.json({
-      retreat: { title: response.retreat.title, organiserName: response.retreat.organiserName, organisationName: response.retreat.organisation.name, contactEmail: response.retreat.contactEmail },
+      retreat: {
+        title: response.retreat.title,
+        organiserName: response.retreat.organiserName,
+        organisationName: response.retreat.organisation.name,
+        contactEmail: response.retreat.organisation.privacyEmail || response.retreat.contactEmail,
+        privacyNoticePath: `/o/${response.retreat.organisation.slug}/privacy?programme=${response.retreat.slug}`,
+      },
       status: response.status,
       submittedAt: response.submittedAt,
       storyText: response.storyText,
@@ -54,6 +61,29 @@ receiptsRouter.get(
       organiserMessage: response.organiserMessage,
       changeRequests: response.changeRequests.map((c) => ({ kind: c.kind, message: c.message, status: c.status, createdAt: c.createdAt })),
     })
+  }),
+)
+
+/** Right of access and portability (Arts. 15, 20): the guest's own data as a JSON download. */
+receiptsRouter.get(
+  '/:token/export',
+  route(async (req, res) => {
+    const response = await resolveReceipt(req.params.token)
+    const data = await exportGuestData(response.organisationId, response.attendeeId)
+    await audit({ organisationId: response.organisationId, actorKind: 'attendee', action: 'guest.exported_own_data', entityType: 'response', entityId: response.id })
+    res.set({ 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': 'attachment; filename="my-retreat-review-data.json"', 'Cache-Control': 'no-store' })
+    res.send(JSON.stringify(data, null, 2))
+  }),
+)
+
+/** Right to erasure (Art. 17): self-service, immediate, irreversible. */
+receiptsRouter.post(
+  '/:token/erase',
+  route(async (req, res) => {
+    const response = await resolveReceipt(req.params.token)
+    parseBody(z.object({ confirm: z.literal('DELETE') }), req.body)
+    await eraseAttendee({ organisationId: response.organisationId, attendeeId: response.attendeeId, actorKind: 'attendee', reason: 'guest request' })
+    res.json({ ok: true })
   }),
 )
 

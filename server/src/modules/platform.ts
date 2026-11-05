@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { RESERVED_ORG_SLUGS, slugify } from '../../../shared/slug.js'
 import { audit } from '../lib/audit.js'
+import { eraseOrganisation } from '../lib/gdpr.js'
 import { env } from '../lib/env.js'
 import { HttpError, parseBody, route, text, uuidParam } from '../lib/http.js'
 import { prisma } from '../lib/prisma.js'
@@ -49,7 +50,8 @@ platformRouter.post(
 
     const { org, user } = await prisma.$transaction(async (tx) => {
       const org = await tx.organisation.create({
-        data: { slug, name: request.orgName, contactEmail: request.email, websiteUrl: request.websiteUrl },
+        // The requester's acknowledgement of the processing terms carries over; the owner confirms it again in their workspace.
+        data: { slug, name: request.orgName, contactEmail: request.email, websiteUrl: request.websiteUrl, dpaVersion: request.termsVersion, dpaAcceptedAt: request.termsVersion ? request.createdAt : null },
       })
       const user =
         (await tx.user.findUnique({ where: { email: request.email } })) ??
@@ -126,6 +128,23 @@ platformRouter.post(
     const body = parseBody(z.object({ status: z.enum(['active', 'suspended']) }), req.body)
     await prisma.organisation.update({ where: { id }, data: { status: body.status } })
     await audit({ organisationId: id, actorUserId: req.auth!.user.id, actorKind: 'platform', action: `tenant.${body.status}`, entityType: 'organisation', entityId: id })
+    res.json({ ok: true })
+  }),
+)
+
+/**
+ * End of service: deletes the organisation, all guest data and files (Art. 28(3)(g)). The owner
+ * should be offered their export first. The confirmation must repeat the organisation's slug.
+ */
+platformRouter.post(
+  '/orgs/:id/erase',
+  route(async (req, res) => {
+    const id = uuidParam(req, 'id')
+    const body = parseBody(z.object({ confirmSlug: z.string() }), req.body)
+    const org = await prisma.organisation.findUnique({ where: { id }, select: { slug: true } })
+    if (!org) throw new HttpError(404, 'Not found')
+    if (body.confirmSlug !== org.slug) throw new HttpError(400, 'Type the organisation’s slug exactly to confirm')
+    await eraseOrganisation(id, req.auth!.user.id)
     res.json({ ok: true })
   }),
 )

@@ -125,7 +125,7 @@ export default function StoryPage() {
           </Link>
         </section>
       </main>
-      <SiteFooter retreat={retreat} />
+      <SiteFooter retreat={retreat} orgSlug={org.slug} />
     </ThemeScope>
   )
 }

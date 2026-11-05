@@ -44,6 +44,32 @@ model Organisation {
   status       OrganisationStatus @default(active)
   contactEmail String?
   websiteUrl   String?
+
+  // GDPR: the organisation is the data controller for its guests' data; croot is its processor.
+  /// Registered legal name of the controller, shown in privacy notices.
+  legalName           String?
+  /// Postal address of the controller (Art. 13(1)(a)).
+  legalAddress        String?
+  /// Where guests send privacy requests. Falls back to contactEmail.
+  privacyEmail        String?
+  /// Data protection officer or EU/UK representative contact, if appointed.
+  dpoContact          String?
+  /// Processing terms (DPA) version the owner accepted, and when.
+  dpaVersion          String?
+  dpaAcceptedAt       DateTime?
+
+  // Retention (enforced by server/src/jobs/retention.ts).
+  /// Unsubmitted drafts are deleted this many days after their last change.
+  draftRetentionDays          Int @default(90)
+  /// Guests who never responded are deleted this many days after the programme ends (or after import for properties).
+  nonResponderRetentionDays   Int @default(180)
+  /// Submitted responses: private feedback is deleted after this many months. Unpublished responses are deleted entirely.
+  responseRetentionMonths     Int @default(24)
+  /// Original uploads are deleted this many days after submission; only metadata-stripped copies remain.
+  originalPhotoRetentionDays  Int @default(30)
+  anonymousNoteRetentionMonths Int @default(24)
+  auditRetentionMonths        Int @default(36)
+
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
 
@@ -73,6 +99,8 @@ model TenantRequest {
   message        String?
   /// Which review types the owner wants: itinerary and/or property.
   reviewKinds    ReviewKind[]        @default([])
+  /// Version of the platform privacy notice and processing terms the requester acknowledged.
+  termsVersion   String?
   status         TenantRequestStatus @default(pending)
   reviewedById   String?             @db.Uuid
   reviewedAt     DateTime?
@@ -290,6 +318,8 @@ model Response {
   consentWordingVersion String?
 
   submittedAt      DateTime?
+  /// Set when private feedback was deleted under the retention policy.
+  privateDataPurgedAt DateTime?
   /// The guest's words exactly as submitted — organisers can never overwrite this.
   submittedSnapshot Json?
   receiptTokenHash String?      @unique
@@ -443,6 +473,8 @@ model MediaAsset {
   inHeroSlideshow    Boolean      @default(false)
   inWritingSlideshow Boolean      @default(false)
   removedAt      DateTime?
+  /// When the private original was deleted under the retention policy (originalKey is then stale).
+  originalPurgedAt DateTime?
   createdAt      DateTime         @default(now())
 
   retreat  Retreat   @relation(fields: [retreatId], references: [id], onDelete: Cascade)

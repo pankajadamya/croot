@@ -1,8 +1,11 @@
 import { createApp } from './app.js'
 import { env } from './lib/env.js'
 import { closeDatabase } from './lib/prisma.js'
+import { scheduleRetention } from './jobs/retention.js'
 
 const app = createApp()
+// Retention runs in-process every 6 hours (advisory-locked, so several instances are safe).
+if (env.NODE_ENV !== 'test') scheduleRetention()
 const server = app.listen(env.PORT, () => {
   console.log(`croot API listening on :${env.PORT} (${env.NODE_ENV})`)
 })

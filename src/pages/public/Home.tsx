@@ -63,6 +63,7 @@ const COMPARISON: Array<[string, string, string]> = [
 ]
 
 function Landing() {
+  const [preselect, setPreselect] = useState<ReviewKind | null>(null)
   return (
     <div className="calm landing">
       <a href="#request" className="skip-link">
@@ -116,7 +117,7 @@ function Landing() {
                   ))}
                 </ul>
                 <p className="small muted">Ideal for: {t.who}</p>
-                <a className="btn secondary" href={`#request`} onClick={() => sessionStorage.setItem('croot-kind', t.kind)}>
+                <a className="btn secondary" href="#request" onClick={() => setPreselect(t.kind)}>
                   Get started with {t.title.toLowerCase()}
                 </a>
               </article>
@@ -192,33 +193,29 @@ function Landing() {
         </section>
 
         <section id="request" className="narrow" style={{ padding: '4rem 0' }}>
-          <RequestAccess />
+          <RequestAccess key={preselect ?? 'none'} preselect={preselect} />
         </section>
       </main>
 
       <footer className="site-footer">
         <div className="container spread small muted">
           <span>croot · retreat stories, shared with permission</span>
-          <Link to="/admin">Organiser sign in</Link>
+          <nav className="row" aria-label="Legal">
+            <Link to="/legal/privacy">Privacy</Link>
+            <Link to="/legal/terms">Data processing terms</Link>
+            <Link to="/legal/cookies">Cookies</Link>
+            <Link to="/admin">Organiser sign in</Link>
+          </nav>
         </div>
       </footer>
     </div>
   )
 }
 
-function initialKinds(): ReviewKind[] {
-  try {
-    const k = sessionStorage.getItem('croot-kind')
-    if (k === 'itinerary' || k === 'property') return [k]
-  } catch {
-    /* storage unavailable */
-  }
-  return []
-}
-
-function RequestAccess() {
+function RequestAccess({ preselect }: { preselect: ReviewKind | null }) {
   const [form, setForm] = useState({ orgName: '', contactName: '', email: '', websiteUrl: '', message: '' })
-  const [kinds, setKinds] = useState<ReviewKind[]>(initialKinds)
+  const [kinds, setKinds] = useState<ReviewKind[]>(preselect ? [preselect] : [])
+  const [accepted, setAccepted] = useState(false)
   const [errors, setErrors] = useState<Record<string, string[] | undefined>>({})
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
   const [message, setMessage] = useState('')
@@ -234,7 +231,7 @@ function RequestAccess() {
     setState('sending')
     setErrors({})
     try {
-      await post('/api/public/tenant-requests', { ...form, reviewKinds: kinds })
+      await post('/api/public/tenant-requests', { ...form, reviewKinds: kinds, acceptTerms: accepted || undefined })
       setState('sent')
     } catch (err) {
       setState('error')
@@ -299,6 +296,16 @@ function RequestAccess() {
       <Field id="message" label="Anything else? (optional)" hint="For example, how many retreats or rooms you run.">
         <textarea id="message" value={form.message} onChange={set('message')} style={{ minHeight: '6rem' }} />
       </Field>
+      <div className="field">
+        <label className="kind-choice" style={{ fontWeight: 400 }}>
+          <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} aria-invalid={Boolean(errors.acceptTerms)} />
+          <span>
+            I’ve read the <Link to="/legal/privacy" target="_blank">privacy notice</Link>, which explains how we use the details in this form, and the{' '}
+            <Link to="/legal/terms" target="_blank">data processing terms</Link> that will apply to my guests’ data.
+          </span>
+        </label>
+        {errors.acceptTerms && <span className="error">{errors.acceptTerms[0]}</span>}
+      </div>
       <button className="btn" disabled={state === 'sending'}>
         {state === 'sending' ? 'Sending…' : 'Send request'}
       </button>

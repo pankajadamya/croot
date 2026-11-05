@@ -57,6 +57,7 @@ export function AdminShell({ orgSlug, children }: { orgSlug?: string; children: 
                   Programmes
                 </NavLink>
                 <NavLink to={`/admin/${orgSlug}/team`}>Team</NavLink>
+                <NavLink to={`/admin/${orgSlug}/privacy`}>Privacy</NavLink>
                 <NavLink to={`/admin/${orgSlug}/audit`}>Audit log</NavLink>
               </>
             )}

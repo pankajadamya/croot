@@ -11,6 +11,7 @@ import { tenantRetreat } from '../../lib/tenant.js'
 import { requireCsrf, requireOrgMember, requireOwner, tenantOf } from '../../middleware/auth.js'
 import { issueSetupToken } from '../auth.js'
 import { attendeesRouter } from './attendees.js'
+import { privacyRouter } from './privacy.js'
 import { responsesRouter } from './responses.js'
 import { siteRouter } from './site.js'
 
@@ -20,7 +21,7 @@ import { siteRouter } from './site.js'
  */
 export const adminRouter = Router({ mergeParams: true })
 adminRouter.use(requireOrgMember, requireCsrf)
-adminRouter.use(attendeesRouter, responsesRouter, siteRouter)
+adminRouter.use(attendeesRouter, responsesRouter, siteRouter, privacyRouter)
 
 adminRouter.get(
   '/',

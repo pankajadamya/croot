@@ -1,6 +1,8 @@
 import type { NextFunction, Request, Response } from 'express'
 import type { MemberRole, Organisation, User } from '@prisma/client'
+import { audit } from '../lib/audit.js'
 import { env, isProduction } from '../lib/env.js'
+import { redactPath } from '../lib/logger.js'
 import { HttpError } from '../lib/http.js'
 import { prisma } from '../lib/prisma.js'
 import { hashToken, newToken, safeEqual } from '../lib/tokens.js'
@@ -117,6 +119,18 @@ export async function requireOrgMember(req: Request, _res: Response, next: NextF
     return next(new HttpError(403, 'This organisation is suspended'))
   }
   req.tenant = { org, role: membership?.role ?? 'platform' }
+  if (!membership) {
+    // Processor access to a controller's data is always recorded (GDPR Art. 28(3)(h) accountability).
+    await audit({
+      organisationId: org.id,
+      actorUserId: req.auth.user.id,
+      actorKind: 'platform',
+      action: 'platform.tenant_access',
+      entityType: 'organisation',
+      entityId: org.id,
+      metadata: { method: req.method, path: redactPath(req.originalUrl) },
+    })
+  }
   next()
 }
 

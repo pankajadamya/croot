@@ -8,6 +8,9 @@ const OrgHome = lazy(() => import('./pages/public/OrgHome'))
 const RetreatLanding = lazy(() => import('./pages/public/RetreatLanding'))
 const StoryPage = lazy(() => import('./pages/public/StoryPage'))
 const AnonymousNote = lazy(() => import('./pages/public/AnonymousNote'))
+const PrivacyNotice = lazy(() => import('./pages/public/PrivacyNotice'))
+const Legal = lazy(() => import('./pages/public/Legal'))
+const AdminPrivacy = lazy(() => import('./pages/admin/Privacy'))
 const InviteFlow = lazy(() => import('./pages/attendee/InviteFlow'))
 const Receipt = lazy(() => import('./pages/attendee/Receipt'))
 
@@ -31,6 +34,8 @@ export function App() {
         <Route path="/o/:orgSlug/r/:retreatSlug" element={<RetreatLanding />} />
         <Route path="/o/:orgSlug/r/:retreatSlug/anonymous" element={<AnonymousNote />} />
         <Route path="/stories/:slug" element={<StoryPage />} />
+        <Route path="/o/:orgSlug/privacy" element={<PrivacyNotice />} />
+        <Route path="/legal/:doc" element={<Legal />} />
 
         <Route path="/invite/:token" element={<InviteFlow />} />
         <Route path="/response/:token" element={<Receipt />} />
@@ -45,6 +50,7 @@ export function App() {
         <Route path="/admin/:orgSlug/responses/:responseId" element={<ResponseDetail />} />
         <Route path="/admin/:orgSlug/team" element={<Team />} />
         <Route path="/admin/:orgSlug/audit" element={<Audit />} />
+        <Route path="/admin/:orgSlug/privacy" element={<AdminPrivacy />} />
         <Route path="/platform" element={<PlatformConsole />} />
 
         <Route path="*" element={<NotFound />} />

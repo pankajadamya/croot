@@ -206,11 +206,15 @@ function Tenants() {
     mutationFn: (v: { orgId: string; domainId: string }) => del(`/api/platform/orgs/${v.orgId}/domains/${v.domainId}`),
     onSuccess: refresh,
   })
+  const erase = useMutation({
+    mutationFn: (v: { id: string; confirmSlug: string }) => post(`/api/platform/orgs/${v.id}/erase`, { confirmSlug: v.confirmSlug }),
+    onSuccess: refresh,
+  })
 
   return (
     <section className="card" aria-labelledby="pf-tenants">
       <h2 id="pf-tenants">Tenants</h2>
-      <MutationError error={setStatus.error || removeDomain.error} />
+      <MutationError error={setStatus.error || removeDomain.error || erase.error} />
       {orgs.isLoading && <Loading />}
       {orgs.error && <ErrorNotice error={orgs.error} />}
       {orgs.data && orgs.data.length === 0 && <p className="muted">No tenants yet.</p>}
@@ -249,6 +253,19 @@ function Tenants() {
                         }}
                       >
                         {o.status === 'active' ? 'Suspend' : 'Reactivate'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn ghost small"
+                        disabled={erase.isPending}
+                        onClick={() => {
+                          const typed = window.prompt(
+                            `Permanently delete ${o.name} and ALL of its guests' data and photos? Offer the owner their export first. This cannot be undone.\n\nType the slug "${o.slug}" to confirm:`,
+                          )
+                          if (typed !== null) erase.mutate({ id: o.id, confirmSlug: typed })
+                        }}
+                      >
+                        Delete organisation…
                       </button>
                     </div>
                   </td>

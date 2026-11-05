@@ -51,6 +51,16 @@ One Node process serves the API and the built SPA (Dockerfile → Coolify on OVH
   stored with the week only, no audit row.
 - Organisers can't edit guest words; they "request changes" and the guest resubmits.
 
+## GDPR
+
+See [docs/gdpr.md](docs/gdpr.md) for roles, the record of processing, lawful bases, retention, rights
+procedures and the open actions before launch. In short:
+
+- A generated privacy notice for each organisation at `/o/:orgSlug/privacy`, plus platform legal drafts at `/legal/*`.
+- Guests can download or delete their data from their receipt page. Owners handle requests under **Workspace → Privacy**.
+- Per-organisation retention periods, enforced by `server/src/jobs/retention.ts` (every 6 h, or `npm run retention`).
+- Processing-terms acceptance, audited platform-admin access, and organisation export and deletion.
+
 ## Local development
 
 No Docker needed. An embedded Postgres (PGlite) runs on port 6432:

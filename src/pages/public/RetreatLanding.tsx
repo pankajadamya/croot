@@ -28,17 +28,14 @@ export function SiteHeader({ org }: { org: { slug: string; name: string } }) {
   )
 }
 
-export function SiteFooter({ retreat }: { retreat: RetreatFacts }) {
+export function SiteFooter({ retreat, orgSlug }: { retreat: RetreatFacts; orgSlug: string }) {
   return (
     <footer className="site-footer">
       <div className="container spread small muted">
         <span>Stories are published with each guest’s permission and are shown exactly as they wrote them.</span>
         <span className="row">
-          {retreat.privacyUrl && (
-            <a href={retreat.privacyUrl} target="_blank" rel="noopener noreferrer">
-              Privacy
-            </a>
-          )}
+          <Link to={`/o/${orgSlug}/privacy?programme=${retreat.slug}`}>Privacy</Link>
+          <Link to="/legal/cookies">Cookies</Link>
           <span>Powered by croot</span>
         </span>
       </div>
@@ -143,7 +140,7 @@ export default function RetreatLanding() {
           </section>
         )}
       </main>
-      <SiteFooter retreat={d.retreat} />
+      <SiteFooter retreat={d.retreat} orgSlug={d.org.slug} />
     </ThemeScope>
   )
 }

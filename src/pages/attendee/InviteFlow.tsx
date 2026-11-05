@@ -39,6 +39,7 @@ interface InviteView {
     categories: FeedbackCategory[]
     privacyUrl: string | null
     anonymousPath: string
+    privacyNoticePath: string
     slideshow: Array<{ url: string; alt: string; caption: string }>
   }
   response: {
@@ -329,7 +330,14 @@ export default function InviteFlow() {
                 <li>An optional anonymous note, sent separately</li>
                 <li>Photos, only with your permission for each one</li>
               </ul>
-              <p className="small muted">Your answers save as you go, so you can come back to this link on any device.</p>
+              <p className="small muted">
+                Your answers save as you go, so you can come back to this link on any device. Read how {view.retreat.organisationName} uses your
+                information in the{' '}
+                <a href={view.retreat.privacyNoticePath} target="_blank" rel="noopener noreferrer">
+                  privacy notice
+                </a>
+                .
+              </p>
               <div className="flow-actions">
                 <span />
                 <button className="btn" onClick={() => goTo(1)}>
@@ -447,7 +455,13 @@ export default function InviteFlow() {
               <h1 id="step-heading" ref={headingRef} tabIndex={-1}>
                 Photos and permissions
               </h1>
-              <p className="muted">Everything starts switched off. Each choice is separate, and declining any of them never affects your private feedback.</p>
+              <p className="muted">
+                Everything starts switched off. Each choice is separate, declining any of them never affects your private feedback, and you can withdraw
+                any of them later from your private response page.{' '}
+                <a href={view.retreat.privacyNoticePath} target="_blank" rel="noopener noreferrer">
+                  How your information is used
+                </a>
+              </p>
               <h2 style={{ fontSize: '1.3rem', marginTop: '1.5rem' }}>Your words</h2>
               <Switch
                 checked={c.publicText}
@@ -526,14 +540,10 @@ export default function InviteFlow() {
               </div>
               <p className="small muted" style={{ marginTop: '1rem' }}>
                 After sending you’ll get a private link to view your response, change your permissions or ask for an edit.
-                {view.retreat.privacyUrl && (
-                  <>
-                    {' '}
-                    <a href={view.retreat.privacyUrl} target="_blank" rel="noopener noreferrer">
-                      Privacy notice
-                    </a>
-                  </>
-                )}
+                {' '}
+                <a href={view.retreat.privacyNoticePath} target="_blank" rel="noopener noreferrer">
+                  Privacy notice
+                </a>
               </p>
             </section>
           )}

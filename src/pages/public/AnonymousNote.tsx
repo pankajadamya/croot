@@ -76,11 +76,9 @@ export default function AnonymousNote() {
             <strong>Please be aware:</strong> details you write in the note itself (a room number, a specific conversation) may still make it clear who
             wrote it. We can’t promise complete anonymity, but we don’t connect this note to you.
           </p>
-          {d.retreat.privacyUrl && (
-            <a href={d.retreat.privacyUrl} target="_blank" rel="noopener noreferrer">
-              Read the privacy notice
-            </a>
-          )}
+          <a href={`/o/${orgSlug}/privacy?programme=${retreatSlug}`} target="_blank" rel="noopener noreferrer">
+            Read the privacy notice
+          </a>
         </div>
 
         {state === 'sent' ? (
