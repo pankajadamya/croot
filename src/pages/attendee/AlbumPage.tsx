@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, Navigate, useLocation, useParams } from 'react-router'
+import { Link, Navigate, useLocation, useParams, useSearchParams } from 'react-router'
 import { api, ApiError, del, get } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
 import { LinkUnavailable, Loading } from '../../components/States'
@@ -40,7 +40,9 @@ function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { ba
   const qc = useQueryClient()
   const key = ['album-page', base]
   const q = useQuery({ queryKey: key, queryFn: () => get<AlbumListing>(listPath), retry: false })
-  const [open, setOpen] = useState<number | null>(null)
+  // The open photo lives in the address (?photo=<id>), so a refresh or a shared link opens the same one.
+  const [params, setParams] = useSearchParams()
+  const openId = params.get('photo')
   const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [shared, setShared] = useState<string | null>(null)
@@ -57,6 +59,22 @@ function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { ba
   }
   const album = q.data!
   const photos = album.photos
+  const found = openId ? photos.findIndex((p) => p.id === openId) : -1
+  const open = found >= 0 ? found : null
+  const setOpen = (i: number | null) => {
+    const closing = i === null ? openId : null
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (i === null) next.delete('photo')
+        else next.set('photo', photos[i].id)
+        return next
+      },
+      { replace: true },
+    )
+    // Back on the grid, keep the photo just viewed in sight.
+    if (closing) requestAnimationFrame(() => document.querySelector(`[data-photo="${closing}"]`)?.scrollIntoView({ block: 'center' }))
+  }
   const cover = photos[0]
 
   async function contribute(files: File[]) {
@@ -182,7 +200,7 @@ function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { ba
         ) : (
           <ul className="album-mosaic">
             {photos.map((p, i) => (
-              <li key={p.id} style={{ aspectRatio: `${p.width} / ${p.height}` }}>
+              <li key={p.id} data-photo={p.id} style={{ aspectRatio: `${p.width} / ${p.height}` }}>
                 <button type="button" onClick={() => setOpen(i)} aria-label={`${p.video ? 'Play video' : 'Open photo'} ${i + 1} of ${photos.length}${p.caption ? `: ${p.caption}` : ''}`}>
                   <img src={p.url} alt={p.alt} loading={i < 6 ? 'eager' : 'lazy'} />
                   {p.video && (
