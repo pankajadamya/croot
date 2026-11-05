@@ -61,7 +61,7 @@ export function siteLabel(url: string) {
 export function AlbumPromo({ album, title }: { album: PublicAlbum; title: string }) {
   return (
     <a className="album-promo" href={album.url}>
-      <img className="album-promo-cover" src={album.cover} alt="" loading="lazy" />
+      <img className="album-promo-cover" src={album.cover} alt="" />
       <span className="album-promo-shade" aria-hidden="true" />
       <span className="album-promo-text">
         <span className="album-promo-eyebrow">Photo album · {album.count} photo{album.count === 1 ? '' : 's'}</span>
