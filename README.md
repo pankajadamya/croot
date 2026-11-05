@@ -55,7 +55,11 @@ One Node process serves the API and the built SPA (Dockerfile → Coolify on OVH
   (`ORG_SIGNUP_ENABLED=false`). When on, new organisations start as *pending* until approved (`SIGNUP_AUTO_APPROVE`).
 - Email codes are 6 digits, valid for 10 minutes and single use, and die after 5 wrong attempts. Only an HMAC (`AUTH_SECRET`) is stored.
   Responses never reveal whether an address has an account. Google uses PKCE, state and nonce, and accepts only verified emails.
-- In development `EMAIL_PROVIDER=console` prints codes to the API log. Production requires a real provider and `AUTH_SECRET`.
+- In development `EMAIL_PROVIDER=console` prints codes to the API log. Production uses Amazon SES (`EMAIL_PROVIDER=ses`, `SES_*`, the same names as Collab) and requires `AUTH_SECRET`.
+- **Where secrets live:** never in this repository. Deployment follows the snaprows-infra pattern used for MyAyurvedaTrip:
+  `snaprows-infra/apps/croot-uat/app.yml` describes the app; `apps/croot-uat/generate-secrets.sh` creates the gitignored
+  `secrets/CROOT/UAT/croot-uat.env`, which is saved to the Bitwarden folder `CROOT/UAT` and pushed to Coolify by
+  `snaprows-ops app apply`. Locally, put them in your own `.env` (gitignored).
 
 ## Privacy boundaries (enforced server-side)
 

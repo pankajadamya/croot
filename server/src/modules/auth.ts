@@ -1,8 +1,8 @@
 import { Router, type Response } from 'express'
 import { z } from 'zod'
 import { audit } from '../lib/audit.js'
-import { env, googleEnabled, isProduction } from '../lib/env.js'
-import { authorisationUrl, exchangeCode, OAUTH_COOKIE, openState } from '../lib/google.js'
+import { env, googleCallbackUrl, googleEnabled, isProduction } from '../lib/env.js'
+import { authorisationUrl, exchangeCode, OAUTH_COOKIE, openState, safeNext } from '../lib/google.js'
 import { HttpError, parseBody, route, text } from '../lib/http.js'
 import { mayCreateAccount, requestCode, verifyCode } from '../lib/loginCodes.js'
 import { hashPassword, PASSWORD_MIN_LENGTH, verifyPassword } from '../lib/password.js'
@@ -78,6 +78,14 @@ authRouter.get(
   loginLimiter,
   route(async (req, res) => {
     if (!googleEnabled) throw new HttpError(404, 'Google sign-in is not configured')
+    // The state cookie must be set on the host Google redirects back to. On a tenant's custom
+    // domain, hop to the callback's host first (only that one redirect URI is registered with Google).
+    const callbackHost = new URL(googleCallbackUrl)
+    if (req.hostname !== callbackHost.hostname) {
+      const hop = new URL('/api/auth/google/start', callbackHost.origin)
+      hop.searchParams.set('next', safeNext(req.query.next))
+      return res.redirect(302, hop.toString())
+    }
     const { url, cookie, maxAge } = authorisationUrl(typeof req.query.next === 'string' ? req.query.next : '/admin')
     res.cookie(OAUTH_COOKIE, cookie, { httpOnly: true, secure: isProduction, sameSite: 'lax', path: '/api/auth/google', maxAge })
     res.redirect(302, url)

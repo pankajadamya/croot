@@ -1,3 +1,4 @@
+import { SendEmailCommand, SESv2Client } from '@aws-sdk/client-sesv2'
 import { env } from './env.js'
 
 export interface Mail {
@@ -5,6 +6,21 @@ export interface Mail {
   subject: string
   text: string
   html: string
+  /** Becomes an SES message tag, so delivery events can be broken down by kind of mail. */
+  category: 'login_code'
+}
+
+let ses: SESv2Client | undefined
+/**
+ * Credentials passed explicitly: the SDK's default chain would otherwise pick up any AWS_* variables
+ * (e.g. an object-storage key) and sign SES calls with a key AWS has never heard of.
+ */
+function sesClient() {
+  ses ??= new SESv2Client({
+    region: env.SES_REGION,
+    credentials: { accessKeyId: env.SES_ACCESS_KEY_ID, secretAccessKey: env.SES_SECRET_ACCESS_KEY },
+  })
+  return ses
 }
 
 /** Messages captured in tests instead of being sent. */
@@ -21,6 +37,24 @@ export async function sendMail(mail: Mail): Promise<void> {
   }
   if (env.EMAIL_PROVIDER === 'console') {
     console.log(`\n[dev email] to=${mail.to} subject="${mail.subject}"\n${mail.text}\n`)
+    return
+  }
+  if (env.EMAIL_PROVIDER === 'ses') {
+    // SendEmail throws on every rejection (sandbox recipient, unverified sender, throttling).
+    await sesClient().send(
+      new SendEmailCommand({
+        FromEmailAddress: env.EMAIL_FROM,
+        Destination: { ToAddresses: [mail.to] },
+        Content: {
+          Simple: {
+            Subject: { Data: mail.subject, Charset: 'UTF-8' },
+            Body: { Html: { Data: mail.html, Charset: 'UTF-8' }, Text: { Data: mail.text, Charset: 'UTF-8' } },
+          },
+        },
+        EmailTags: [{ Name: 'category', Value: mail.category }],
+        ...(env.SES_CONFIGURATION_SET ? { ConfigurationSetName: env.SES_CONFIGURATION_SET } : {}),
+      }),
+    )
     return
   }
   const res = await fetch('https://api.resend.com/emails', {
@@ -49,5 +83,5 @@ export function loginCodeEmail(to: string, code: string, purpose: 'signin' | 'si
 <p>It expires in ${minutes} minutes and can be used once.</p>
 <p style="color:#4A5F5A;font-size:14px">If you didn’t ask for this, you can ignore this email. Nobody can sign in without the code.</p>
 </div>`
-  return { to, subject: `${code} is your croot code`, text, html }
+  return { to, subject: `${code} is your croot code`, text, html, category: 'login_code' }
 }

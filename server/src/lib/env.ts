@@ -30,9 +30,21 @@ const envSchema = z.object({
   /** Organiser self-service sign-up. Off: organisers are onboarded with one-time links from the platform console. */
   ORG_SIGNUP_ENABLED: z.stringbool().default(false),
   LOGIN_CODE_TTL_MINUTES: z.coerce.number().int().min(3).max(30).default(10),
-  /** Email delivery: "console" prints messages to the server log (development only); "resend" uses the Resend API. */
-  EMAIL_PROVIDER: z.enum(['console', 'resend']).default('console'),
+  /**
+   * Email delivery, named as in Collab: "ses" (Amazon SES v2, the production choice), "resend", or
+   * "console" (prints messages to the server log; development only, refused in production).
+   */
+  EMAIL_PROVIDER: z.enum(['console', 'ses', 'resend']).default('console'),
+  /** The sender, e.g. `croot <no-reply@mail.snaprows.dev>`. Must sit inside a verified SES identity. */
   EMAIL_FROM: z.string().default('croot <no-reply@croot.example>'),
+  /**
+   * Amazon SES: an IAM user whose only permission is ses:SendEmail, separate from the object-storage
+   * key. Optional configuration set for delivery, bounce and complaint events.
+   */
+  SES_REGION: z.string().optional().default(''),
+  SES_ACCESS_KEY_ID: z.string().optional().default(''),
+  SES_SECRET_ACCESS_KEY: z.string().optional().default(''),
+  SES_CONFIGURATION_SET: z.string().optional().default(''),
   RESEND_API_KEY: z.string().optional().default(''),
   /** Google sign-in (OAuth 2.0 / OpenID Connect). Both empty = Google sign-in hidden. */
   GOOGLE_CLIENT_ID: z.string().optional().default(''),
@@ -59,6 +71,14 @@ if (isProduction && !env.AUTH_SECRET) {
 if (isProduction && env.EMAIL_PROVIDER === 'console') {
   console.error('EMAIL_PROVIDER=console would print sign-in codes to the log; configure a real provider in production')
   process.exit(1)
+}
+const EMAIL_REQUIRED = { ses: ['SES_REGION', 'SES_ACCESS_KEY_ID', 'SES_SECRET_ACCESS_KEY'], resend: ['RESEND_API_KEY'] } as const
+if (env.EMAIL_PROVIDER !== 'console') {
+  const missing = EMAIL_REQUIRED[env.EMAIL_PROVIDER].filter((k) => !env[k])
+  if (missing.length) {
+    console.error(`EMAIL_PROVIDER=${env.EMAIL_PROVIDER} needs ${missing.join(', ')}`)
+    process.exit(1)
+  }
 }
 /** Development fallback only; production refuses to start without AUTH_SECRET. */
 export const authSecret = env.AUTH_SECRET ?? 'croot-development-only-auth-secret-not-for-production'
