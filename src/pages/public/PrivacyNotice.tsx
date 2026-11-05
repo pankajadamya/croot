@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { GuestHeader } from '../../components/AppHeader'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { PLATFORM_OPERATOR } from '../../../shared/legal'
 import { get } from '../../lib/api'
@@ -36,6 +37,7 @@ export default function PrivacyNotice() {
   if (q.error)
     return (
       <main className="calm">
+        <GuestHeader />
         <div className="narrow" style={{ padding: '3rem 0' }}>
           <ErrorNotice error={q.error} />
         </div>
@@ -49,6 +51,7 @@ export default function PrivacyNotice() {
 
   return (
     <main className="calm">
+      <GuestHeader />
       <article className="narrow legal" style={{ padding: '3rem 0 5rem' }}>
         <p className="eyebrow">Privacy notice{programme ? ` · ${programme.title}` : ''}</p>
         <h1>How {c.name} uses your information when you review your retreat</h1>

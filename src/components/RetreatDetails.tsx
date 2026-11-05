@@ -101,7 +101,8 @@ export function RetreatDetails({ retreat, organiser }: { retreat: RetreatFacts; 
   const place = retreat.propertyAddress || retreat.locationSummary
   const actions: Array<{ icon: keyof typeof ICONS; label: string; title?: string; href?: string; to?: string; external?: boolean }> = []
   if (retreat.contact?.email) actions.push({ icon: 'mail', label: 'Email', title: `Email ${retreat.contact.email}`, href: `mailto:${retreat.contact.email}` })
-  if (retreat.contact?.phone) actions.push({ icon: 'phone', label: 'Call', title: `Call ${retreat.contact.phone}`, href: `tel:${retreat.contact.phone.replace(/\s+/g, '')}` })
+  // The number itself: readable on a computer, and a tap to call on a phone.
+  if (retreat.contact?.phone) actions.push({ icon: 'phone', label: retreat.contact.phone, title: `Call ${retreat.contact.phone}`, href: `tel:${retreat.contact.phone.replace(/\s+/g, '')}` })
   if (organiser?.retreatsPath) actions.push({ icon: 'grid', label: 'More retreats', title: `More retreats by ${organiser.name}`, to: organiser.retreatsPath })
   if (organiser?.interestAnchor) actions.push({ icon: 'bell', label: 'Get updates', title: 'Hear about the next retreat', href: organiser.interestAnchor })
 

@@ -404,6 +404,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
           slides={view.retreat.slideshow}
           header={
             <>
+              <img className="flow-croot" src="/croot-logo-light.svg" alt="Croot" />
               <p className="eyebrow" style={{ color: 'var(--canvas)', opacity: 0.85 }}>
                 {view.retreat.organisationName}
               </p>

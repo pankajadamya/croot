@@ -46,6 +46,9 @@ export function SiteHeader({ org }: { org: { slug: string; name: string; website
             {siteLabel(org.websiteUrl)} ↗<span className="sr-only"> (opens in a new tab)</span>
           </a>
         )}
+        <Link to="/" className="site-croot" aria-label="Croot home page">
+          <img src="/croot-logo.svg" alt="Croot" />
+        </Link>
       </nav>
     </header>
   )

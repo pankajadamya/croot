@@ -3343,3 +3343,22 @@ ol.album-admin-grid {
 .landing-top.with-album .details-card.rd .rd-links .btn {
   width: auto;
 }
+
+/* Croot logo on public pages and the review form. */
+.site-croot {
+  display: inline-flex;
+  align-items: center;
+  padding-left: 1rem;
+  border-left: 1px solid var(--border);
+}
+.site-croot img {
+  height: 26px;
+  width: auto;
+  display: block;
+}
+.flow-croot {
+  display: block;
+  height: 26px;
+  width: auto;
+  margin-bottom: 1rem;
+}

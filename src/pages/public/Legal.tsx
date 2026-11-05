@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { GuestHeader } from '../../components/AppHeader'
 import { Link, Navigate, useParams } from 'react-router'
 import { PLATFORM_OPERATOR, PLATFORM_PRIVACY_VERSION, PROCESSING_TERMS_VERSION } from '../../../shared/legal'
 
@@ -9,6 +10,7 @@ import { PLATFORM_OPERATOR, PLATFORM_PRIVACY_VERSION, PROCESSING_TERMS_VERSION }
 function Shell({ title, version, children }: { title: string; version: string; children: ReactNode }) {
   return (
     <main className="calm">
+      <GuestHeader />
       <article className="narrow legal" style={{ padding: '3rem 0 5rem' }}>
         <p className="eyebrow">
           <Link to="/">Croot</Link> · Legal

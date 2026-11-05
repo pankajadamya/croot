@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
+import { GuestHeader } from '../../components/AppHeader'
 
 /** /interest/:token (confirm) and /interest/:token/unsubscribe, from the emails. */
 export default function InterestLink({ action }: { action: 'confirm' | 'unsubscribe' }) {
@@ -24,6 +25,7 @@ export default function InterestLink({ action }: { action: 'confirm' | 'unsubscr
 
   return (
     <main className="calm">
+      <GuestHeader />
       <div className="narrow stack" style={{ padding: '4rem 0' }}>
         {state && 'error' in state ? (
           <>
