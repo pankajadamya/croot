@@ -461,9 +461,10 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
 
   return (
     <div className="calm">
-      <div className="flow">
+      <div className={`flow ${step === 0 ? 'flow-welcome' : ''}`}>
         <PhotoPanel
           compactOnMobile={step > 0}
+          welcomeOnMobile={step === 0}
           slides={view.retreat.slideshow}
           header={
             <>
@@ -519,25 +520,15 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
           )}
 
           {step === 0 && (
-            <section className="stack" aria-labelledby="step-heading">
+            <section className="welcome-screen" aria-labelledby="step-heading">
+              <p className="welcome-step eyebrow">Welcome · Before you start</p>
               <h1 id="step-heading" ref={headingRef} tabIndex={-1}>
                 Hello {view.firstName}, how was your {visit}?
               </h1>
-              {view.retreat.opening && (view.retreat.opening.headline || view.retreat.opening.introParagraphs.length > 0) && (
-                <section className="organiser-opening" aria-label={`A message from ${view.retreat.organiserName || view.retreat.organisationName}`}>
-                  <p className="eyebrow" style={{ margin: 0 }}>
-                    From {view.retreat.organiserName || view.retreat.organisationName}
-                  </p>
-                  {view.retreat.opening.headline && <h2 className="serif">{view.retreat.opening.headline}</h2>}
-                  {view.retreat.opening.introParagraphs.filter((p) => p.trim()).map((p, i) => (
-                    <p key={i}>{p}</p>
-                  ))}
-                </section>
-              )}
-              <p style={{ fontSize: '1.15rem' }}>
-                We’d love to hear about your time {isProperty ? 'at' : 'on the'} {view.retreat.title}. Most people take 10 to 15 minutes. Every question is
-                optional, and your answers save as you go.
+              <p className="welcome-intro">
+                Share what your time {isProperty ? 'at' : 'on'} {view.retreat.title} meant to you, in your own words.
               </p>
+              <p className="welcome-time">About 10–15 minutes <span aria-hidden="true">·</span> Every question is optional</p>
               {view.stay && (
                 <fieldset className="stay-dates">
                   <legend>When did you stay?</legend>
@@ -554,27 +545,44 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                   </div>
                 </fieldset>
               )}
+              <div className="welcome-choices" aria-label="What you can share">
+                <div className="welcome-choice">
+                  <span className="welcome-choice-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m4 17 13-13 3 3L7 20l-4 1 1-4Z" /><path d="m15 6 3 3" /></svg></span>
+                  <div><h2>Your story</h2><p>Others could read it, only if you choose to share it.</p></div>
+                </div>
+                <div className="welcome-choice">
+                  <span className="welcome-choice-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3" /><path d="M3 20v-2a6 6 0 0 1 12 0v2M17 5a3 3 0 0 1 0 6M18 14a5 5 0 0 1 3 4v2" /></svg></span>
+                  <div><h2>Private feedback</h2><p>For the organisers only, to help with future {isProperty ? 'stays' : 'retreats'}.</p></div>
+                </div>
+                <div className="welcome-choice">
+                  <span className="welcome-choice-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg></span>
+                  <div><h2>Anonymous note</h2><p>Optional and stored separately, without your name.</p></div>
+                </div>
+              </div>
               {view.retreat.album && !view.retreat.album.unlocked && <AlbumTeaser album={view.retreat.album} />}
-              <ul className="muted">
-                <li>A story others could read, if you choose to share it</li>
-                <li>Private feedback for the organisers only</li>
-                <li>An optional anonymous note, stored separately with no link to you</li>
-                <li>Photos, only with your permission for each one</li>
-              </ul>
-              <p className="small muted">
-                Your answers save as you go, so you can come back to this link on any device. Read how {view.retreat.organisationName} uses your
+              {view.retreat.opening && (view.retreat.opening.headline || view.retreat.opening.introParagraphs.length > 0) && (
+                <details className="welcome-organiser-note">
+                  <summary>Read a note from {view.retreat.organiserName || view.retreat.organisationName}</summary>
+                  <div className="organiser-opening" aria-label={`A message from ${view.retreat.organiserName || view.retreat.organisationName}`}>
+                    {view.retreat.opening.headline && <h2 className="serif">{view.retreat.opening.headline}</h2>}
+                    {view.retreat.opening.introParagraphs.filter((p) => p.trim()).map((p, i) => <p key={i}>{p}</p>)}
+                  </div>
+                </details>
+              )}
+              <div className="flow-actions welcome-actions">
+                <span />
+                <button className="btn" onClick={() => goTo(1)}>
+                  Start review →
+                </button>
+              </div>
+              <p className="welcome-privacy small muted">
+                Your story and private feedback save as you go, so you can return on any device. Anonymous notes are sent only when you submit. Photos are shared only with your permission. Read how {view.retreat.organisationName} uses your
                 information in the{' '}
                 <a href={view.retreat.privacyNoticePath} target="_blank" rel="noopener noreferrer">
                   privacy notice
                 </a>
                 .
               </p>
-              <div className="flow-actions">
-                <span />
-                <button className="btn" onClick={() => goTo(1)}>
-                  Start
-                </button>
-              </div>
             </section>
           )}
 

@@ -20,14 +20,14 @@ function prefersReducedMotion() {
  * slowly zooms and pans; the retreat's name sits over a soft shade at the top, and a caption band with
  * dots is attached at the bottom. It advances on its own every few seconds. Dots jump to a photo (and
  * restart the timer), swipe and arrow keys work too, and a small pause control stops the motion
- * (WCAG 2.2.2). With reduced motion it neither moves nor advances. Guests can hide it; without photos
- * (or once hidden) the plain panel is shown.
+ * (WCAG 2.2.2). With reduced motion it neither moves nor advances. Without photos the plain panel is shown.
  */
 export function PhotoPanel({
   slides,
   header,
   footer,
   compactOnMobile = false,
+  welcomeOnMobile = false,
 }: {
   slides: PanelSlide[]
   /** Organisation, retreat title and dates. */
@@ -36,23 +36,9 @@ export function PhotoPanel({
   footer: ReactNode
   /** After the first step, phones get a short strip so the form isn't pushed down. */
   compactOnMobile?: boolean
+  /** A short photo header on the welcome screen. */
+  welcomeOnMobile?: boolean
 }) {
-  // "Hide photos" is remembered on this device.
-  const [hidden, setHiddenState] = useState(() => {
-    try {
-      return window.localStorage.getItem('croot.hidePhotos') === '1'
-    } catch {
-      return false
-    }
-  })
-  const setHidden = (v: boolean) => {
-    setHiddenState(v)
-    try {
-      window.localStorage.setItem('croot.hidePhotos', v ? '1' : '0')
-    } catch {
-      /* ignore */
-    }
-  }
   const [index, setIndex] = useState(0)
   const [reduced] = useState(prefersReducedMotion)
   const [paused, setPaused] = useState(reduced)
@@ -78,10 +64,10 @@ export function PhotoPanel({
   }, [index])
 
   useEffect(() => {
-    if (hidden || paused || count < 2) return
+    if (paused || count < 2) return
     const id = window.setTimeout(() => setIndex((i) => (i + 1) % count), SLIDE_MS)
     return () => window.clearTimeout(id)
-  }, [index, tick, hidden, paused, count])
+  }, [index, tick, paused, count])
 
   // Nothing moves in a background tab.
   useEffect(() => {
@@ -100,15 +86,10 @@ export function PhotoPanel({
     return () => document.removeEventListener('visibilitychange', onVisibility)
   }, [])
 
-  if (!count || hidden) {
+  if (!count) {
     return (
       <aside className="flow-visual" aria-label="Retreat">
         <div>{header}</div>
-        {count > 0 && (
-          <button type="button" className="btn ghost small photo-show" onClick={() => setHidden(false)}>
-            View retreat photos
-          </button>
-        )}
         <div className="hide-mobile">{footer}</div>
       </aside>
     )
@@ -140,7 +121,7 @@ export function PhotoPanel({
   }
 
   return (
-    <aside className={`flow-visual photo-panel ${paused ? 'is-paused' : ''} ${compactOnMobile ? 'mobile-compact' : ''}`} aria-label="Retreat">
+    <aside className={`flow-visual photo-panel ${paused ? 'is-paused' : ''} ${compactOnMobile ? 'mobile-compact' : ''} ${welcomeOnMobile ? 'mobile-welcome' : ''}`} aria-label="Retreat">
       <div
         className="photo-stage"
         role="region"
@@ -169,9 +150,6 @@ export function PhotoPanel({
 
       <div className="photo-top">
         <div>{header}</div>
-        <button type="button" className="photo-hide" onClick={() => setHidden(true)}>
-          Hide photos
-        </button>
       </div>
 
       <div className="photo-band">
