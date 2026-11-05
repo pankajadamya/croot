@@ -3243,3 +3243,103 @@ ol.album-admin-grid {
     padding: 3.5rem 0.75rem 4.5rem;
   }
 }
+
+/* ---------- retreat details card: icons, short labels ---------- */
+.details-card.rd {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.rd .eyebrow {
+  margin: 0 0 0.3rem;
+}
+.rd-title {
+  margin: 0 0 0.9rem;
+  font-size: 1.25rem;
+  line-height: 1.25;
+  font-weight: 400;
+}
+.rd-icon {
+  flex: none;
+}
+.rd-facts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.rd-fact {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 600;
+}
+.rd-fact .rd-icon {
+  color: var(--accent);
+}
+.rd-tags {
+  list-style: none;
+  padding: 0;
+  margin: 0.8rem 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.rd-route {
+  margin: 0.8rem 0 0;
+  padding-left: 1.2rem;
+}
+.rd-links {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 1.1rem;
+}
+.rd .rd-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 42px;
+  padding: 0.5rem 1rem;
+  font-size: 0.95rem;
+  width: auto;
+  flex: 1 1 auto;
+}
+.rd-actions {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 1rem 0 0;
+  border-top: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+.rd-actions a {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 42px;
+  padding: 0.4rem 0.6rem;
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.rd-actions a:hover {
+  background: color-mix(in srgb, var(--button) 8%, transparent);
+}
+.rd-actions a:focus-visible {
+  outline: 3px solid var(--button);
+  outline-offset: 1px;
+}
+.rd-actions .rd-icon {
+  color: var(--accent);
+}
+/* Over the album at the top of the retreat page: the same card, slimmer padding. */
+.landing-top.with-album .details-card.rd .rd-links .btn {
+  width: auto;
+}
