@@ -71,6 +71,7 @@ receiptsRouter.get(
       },
       status: response.status,
       submittedAt: response.submittedAt,
+      storyTitle: response.storyTitle,
       storyText: response.storyText,
       overallRating: response.overallRating,
       consents: {

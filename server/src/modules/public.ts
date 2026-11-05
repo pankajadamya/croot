@@ -55,10 +55,10 @@ publicRouter.get(
   }),
 )
 
-async function liveStories(retreatId: string): Promise<Array<PublicationRevision & { publicSlug: string; pinned: boolean }>> {
+async function liveStories(retreatId: string): Promise<Array<PublicationRevision & { publicSlug: string; pinned: boolean; postedAt: Date }>> {
   const responses = await prisma.response.findMany({
     where: { retreatId, publicationStatus: 'published', publicSlug: { not: null } },
-    select: { id: true, publicSlug: true, pinned: true },
+    select: { id: true, publicSlug: true, pinned: true, submittedAt: true },
   })
   if (!responses.length) return []
   const revisions = await prisma.publicationRevision.findMany({
@@ -72,9 +72,12 @@ async function liveStories(retreatId: string): Promise<Array<PublicationRevision
   return responses
     .map((r) => ({ meta: r, rev: latest.get(r.id) }))
     .filter((x): x is { meta: typeof x.meta; rev: PublicationRevision } => x.rev?.status === 'published')
-    // Pinned first, then oldest publication first: deterministic, and never ordered by rating.
-    .sort((a, b) => Number(b.meta.pinned) - Number(a.meta.pinned) || (firstPublished.get(a.meta.id) ?? 0) - (firstPublished.get(b.meta.id) ?? 0))
-    .map(({ meta, rev }) => ({ ...rev, publicSlug: meta.publicSlug!, pinned: meta.pinned }))
+    // Newest first (by when the guest sent it), never ordered by rating.
+    .sort(
+      (a, b) =>
+        (b.meta.submittedAt?.getTime() ?? firstPublished.get(b.meta.id) ?? 0) - (a.meta.submittedAt?.getTime() ?? firstPublished.get(a.meta.id) ?? 0),
+    )
+    .map(({ meta, rev }) => ({ ...rev, publicSlug: meta.publicSlug!, pinned: meta.pinned, postedAt: meta.submittedAt ?? rev.createdAt }))
 }
 
 async function heroImages(retreatId: string) {
@@ -115,6 +118,9 @@ publicRouter.get(
         slug: s.publicSlug,
         excerpt: s.excerpt,
         excerptIsFull: s.excerpt.length === s.storyText.length,
+        title: s.title,
+        text: s.storyText,
+        postedAt: s.postedAt,
         displayName: s.displayName,
         photo: s.photoIds[0] && visible.has(s.photoIds[0]) ? { url: `/media/${s.photoIds[0]}` } : null,
         // The guest's own published photos, shown alongside their review.
@@ -151,6 +157,7 @@ publicRouter.get(
       theme: await publishedTheme(retreat.id),
       story: {
         slug,
+        title: live.title,
         text: live.storyText,
         excerpt: live.excerpt,
         displayName: live.displayName,

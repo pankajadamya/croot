@@ -127,7 +127,7 @@ export interface ResponseDetailData {
   status: ResponseStatus
   submittedAt: string | null
   organiserMessage: string | null
-  publicStory: { text: string; submittedText: string | null; overallRating: number | null; suggestedExcerpt: string }
+  publicStory: { title: string; text: string; submittedText: string | null; overallRating: number | null; suggestedExcerpt: string }
   privateFeedback: {
     ratings: Array<{ key: string; label: string; score: number | null; notApplicable: boolean; comment: string }>
     keepText: string | null

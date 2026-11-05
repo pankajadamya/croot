@@ -14,6 +14,7 @@ interface StoryPublic {
   theme: ThemeTokens
   story: {
     slug: string
+    title: string | null
     text: string
     excerpt: string
     displayName: string | null
@@ -94,7 +95,7 @@ export default function StoryPage() {
           </header>
           <section className="narrow" aria-labelledby="full-story">
             <h1 id="full-story" style={{ fontSize: '1.4rem' }}>
-              In their words
+              {story.title || 'In their words'}
             </h1>
             <div className="guest-voice">
               {paragraphs.map((p, i) => (

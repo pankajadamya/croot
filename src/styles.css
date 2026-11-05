@@ -2217,3 +2217,18 @@ ol.album-admin-grid {
     transform: none;
   }
 }
+
+.review-title {
+  margin: 0 0 0.6rem;
+  font-size: clamp(1.25rem, 2vw, 1.55rem);
+}
+.review-body p {
+  margin: 0 0 0.85rem;
+  font-family: var(--serif);
+  font-size: clamp(1.05rem, 1.6vw, 1.2rem);
+  line-height: 1.55;
+  white-space: pre-line;
+}
+.review-item {
+  align-items: start;
+}

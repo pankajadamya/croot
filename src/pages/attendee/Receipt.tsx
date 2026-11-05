@@ -13,6 +13,7 @@ interface ReceiptView {
   retreat: { title: string; organiserName: string; organisationName: string; contactEmail: string | null; privacyNoticePath: string; publicPagePath: string | null }
   status: 'draft' | 'submitted' | 'changes_requested' | 'withdrawn'
   submittedAt: string | null
+  storyTitle: string
   storyText: string
   overallRating: number | null
   consents: { publicText: boolean; firstName: boolean; followUp: boolean; marketing: boolean }
@@ -135,6 +136,7 @@ export default function Receipt() {
             <h2 style={{ fontSize: '1.3rem', margin: 0 }}>Your story</h2>
             <span className={`badge ${d.publication.status === 'published' ? 'ok' : 'neutral'}`}>{PUBLICATION_LABEL[d.publication.status]}</span>
           </div>
+          {d.storyTitle?.trim() && <h3 style={{ margin: '1rem 0 0' }}>{d.storyTitle.trim()}</h3>}
           {d.storyText ? (
             <p className="serif" style={{ whiteSpace: 'pre-line', marginTop: '1rem' }}>
               {d.storyText}

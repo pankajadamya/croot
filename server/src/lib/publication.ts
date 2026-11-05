@@ -63,6 +63,7 @@ export async function publishResponse(input: PublishInput) {
         organisationId: response.organisationId,
         responseId: response.id,
         retreatId: response.retreatId,
+        title: response.storyTitle.trim() || null,
         storyText: story,
         excerpt,
         displayName: response.consentFirstName ? firstName(response.attendee.name) : null,
@@ -158,6 +159,25 @@ export async function dropPhotoFromLive(opts: { organisationId: string; response
     const { id: _id, createdAt: _c, ...rest } = live
     await tx.publicationRevision.create({
       data: { ...rest, photoIds: live.photoIds.filter((p) => p !== opts.photoId), reason: opts.reason, reviewerId: opts.actorUserId ?? null },
+    })
+  })
+}
+
+/**
+ * Re-snapshots a live story with one more photo: approving a photo of an already-published story puts it
+ * live too. Every gate is re-checked here (guest's per-photo consent, approval, belongs to this response).
+ */
+export async function addPhotoToLive(opts: { organisationId: string; responseId: string; photoId: string; actorUserId?: string | null }) {
+  await prisma.$transaction(async (tx) => {
+    const live = await livePublication(opts.responseId, tx)
+    if (!live || live.photoIds.includes(opts.photoId)) return
+    const photo = await tx.mediaAsset.findFirst({
+      where: { id: opts.photoId, responseId: opts.responseId, organisationId: opts.organisationId, kind: 'guest', publishConsent: true, moderation: 'approved', removedAt: null },
+    })
+    if (!photo) return
+    const { id: _id, createdAt: _c, ...rest } = live
+    await tx.publicationRevision.create({
+      data: { ...rest, photoIds: [...live.photoIds, photo.id], reason: 'Photo approved', reviewerId: opts.actorUserId ?? null },
     })
   })
 }

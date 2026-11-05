@@ -181,6 +181,43 @@ describe('anonymous notes', () => {
     expect((await request(app).get('/api/public/orgs/alpha')).body.org.websiteUrl).toBeNull()
   })
 
+  it('lists published reviews newest first, in full, with title, date and photos approved after publishing', async () => {
+    const { org, user, retreat } = await makeTenant('alpha')
+    const { agent, csrf } = await login(user.email)
+    const sharp = (await import('sharp')).default
+    const png = await sharp({ create: { width: 32, height: 24, channels: 3, background: '#88aa99' } }).png().toBuffer()
+    let photoId = ''
+    const send = async (name: string, email: string, body: Record<string, unknown>, withPhoto = false) => {
+      const { token } = await invite(org.id, retreat.id, name, email)
+      if (withPhoto) {
+        // A photo with the guest's permission, not yet approved when the story is published.
+        const up = await request(app).post(`/api/invites/${token}/photos`).attach('photo', png, 'p.png')
+        photoId = up.body.id
+        await prisma.mediaAsset.update({ where: { id: photoId }, data: { publishConsent: true } })
+      }
+      const rev = (await request(app).get(`/api/invites/${token}`)).body.response?.revision ?? 0
+      const draft = await request(app).put(`/api/invites/${token}/draft`).send({ revision: rev, consents: { publicText: true }, ...body })
+      await request(app).post(`/api/invites/${token}/submit`).send({ revision: draft.body.revision })
+      return prisma.response.findFirstOrThrow({ where: { attendee: { email } } })
+    }
+    const firstResponse = await send('Early Guest', 'early@example.test', { storyText: 'First paragraph.\n\nSecond paragraph.' })
+    await prisma.response.update({ where: { id: firstResponse.id }, data: { submittedAt: new Date('2026-11-02T10:00:00Z') } })
+    const response = await send('Late Guest', 'late@example.test', { storyTitle: 'A week to remember', storyText: 'Short and sweet.' }, true)
+    const first = { response: firstResponse }
+    const up = { body: { id: photoId } }
+    for (const r of [first.response, response]) {
+      expect((await agent.post(`/api/admin/orgs/alpha/responses/${r.id}/publish`).set('X-CSRF-Token', csrf).send({})).status).toBe(200)
+    }
+    await agent.post(`/api/admin/orgs/alpha/media/${up.body.id}/moderate`).set('X-CSRF-Token', csrf).send({ status: 'approved' })
+
+    const page = await request(app).get(`/api/public/orgs/alpha/retreats/${retreat.slug}`)
+    const [latest, earlier] = page.body.stories
+    expect(latest).toMatchObject({ title: 'A week to remember', text: 'Short and sweet.', postedAt: expect.any(String) })
+    expect(latest.photos).toHaveLength(1)
+    expect(earlier).toMatchObject({ title: null, text: 'First paragraph.\n\nSecond paragraph.' })
+    expect((await request(app).get(latest.photos[0].url)).status).toBe(200)
+  })
+
   it('points guests to the retreat’s public page once they have sent their review', async () => {
     const { org, retreat } = await makeTenant('alpha')
     const { token } = await invite(org.id, retreat.id)

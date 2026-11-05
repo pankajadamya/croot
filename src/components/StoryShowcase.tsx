@@ -8,6 +8,9 @@ export interface ShowcaseStory {
   displayName: string | null
   photo: { url: string } | null
   photos?: Array<{ url: string; alt: string; caption: string }>
+  title?: string | null
+  text?: string
+  postedAt?: string
 }
 
 const FRAME_MS = 8000

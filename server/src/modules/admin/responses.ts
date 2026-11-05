@@ -7,7 +7,7 @@ import { audit } from '../../lib/audit.js'
 import { toCsv } from '../../lib/csv.js'
 import { HttpError, parseBody, route, text, uuidParam } from '../../lib/http.js'
 import { prisma } from '../../lib/prisma.js'
-import { dropPhotoFromLive, publishResponse, takeDown } from '../../lib/publication.js'
+import { addPhotoToLive, dropPhotoFromLive, publishResponse, takeDown } from '../../lib/publication.js'
 import { storage } from '../../lib/storage.js'
 import { tenantMedia, tenantResponse, tenantRetreat } from '../../lib/tenant.js'
 import { tenantOf } from '../../middleware/auth.js'
@@ -108,6 +108,7 @@ responsesRouter.get(
       submittedAt: r.submittedAt,
       organiserMessage: r.organiserMessage,
       publicStory: {
+        title: r.storyTitle,
         text: r.storyText,
         submittedText: (r.submittedSnapshot as { storyText?: string } | null)?.storyText ?? null,
         overallRating: r.overallRating,
@@ -229,7 +230,9 @@ responsesRouter.post(
       throw new HttpError(409, 'The guest has not consented to publishing this photo')
     }
     await prisma.mediaAsset.update({ where: { id: media.id }, data: { moderation: body.status } })
-    if (body.status !== 'approved' && media.responseId) {
+    if (body.status === 'approved' && media.responseId) {
+      await addPhotoToLive({ organisationId: t.org.id, responseId: media.responseId, photoId: media.id, actorUserId: t.userId })
+    } else if (body.status !== 'approved' && media.responseId) {
       await dropPhotoFromLive({ organisationId: t.org.id, responseId: media.responseId, photoId: media.id, reason: body.note || 'Photo not approved', actorUserId: t.userId })
     }
     await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: `media.${body.status}`, entityType: 'media', entityId: media.id })

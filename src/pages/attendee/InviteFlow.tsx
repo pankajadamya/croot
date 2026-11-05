@@ -55,6 +55,7 @@ interface InviteView {
     status: 'draft' | 'submitted' | 'changes_requested' | 'withdrawn'
     revision: number
     currentStep: number
+    storyTitle: string
     storyText: string
     overallRating: number | null
     keepText: string
@@ -68,6 +69,7 @@ interface InviteView {
 }
 
 interface Draft {
+  storyTitle: string
   storyText: string
   overallRating: number | null
   keepText: string
@@ -89,6 +91,7 @@ function emptyDraft(view: InviteView): Draft {
     ratings[c.key] = existing ?? { categoryKey: c.key, score: null, notApplicable: false, comment: '' }
   }
   return {
+    storyTitle: r?.storyTitle ?? '',
     storyText: r?.storyText ?? '',
     overallRating: r?.overallRating ?? null,
     keepText: r?.keepText ?? '',
@@ -159,6 +162,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
       const body = {
         revision: revision.current,
         currentStep: nextStep ?? step,
+        storyTitle: draft.storyTitle,
         storyText: draft.storyText,
         overallRating: draft.overallRating,
         keepText: draft.keepText,
@@ -517,6 +521,9 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                   ))}
                 </ul>
               </div>
+              <Field id="story-title" label="A title for your story (optional)" hint="A few words that sum it up, like “The reset I didn’t know I needed”.">
+                <input id="story-title" type="text" value={draft.storyTitle} maxLength={120} onChange={(e) => update({ storyTitle: e.target.value })} />
+              </Field>
               <Field id="story" label="Your story (optional)">
                 <textarea id="story" value={draft.storyText} maxLength={8000} onChange={(e) => update({ storyText: e.target.value })} style={{ minHeight: '16rem' }} />
               </Field>
@@ -656,6 +663,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
               {c.publicText && draft.storyText.trim() ? (
                 <div className="card" style={{ background: 'var(--surface)' }}>
                   <p className="eyebrow">Preview, if the organiser approves it</p>
+                  {draft.storyTitle.trim() && <h3 style={{ margin: '0 0 0.5rem' }}>{draft.storyTitle.trim()}</h3>}
                   <p className="serif" style={{ whiteSpace: 'pre-line', fontSize: '1.15rem' }}>
                     {draft.storyText}
                   </p>

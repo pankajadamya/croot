@@ -49,6 +49,7 @@ export async function exportGuestData(organisationId: string, attendeeId: string
     response: r && {
       status: r.status,
       submittedAt: r.submittedAt,
+      storyTitle: r.storyTitle,
       story: r.storyText,
       overallRating: r.overallRating,
       privateFeedback: {

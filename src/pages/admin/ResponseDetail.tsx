@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
 import { get, orgApi, post } from '../../lib/api'
@@ -92,6 +92,7 @@ function Detail({ orgSlug, r, refresh }: { orgSlug: string; r: ResponseDetailDat
         <Section id="sec-story" title="Public story" note="The guest’s own words. Organisers can’t edit them — use “Request changes” to ask the guest to revise.">
           {hasStory ? (
             <>
+              {story.title.trim() && <h3 style={{ margin: '0 0 0.5rem' }}>{story.title.trim()}</h3>}
               <blockquote className="guest-quote">{story.text}</blockquote>
               {story.submittedText !== null && story.submittedText !== story.text && (
                 <details>
@@ -274,6 +275,17 @@ function PublicationSection({ orgSlug, r, refresh }: { orgSlug: string; r: Respo
   const [excerpt, setExcerpt] = useState(live?.excerpt ?? r.publicStory.suggestedExcerpt)
   const eligiblePhotos = r.photos.filter((p) => p.publishConsent && p.moderation === 'approved')
   const [photoIds, setPhotoIds] = useState<string[]>(() => (live ? live.photoIds : eligiblePhotos.map((p) => p.id)).filter((id) => eligiblePhotos.some((p) => p.id === id)))
+  // A photo approved after this form opened is ticked straight away (and one no longer eligible unticked),
+  // so approving and then publishing includes it.
+  const eligibleKey = eligiblePhotos.map((p) => p.id).join(',')
+  const seenEligible = useRef(new Set(eligiblePhotos.map((p) => p.id)))
+  useEffect(() => {
+    const ids = eligiblePhotos.map((p) => p.id)
+    const fresh = ids.filter((id) => !seenEligible.current.has(id))
+    ids.forEach((id) => seenEligible.current.add(id))
+    setPhotoIds((cur) => [...cur.filter((id) => ids.includes(id)), ...fresh.filter((id) => !cur.includes(id))])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eligibleKey])
   const [reason, setReason] = useState('')
   const [unpublishReason, setUnpublishReason] = useState('')
   const [done, setDone] = useState<string | null>(null)

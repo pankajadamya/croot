@@ -380,6 +380,8 @@ model Response {
   currentStep    Int            @default(0)
 
   // 1. Public story candidate
+  /// Optional title the guest gives their review.
+  storyTitle     String         @default("")
   storyText      String         @default("")
   overallRating  Int?
 
@@ -493,6 +495,8 @@ model PublicationRevision {
   organisationId String                 @db.Uuid
   responseId     String                 @db.Uuid
   retreatId      String                 @db.Uuid
+  /// The guest's own title for their review, if they gave one.
+  title          String?
   storyText      String
   /// Verbatim substring of storyText used by the showcase.
   excerpt        String

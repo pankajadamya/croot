@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
 import type { ThemeTokens } from '../../../shared/themes'
 import { get } from '../../lib/api'
+import { formatDate } from '../../lib/format'
 import { RetreatDetails, type RetreatFacts } from '../../components/RetreatDetails'
 import { HeroSlideshow } from '../../components/HeroSlideshow'
 import { ErrorNotice, Loading } from '../../components/States'
@@ -122,18 +123,27 @@ export default function RetreatLanding() {
             <ul className="review-list">
               {d.stories.map((s) => (
                 <li key={s.slug} className={`review-item ${s.photos?.length ? '' : 'no-photos'}`}>
-                  <div className="review-text">
-                    <blockquote>
-                      “{s.excerpt}
-                      {s.excerptIsFull ? '' : ' …'}”
-                    </blockquote>
-                    <p className="review-by">— {s.displayName ?? 'A retreat guest'}</p>
-                    {!s.excerptIsFull || (s.photos?.length ?? 0) > 0 ? (
-                      <Link to={`/stories/${s.slug}`}>
-                        Read full story<span className="sr-only">{s.displayName ? ` by ${s.displayName}` : ''}</span> →
-                      </Link>
-                    ) : null}
-                  </div>
+                  <article className="review-text">
+                    {s.title && <h3 className="review-title">{s.title}</h3>}
+                    <div className="review-body">
+                      {(s.text ?? s.excerpt)
+                        .split(/\n\s*\n/)
+                        .map((p) => p.trim())
+                        .filter(Boolean)
+                        .map((p, i) => (
+                          <p key={i}>{p}</p>
+                        ))}
+                    </div>
+                    <p className="review-by">
+                      — {s.displayName ?? 'A retreat guest'}
+                      {s.postedAt && (
+                        <>
+                          {' · '}
+                          <time dateTime={s.postedAt}>{formatDate(s.postedAt)}</time>
+                        </>
+                      )}
+                    </p>
+                  </article>
                   {s.photos && s.photos.length > 0 && (
                     <div className={`review-photos count-${Math.min(s.photos.length, 4)}`}>
                       {s.photos.slice(0, 4).map((p, i) => (

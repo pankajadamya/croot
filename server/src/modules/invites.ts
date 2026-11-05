@@ -166,6 +166,7 @@ async function draftView(r: Review, req: Request) {
       status: response.status,
       revision: response.revision,
       currentStep: response.currentStep,
+      storyTitle: response.storyTitle,
       storyText: response.storyText,
       overallRating: response.overallRating,
       keepText: response.keepText,
@@ -207,6 +208,7 @@ const ratingSchema = z.object({
 const draftSchema = z.object({
   revision: z.number().int().min(0),
   currentStep: z.number().int().min(0).max(10).optional(),
+  storyTitle: text(120).optional(),
   storyText: text(8000).optional(),
   overallRating: z.number().int().min(1).max(5).nullable().optional(),
   keepText: text(2000).optional(),
@@ -238,6 +240,7 @@ reviewRoutes.put(
 
     const data: Prisma.ResponseUpdateManyMutationInput = { revision: { increment: 1 } }
     if (body.currentStep !== undefined) data.currentStep = body.currentStep
+    if (body.storyTitle !== undefined) data.storyTitle = body.storyTitle
     if (body.storyText !== undefined) data.storyText = body.storyText
     if (body.overallRating !== undefined) data.overallRating = body.overallRating
     if (body.keepText !== undefined) data.keepText = body.keepText
@@ -484,6 +487,7 @@ reviewRoutes.post(
           organiserMessage: null,
           revision: { increment: 1 },
           submittedSnapshot: {
+            storyTitle: full.storyTitle,
             storyText: full.storyText,
             overallRating: full.overallRating,
             consents: Object.fromEntries(scopes),
