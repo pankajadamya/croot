@@ -1215,6 +1215,74 @@ table.data th {
   border-color: var(--button);
   background: var(--sage);
 }
+/* Large upload area: the whole box opens the picker (the photo gallery on phones). */
+.upload-zone {
+  margin-bottom: 1rem;
+  border: 2px solid color-mix(in srgb, var(--button) 28%, var(--border));
+  border-radius: calc(var(--radius) * 1.6);
+  background: var(--bg);
+  transition: border-color 0.15s, background 0.15s;
+}
+.upload-zone > label {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: 0.45rem;
+  padding: 2.75rem 1.5rem;
+  min-height: 210px;
+  align-content: center;
+  cursor: pointer;
+  color: var(--ink);
+}
+.upload-zone:hover:not(.is-off),
+.upload-zone.dragging {
+  border-color: var(--button);
+  background: var(--sage);
+}
+.upload-zone.is-off > label {
+  cursor: progress;
+}
+.upload-zone-icon {
+  color: var(--button);
+  display: grid;
+  place-items: center;
+  height: 40px;
+}
+.upload-zone-title {
+  font-weight: 700;
+  font-size: 1.2rem;
+  color: var(--button);
+}
+.upload-zone-hint {
+  color: var(--muted);
+  font-size: 0.92rem;
+  max-width: 46ch;
+}
+.upload-zone > :not(input):not(label) {
+  padding: 0 1.25rem 1.1rem;
+}
+.upload-zone input.sr-only:focus-visible + label {
+  outline-offset: -6px;
+}
+.upload-spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid color-mix(in srgb, var(--button) 25%, transparent);
+  border-top-color: var(--button);
+  animation: upload-spin 0.9s linear infinite;
+}
+@keyframes upload-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (max-width: 600px) {
+  .upload-zone > label {
+    padding: 2rem 1rem;
+    min-height: 170px;
+  }
+}
 .upload-bar {
   height: 6px;
   border-radius: 99px;

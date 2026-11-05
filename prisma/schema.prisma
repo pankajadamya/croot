@@ -702,3 +702,13 @@ model AuditEvent {
   @@index([organisationId, createdAt])
   @@index([entityType, entityId])
 }
+
+/// Platform-wide settings, edited on the Admin screen. A single row (id 1).
+model PlatformSettings {
+  id             Int      @id @default(1)
+  /// Most photos an organiser can put in one retreat's album (their uploads and earlier images). Guests' photos don't count.
+  albumMaxPhotos Int      @default(50)
+  /// Most videos an organiser can put in one retreat's album.
+  albumMaxVideos Int      @default(5)
+  updatedAt      DateTime @updatedAt
+}

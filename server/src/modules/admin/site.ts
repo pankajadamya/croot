@@ -11,6 +11,7 @@ import { audit } from '../../lib/audit.js'
 import { env } from '../../lib/env.js'
 import { HttpError, parseBody, route, text, uuidParam } from '../../lib/http.js'
 import { processImage } from '../../lib/images.js'
+import { albumHasPhotoRoom, albumLimits, albumUsage, assertAlbumRoom } from '../../lib/platformSettings.js'
 import { sniffVideo, streamVideo } from '../../lib/video.js'
 import { prisma } from '../../lib/prisma.js'
 import { storage } from '../../lib/storage.js'
@@ -213,10 +214,13 @@ siteRouter.post(
     const t = tenantOf(req)
     const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
     if (!req.file) throw new HttpError(400, 'Choose an image')
-    const image = await processImage(req.file.buffer)
-    const id = crypto.randomUUID()
     // ?album=1: a thank-you album photo (not on the public site; guests who reviewed and anyone with the share link see it).
     const kind = req.query.album ? 'album' : 'organiser'
+    if (kind === 'album') await assertAlbumRoom(retreat.id, 'photo')
+    const image = await processImage(req.file.buffer)
+    const id = crypto.randomUUID()
+    // A slideshow image joins the album too, unless the album is already full.
+    const joinsAlbum = kind === 'organiser' ? await albumHasPhotoRoom(retreat.id) : true
     const prefix = `org/${t.org.id}/retreat/${retreat.id}/${kind}/${id}`
     await storage.put(`${prefix}/original`, image.original, image.originalMime)
     await storage.put(`${prefix}/web.webp`, image.derivative, 'image/webp')
@@ -240,6 +244,7 @@ siteRouter.post(
         // Album photos: never in a slideshow, and ready at once (they are only for guests who reviewed).
         inHeroSlideshow: kind === 'organiser',
         inWritingSlideshow: kind === 'organiser',
+        inAlbum: joinsAlbum,
         ...(kind === 'album' ? { moderation: 'approved' as const } : {}),
       },
     })
@@ -265,6 +270,7 @@ siteRouter.post(
       const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
       if (retreat.kind !== 'itinerary') throw new HttpError(400, 'Albums are for itinerary retreats')
       if (!video) throw new HttpError(400, 'Choose a video')
+      await assertAlbumRoom(retreat.id, 'video')
       const type = await sniffVideo(video.path)
       const meta = parseBody(
         z.object({
@@ -355,6 +361,7 @@ siteRouter.patch(
       return res.json({ media: organiserMediaView(t.org.slug, updated) })
     }
     const body = parseBody(mediaPatch, req.body)
+    if (body.inAlbum && !media.inAlbum) await assertAlbumRoom(media.retreatId, 'photo')
     const { rightsConfirmed, ...rest } = body
     const next = { ...media, ...rest, publishConsent: rightsConfirmed ?? media.publishConsent }
     // The slideshow switches mean 'include when ready'. An organiser image is approved once its
@@ -391,7 +398,11 @@ siteRouter.get(
       },
       orderBy: [{ albumOrder: 'asc' }, { createdAt: 'asc' }],
     })
+    const limits = await albumLimits()
+    const usage = await albumUsage(retreat.id)
     res.json({
+      limits,
+      usage,
       coverId: retreat.rewardAlbumCoverId,
       pageUrl: retreat.kind === 'itinerary' ? sharePath(await ensureShareToken(retreat)) : null,
       media: media.map((m) => organiserMediaView(t.org.slug, m)),

@@ -6,6 +6,7 @@ import { eraseOrganisation } from '../lib/gdpr.js'
 import { env } from '../lib/env.js'
 import { HttpError, parseBody, route, text, uuidParam } from '../lib/http.js'
 import { grantOrganiser, organiserMails, sendQuietly } from '../lib/organisers.js'
+import { platformSettings } from '../lib/platformSettings.js'
 import { prisma } from '../lib/prisma.js'
 import { hashToken, newToken } from '../lib/tokens.js'
 import { requireCsrf, requirePlatformAdmin } from '../middleware/auth.js'
@@ -14,6 +15,33 @@ import { issueSetupToken } from './auth.js'
 /** Platform operators: approve retreat owners as tenants, suspend them, map custom domains. */
 export const platformRouter = Router()
 platformRouter.use(requirePlatformAdmin, requireCsrf)
+
+const settingsView = (s: Awaited<ReturnType<typeof platformSettings>>) => ({ albumMaxPhotos: s.albumMaxPhotos, albumMaxVideos: s.albumMaxVideos, updatedAt: s.updatedAt })
+
+/** Platform-wide settings, such as how much an organiser can put in each retreat's album. */
+platformRouter.get(
+  '/settings',
+  route(async (_req, res) => {
+    res.json({ settings: settingsView(await platformSettings()) })
+  }),
+)
+
+platformRouter.patch(
+  '/settings',
+  route(async (req, res) => {
+    const body = parseBody(
+      z.object({
+        albumMaxPhotos: z.number().int().min(1, 'At least 1').max(1000, 'At most 1000').optional(),
+        albumMaxVideos: z.number().int().min(0, 'Can’t be negative').max(100, 'At most 100').optional(),
+      }),
+      req.body,
+    )
+    await platformSettings()
+    const s = await prisma.platformSettings.update({ where: { id: 1 }, data: body })
+    await audit({ actorUserId: req.auth!.user.id, actorKind: 'platform', action: 'platform.settings_changed', entityType: 'platform', entityId: '1', metadata: body })
+    res.json({ settings: settingsView(s) })
+  }),
+)
 
 platformRouter.get(
   '/tenant-requests',

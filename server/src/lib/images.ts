@@ -2,7 +2,10 @@ import sharp from 'sharp'
 import { HttpError } from './http.js'
 
 const ALLOWED_FORMATS = new Set(['jpeg', 'png', 'webp', 'heif', 'avif'])
-const MAX_DIMENSION = 2000
+/** The kept copy: full quality, but never larger than 4K on its long edge. */
+const STORED_MAX_EDGE = 3840
+/** The copy pages show: sharp on high-density screens, much smaller to load. */
+const WEB_MAX_EDGE = 2560
 const MAX_INPUT_PIXELS = 60_000_000
 
 export interface ProcessedImage {
@@ -14,9 +17,12 @@ export interface ProcessedImage {
 }
 
 /**
- * Validates an upload by decoding it (never by filename or declared type) and produces a web
- * derivative. sharp drops EXIF/GPS/camera metadata unless asked to keep it, and `.rotate()` bakes
- * the EXIF orientation in first so the stripped copy still displays the right way up.
+ * Validates an upload by decoding it (never by filename or declared type) and makes two copies:
+ *  - the kept copy (stored as the "original"): at most 4K, high quality, so phone photos stay sharp
+ *    while a 48-megapixel shot doesn't fill the storage;
+ *  - a web copy (WebP, at most 2560px) that pages show.
+ * sharp drops EXIF/GPS/camera metadata unless asked to keep it, and `.rotate()` bakes the EXIF
+ * orientation in first so the stripped copies still display the right way up.
  */
 export async function processImage(input: Buffer): Promise<ProcessedImage> {
   let meta: sharp.Metadata
@@ -28,14 +34,16 @@ export async function processImage(input: Buffer): Promise<ProcessedImage> {
   if (!meta.format || !ALLOWED_FORMATS.has(meta.format)) {
     throw new HttpError(415, 'Please upload a JPEG, PNG, WebP or HEIC photo.')
   }
-  const { data, info } = await sharp(input, { limitInputPixels: MAX_INPUT_PIXELS })
-    .rotate()
-    .resize({ width: MAX_DIMENSION, height: MAX_DIMENSION, fit: 'inside', withoutEnlargement: true })
-    .webp({ quality: 82 })
-    .toBuffer({ resolveWithObject: true })
+  const base = () => sharp(input, { limitInputPixels: MAX_INPUT_PIXELS }).rotate()
+  const fit = (edge: number) => ({ width: edge, height: edge, fit: 'inside' as const, withoutEnlargement: true })
+  // Photos keep as JPEG; images with transparency (a PNG graphic, say) as lossless-looking WebP.
+  const kept = meta.hasAlpha
+    ? { buf: await base().resize(fit(STORED_MAX_EDGE)).webp({ quality: 92 }).toBuffer(), mime: 'image/webp' }
+    : { buf: await base().resize(fit(STORED_MAX_EDGE)).jpeg({ quality: 88, mozjpeg: true }).toBuffer(), mime: 'image/jpeg' }
+  const { data, info } = await base().resize(fit(WEB_MAX_EDGE)).webp({ quality: 82 }).toBuffer({ resolveWithObject: true })
   return {
-    original: input,
-    originalMime: `image/${meta.format === 'heif' ? 'heic' : meta.format}`,
+    original: kept.buf,
+    originalMime: kept.mime,
     derivative: data,
     width: info.width,
     height: info.height,

@@ -95,7 +95,7 @@ export default function OrgDashboard() {
                     <Link className="btn secondary small" to={`/admin/${orgSlug}/retreats/${r.id}/responses`}>
                       Responses
                     </Link>
-                    <Link className="btn secondary small" to={`/admin/${orgSlug}/retreats/${r.id}/site`}>
+                    <Link className="btn secondary small" to={`/admin/${orgSlug}/retreats/${r.id}`}>
                       Public site
                     </Link>
                   </div>

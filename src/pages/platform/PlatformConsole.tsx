@@ -11,6 +11,7 @@ import { AdminShell } from '../admin/AdminShell'
 import { fieldError, MutationError, OneTimeLinkNotice } from '../admin/adminUi'
 import { OrganiserInvites } from './OrganiserInvites'
 import { People } from './People'
+import { PlatformSettings } from './PlatformSettings'
 import { ownerText } from './orgLabel'
 
 interface TenantRequest {
@@ -68,12 +69,14 @@ export default function PlatformConsole() {
             <a href="#pf-people">People</a>
             <a href="#pf-tenants">Organisations</a>
             <a href="#pf-create">Create an organisation</a>
+            <a href="#pf-settings">Limits</a>
           </nav>
           <Requests />
           <OrganiserInvites />
           <People />
           <Tenants />
           <CreateTenant />
+          <PlatformSettings />
         </div>
       )}
     </AdminShell>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react'
+import { IMAGE_ACCEPT, prepareImage } from '../../lib/prepareImage'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, useLocation, useParams, useSearchParams } from 'react-router'
 import { api, ApiError, del, get } from '../../lib/api'
@@ -88,11 +89,11 @@ function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { ba
     const failed: string[] = []
     for (const [i, file] of images.entries()) {
       const fd = new FormData()
-      fd.append('photo', file)
       try {
+        fd.append('photo', await prepareImage(file))
         await api('POST', `${base}/album/photos`, fd)
       } catch (e) {
-        failed.push(`${file.name}: ${e instanceof ApiError ? e.message : 'upload failed'}`)
+        failed.push(`${file.name}: ${e instanceof ApiError || e instanceof Error ? e.message : 'upload failed'}`)
       }
       setUploading({ done: i + 1, total: images.length })
       void qc.invalidateQueries({ queryKey: key })
@@ -192,7 +193,7 @@ function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { ba
               className="sr-only"
               type="file"
               multiple
-              accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+              accept={IMAGE_ACCEPT}
               disabled={Boolean(uploading)}
               onChange={(e) => {
                 const files = Array.from(e.target.files ?? [])

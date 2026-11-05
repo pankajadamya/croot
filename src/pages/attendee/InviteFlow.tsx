@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { UploadZone } from '../../components/UploadZone'
+import { IMAGE_ACCEPT, MAX_UPLOAD_MB, prepareImage } from '../../lib/prepareImage'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import { CONSENT_WORDING, storyPromptsFor, type FeedbackCategory, type ReviewKind } from '../../../shared/categories'
 import { api, ApiError, del, get, patch, post, put } from '../../lib/api'
@@ -712,7 +714,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
               <h2 style={{ fontSize: '1.3rem', marginTop: '2rem' }}>Photos (optional)</h2>
               <p className="small muted">
                 If others appear in a photo, please only share it if they’re happy for it to be seen. The organiser checks every photo before it
-                appears anywhere, and location and camera details are removed. Up to 8 photos, each up to 15 MB.
+                appears anywhere, and location and camera details are removed. Up to 8 photos, each up to {MAX_UPLOAD_MB} MB.
               </p>
               <PhotoManager
                 base={base}
@@ -842,19 +844,20 @@ function PhotoManager({
   albumAvailable: boolean
   storyShared: boolean
 }) {
-  const [uploading, setUploading] = useState(false)
+  const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
 
-  async function onFiles(files: FileList | null) {
-    if (!files?.length) return
+  async function onFiles(files: File[]) {
+    if (!files.length) return
     setError(null)
-    setUploading(true)
+    setUploading({ done: 0, total: files.length })
     let next = photos
-    for (const file of Array.from(files)) {
+    for (const [i, file] of files.entries()) {
+      setUploading({ done: i, total: files.length })
       const fd = new FormData()
-      fd.append('photo', file)
       try {
+        // Full quality from the phone's gallery; iPhone HEIC photos are converted here first.
+        fd.append('photo', await prepareImage(file))
         const p = await api<Photo>('POST', `${base}/photos`, fd)
         next = [...next, p]
         setPhotos(next)
@@ -862,8 +865,7 @@ function PhotoManager({
         setError(`${file.name}: ${(e as Error).message}`)
       }
     }
-    setUploading(false)
-    if (inputRef.current) inputRef.current.value = ''
+    setUploading(null)
   }
 
   async function change(p: Photo, patchBody: Partial<Photo>) {
@@ -890,24 +892,16 @@ function PhotoManager({
   return (
     <div className="stack">
       {error && <div className="notice error" role="alert">{error}</div>}
-      <div>
-        <label htmlFor="photo-input" className="btn secondary">
-          {uploading ? 'Uploading…' : 'Add photos'}
-        </label>
-        <input
-          ref={inputRef}
-          id="photo-input"
-          type="file"
-          accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-          multiple
-          className="sr-only"
-          disabled={uploading}
-          onChange={(e) => void onFiles(e.target.files)}
-        />
-        <span className="small muted" style={{ marginLeft: '0.75rem' }} role="status">
-          {uploading ? 'Uploading, please keep this page open.' : 'JPEG, PNG, WebP or HEIC.'}
-        </span>
-      </div>
+      <UploadZone
+        id="photo-input"
+        title={photos.length ? 'Add more photos' : 'Choose photos to upload'}
+        hint={`From your phone’s gallery or your computer, in full quality. JPG, PNG or HEIC · up to 8 photos${photos.length ? ` (${photos.length} added)` : ''}`}
+        accept={IMAGE_ACCEPT}
+        busy={Boolean(uploading)}
+        busyLabel={uploading ? `Uploading ${uploading.done + 1} of ${uploading.total}… please keep this page open` : undefined}
+        disabled={photos.length >= 8}
+        onFiles={(files) => void onFiles(files)}
+      />
       {photos.length > 0 && (
         <div className="photo-grid">
           {photos.map((p, i) => (

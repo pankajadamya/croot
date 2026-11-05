@@ -7,6 +7,8 @@ import { MutationError, retreatKey } from '../adminUi'
 import type { OrganiserMedia, Retreat } from '../types'
 import { AlbumGrid } from './AlbumGrid'
 import { videoPoster } from '../../../lib/videoPoster'
+import { UploadZone } from '../../../components/UploadZone'
+import { IMAGE_ACCEPT, isImageFile, MAX_UPLOAD_MB, prepareImage } from '../../../lib/prepareImage'
 
 /** Matches the server's MAX_VIDEO_BYTES default. */
 const MAX_VIDEO_MB = 200
@@ -23,7 +25,13 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
   const photos = useQuery({
     queryKey: key,
     // Everything that can be in the album: its uploads and the earlier images from "Your images".
-    queryFn: () => get<{ coverId: string | null; pageUrl: string | null; media: OrganiserMedia[] }>(`${orgApi(orgSlug)}/retreats/${retreat.id}/album`),
+    queryFn: () => get<{
+        coverId: string | null
+        pageUrl: string | null
+        media: OrganiserMedia[]
+        limits: { maxPhotos: number; maxVideos: number }
+        usage: { photos: number; videos: number }
+      }>(`${orgApi(orgSlug)}/retreats/${retreat.id}/album`),
   })
   const [url, setUrl] = useState(retreat.rewardAlbumUrl ?? '')
   const [note, setNote] = useState(retreat.rewardAlbumNote ?? '')
@@ -50,16 +58,27 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
   // Several photos at once, one after another, as in "Your images".
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [failures, setFailures] = useState<Array<{ name: string; message: string }>>([])
-  const [dragging, setDragging] = useState(false)
   async function uploadAll(files: File[]) {
     const isVideo = (f: File) => f.type.startsWith('video/') || /\.(mp4|m4v|mov|webm)$/i.test(f.name)
-    const isImage = (f: File) => f.type.startsWith('image/') || /\.(jpe?g|png|webp)$/i.test(f.name)
+    const isImage = (f: File) => !isVideo(f) && isImageFile(f)
     const usable = files.filter((f) => isImage(f) || isVideo(f))
     const failed = files.filter((f) => !usable.includes(f)).map((f) => ({ name: f.name, message: 'Not a photo or video' }))
     for (const f of usable.filter(isVideo)) {
       if (f.size > MAX_VIDEO_MB * 1024 * 1024) failed.push({ name: f.name, message: `Videos can be up to ${MAX_VIDEO_MB} MB` })
     }
-    const queue = usable.filter((f) => !failed.some((x) => x.name === f.name))
+    let queue = usable.filter((f) => !failed.some((x) => x.name === f.name))
+    // Keep within the album's limits, saying which files didn't fit.
+    const limits = photos.data?.limits
+    const usage = photos.data?.usage
+    if (limits && usage) {
+      let photoRoom = Math.max(0, limits.maxPhotos - usage.photos)
+      let videoRoom = Math.max(0, limits.maxVideos - usage.videos)
+      queue = queue.filter((f) => {
+        if (isVideo(f) ? videoRoom-- > 0 : photoRoom-- > 0) return true
+        failed.push({ name: f.name, message: isVideo(f) ? `The album holds up to ${limits.maxVideos} videos` : `The album holds up to ${limits.maxPhotos} photos` })
+        return false
+      })
+    }
     setFailures(failed)
     if (!queue.length) return
     setProgress({ done: 0, total: queue.length })
@@ -76,11 +95,11 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
           if (meta.duration) data.append('duration', String(meta.duration))
           await post(`${orgApi(orgSlug)}/retreats/${retreat.id}/album/videos`, data)
         } else {
-          data.append('image', file)
+          data.append('image', await prepareImage(file))
           await post(`${orgApi(orgSlug)}/retreats/${retreat.id}/media?album=1`, data)
         }
       } catch (e) {
-        failed.push({ name: file.name, message: e instanceof ApiError ? e.message : 'Upload failed' })
+        failed.push({ name: file.name, message: e instanceof ApiError || e instanceof Error ? e.message : 'Upload failed' })
       }
       setProgress({ done: i + 1, total: queue.length })
       void queryClient.invalidateQueries({ queryKey: key })
@@ -185,40 +204,27 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
       </p>
       <MutationError error={settings.error} />
 
-      <div
-        className={`drop-zone ${dragging ? 'dragging' : ''}`}
-        onDragOver={(e) => {
-          e.preventDefault()
-          if (!progress) setDragging(true)
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(e) => {
-          e.preventDefault()
-          setDragging(false)
-          if (!progress) void uploadAll(Array.from(e.dataTransfer.files))
-        }}
-      >
-        <label htmlFor="album-upload" style={{ fontWeight: 600 }}>
-          Add album photos and videos
-        </label>
-        <span className="hint" id="album-upload-hint">
-          Choose several at once, or drag them here. Videos: MP4, MOV or WebM, up to {MAX_VIDEO_MB} MB each. They’re public, linked from your retreat page. If others appear
-          in a photo, include it only if they’re happy for it to be shared.
-        </span>
-        <input
-          id="album-upload"
-          type="file"
-          multiple
-          accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
-          aria-describedby="album-upload-hint"
-          disabled={Boolean(progress)}
-          onChange={(e) => {
-            const files = Array.from(e.target.files ?? [])
-            e.target.value = ''
-            if (files.length) void uploadAll(files)
-          }}
-        />
-      </div>
+      {photos.data && (
+        <p className="row small album-usage" style={{ margin: '0 0 0.6rem' }}>
+          <span className={`badge ${photos.data.usage.photos >= photos.data.limits.maxPhotos ? 'warn' : 'neutral'}`}>
+            Photos {photos.data.usage.photos} of {photos.data.limits.maxPhotos}
+          </span>
+          <span className={`badge ${photos.data.usage.videos >= photos.data.limits.maxVideos ? 'warn' : 'neutral'}`}>
+            Videos {photos.data.usage.videos} of {photos.data.limits.maxVideos}
+          </span>
+          <span className="muted">Guests’ own photos don’t count.</span>
+        </p>
+      )}
+      <UploadZone
+        id="album-upload"
+        title="Choose photos and videos to upload"
+        hint={`Pick several at once, or drag them here. Photos: JPG, PNG, WebP or HEIC, up to ${MAX_UPLOAD_MB} MB, kept in high quality (up to 4K). Videos: MP4, MOV or WebM, up to ${MAX_VIDEO_MB} MB. Everything here is public, linked from your retreat page, so only include people who are happy to be shared.`}
+        accept={`${IMAGE_ACCEPT},video/mp4,video/quicktime,video/webm`}
+        busy={Boolean(progress)}
+        busyLabel={progress ? `Uploading ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…` : undefined}
+        disabled={Boolean(photos.data && photos.data.usage.photos >= photos.data.limits.maxPhotos && photos.data.usage.videos >= photos.data.limits.maxVideos)}
+        onFiles={(files) => void uploadAll(files)}
+      />
       {progress && (
         <div role="status" aria-live="polite" style={{ marginTop: '0.75rem' }}>
           <span className="small">

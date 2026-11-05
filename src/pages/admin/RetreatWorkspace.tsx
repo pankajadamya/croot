@@ -12,13 +12,14 @@ import { InsightsTab } from './workspace/InsightsTab'
 import { SiteTab } from './workspace/SiteTab'
 import { AppearanceTab } from './workspace/AppearanceTab'
 
+// The public site comes first: it's what visitors see, and what organisers usually set up first.
 const TABS = [
+  ['site', 'Public site'],
   ['overview', 'Overview'],
   ['invitations', 'Invitations'],
   ['responses', 'Responses'],
   ['anonymous', 'Anonymous notes'],
   ['insights', 'Insights'],
-  ['site', 'Public site'],
   ['appearance', 'Appearance'],
   ['share', 'Share kit'],
 ] as const
@@ -28,7 +29,7 @@ type TabKey = (typeof TABS)[number][0]
 export default function RetreatWorkspace() {
   const { orgSlug = '', retreatId = '', tab } = useParams()
   const retreat = useRetreat(orgSlug, retreatId)
-  const active: TabKey | null = !tab ? 'overview' : (TABS.find(([k]) => k === tab)?.[0] ?? null)
+  const active: TabKey | null = !tab ? 'site' : (TABS.find(([k]) => k === tab)?.[0] ?? null)
   const base = `/admin/${orgSlug}/retreats/${retreatId}`
 
   return (
@@ -57,7 +58,7 @@ export default function RetreatWorkspace() {
 
           <nav className="tabs" aria-label="Retreat sections">
             {TABS.map(([key, label]) => (
-              <Link key={key} to={key === 'overview' ? base : `${base}/${key}`} aria-current={active === key ? 'page' : undefined}>
+              <Link key={key} to={key === 'site' ? base : `${base}/${key}`} aria-current={active === key ? 'page' : undefined}>
                 {label}
               </Link>
             ))}

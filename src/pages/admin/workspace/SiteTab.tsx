@@ -11,6 +11,8 @@ import { useRetreatTheme } from './AppearanceTab'
 import { AlbumSection } from './AlbumSection'
 import { MediaEditor } from './MediaEditor'
 import { SlideshowSettings } from './SlideshowSettings'
+import { UploadZone } from '../../../components/UploadZone'
+import { IMAGE_ACCEPT, isImageFile, MAX_UPLOAD_MB, prepareImage } from '../../../lib/prepareImage'
 
 interface ContentState {
   draft: ContentRevision | null
@@ -254,11 +256,10 @@ function ImageLibrary({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
   // (wrong type, too large) doesn't stop the rest.
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [failures, setFailures] = useState<Array<{ name: string; message: string }>>([])
-  const [dragging, setDragging] = useState(false)
   const [lastBatch, setLastBatch] = useState<number | null>(null)
 
   async function uploadAll(files: File[]) {
-    const images = files.filter((f) => f.type.startsWith('image/') || /\.(jpe?g|png|webp)$/i.test(f.name))
+    const images = files.filter(isImageFile)
     const skipped = files.filter((f) => !images.includes(f)).map((f) => ({ name: f.name, message: 'Not an image' }))
     setFailures(skipped)
     setLastBatch(null)
@@ -267,11 +268,11 @@ function ImageLibrary({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
     const failed: Array<{ name: string; message: string }> = [...skipped]
     for (const [i, file] of images.entries()) {
       const data = new FormData()
-      data.append('image', file)
       try {
+        data.append('image', await prepareImage(file))
         await post(`${orgApi(orgSlug)}/retreats/${retreat.id}/media`, data)
       } catch (e) {
-        failed.push({ name: file.name, message: e instanceof ApiError ? e.message : 'Upload failed' })
+        failed.push({ name: file.name, message: e instanceof ApiError || e instanceof Error ? e.message : 'Upload failed' })
       }
       setProgress({ done: i + 1, total: images.length })
       // Show new images as they arrive rather than only at the end.
@@ -309,39 +310,15 @@ function ImageLibrary({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
           </button>
         </p>
       )}
-      <div
-        className={`drop-zone ${dragging ? 'dragging' : ''}`}
-        onDragOver={(e) => {
-          e.preventDefault()
-          if (!uploading) setDragging(true)
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(e) => {
-          e.preventDefault()
-          setDragging(false)
-          if (!uploading) void uploadAll(Array.from(e.dataTransfer.files))
-        }}
-      >
-        <label htmlFor="lib-upload" style={{ fontWeight: 600 }}>
-          Upload images
-        </label>
-        <span className="hint" id="lib-upload-hint">
-          Choose several at once, or drag them here. JPEG, PNG or WebP. Location and camera details are removed.
-        </span>
-        <input
-          id="lib-upload"
-          type="file"
-          multiple
-          accept="image/jpeg,image/png,image/webp"
-          aria-describedby="lib-upload-hint"
-          disabled={uploading}
-          onChange={(e) => {
-            const files = Array.from(e.target.files ?? [])
-            e.target.value = ''
-            if (files.length) void uploadAll(files)
-          }}
-        />
-      </div>
+      <UploadZone
+        id="lib-upload"
+        title="Choose images to upload"
+        hint={`Pick several at once, or drag them here. JPG, PNG, WebP or HEIC, up to ${MAX_UPLOAD_MB} MB each. Kept in high quality (up to 4K); location and camera details are removed.`}
+        accept={IMAGE_ACCEPT}
+        busy={uploading}
+        busyLabel={progress ? `Uploading ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…` : undefined}
+        onFiles={(files) => void uploadAll(files)}
+      />
       {progress && (
         <div role="status" aria-live="polite" style={{ marginTop: '0.75rem' }}>
           <span className="small">

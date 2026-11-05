@@ -43,7 +43,7 @@ export function LiveStatus({ orgSlug, retreat }: { orgSlug: string; retreat: Ret
               ? 'Closed: guests can no longer send reviews'
               : 'Archived: hidden everywhere',
     },
-    { ok: openingLive, label: openingLive ? 'Your opening is published' : 'Your opening isn’t published yet', action: openingLive ? undefined : { to: `${base}/site`, text: 'Write and publish it' } },
+    { ok: openingLive, label: openingLive ? 'Your opening is published' : 'Your opening isn’t published yet', action: openingLive ? undefined : { to: base, text: 'Write and publish it' } },
     {
       ok: published > 0,
       label: published > 0 ? `${published} guest stor${published === 1 ? 'y' : 'ies'} on the page` : 'No guest stories published yet',

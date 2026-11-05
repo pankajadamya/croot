@@ -33,7 +33,9 @@ export function createApp() {
           imgSrc: ["'self'", 'data:', 'blob:'],
           mediaSrc: ["'self'", 'blob:'],
           styleSrc: ["'self'", "'unsafe-inline'"],
-          scriptSrc: ["'self'"],
+          // 'wasm-unsafe-eval' and blob: workers: the in-browser HEIC converter (WebAssembly in a worker).
+          scriptSrc: ["'self'", "'wasm-unsafe-eval'"],
+          workerSrc: ["'self'", 'blob:'],
           connectSrc: ["'self'"],
           frameAncestors: ["'none'"],
           formAction: ["'self'"],
