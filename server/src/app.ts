@@ -30,6 +30,7 @@ export function createApp() {
         directives: {
           defaultSrc: ["'self'"],
           imgSrc: ["'self'", 'data:', 'blob:'],
+          mediaSrc: ["'self'", 'blob:'],
           styleSrc: ["'self'", "'unsafe-inline'"],
           scriptSrc: ["'self'"],
           connectSrc: ["'self'"],

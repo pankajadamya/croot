@@ -8,7 +8,7 @@ import { livePublication } from '../lib/publication.js'
 import { activeOrgBySlug, publicRetreat, publishedContent, publishedTheme, retreatFacts, tenantForHost } from '../lib/site.js'
 import { storage } from '../lib/storage.js'
 import { anonymousLimiter, heartLimiter } from '../middleware/rateLimits.js'
-import { albumListing, albumPagePath, assertAlbumPhoto, publicAlbumLink, sendAlbumPhoto } from '../lib/album.js'
+import { albumListing, albumPagePath, assertAlbumPhoto, publicAlbumLink, sendAlbumPhoto, sendAlbumVideo } from '../lib/album.js'
 import { heartedBy, setHeart, voterSchema } from '../lib/hearts.js'
 
 /**
@@ -179,6 +179,15 @@ publicRouter.post(
     const count = await setHeart(photoId, voter, on, req.ip)
     res.set('Cache-Control', 'no-store')
     res.json({ hearts: count, hearted: on })
+  }),
+)
+
+publicRouter.get(
+  '/orgs/:orgSlug/retreats/:retreatSlug/album/:photoId/video',
+  route(async (req, res) => {
+    const org = await activeOrgBySlug(param(req, 'orgSlug'))
+    const retreat = await publicRetreat(org.id, param(req, 'retreatSlug'))
+    await sendAlbumVideo(req, res, retreat, uuidParam(req, 'photoId'))
   }),
 )
 

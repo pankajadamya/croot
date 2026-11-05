@@ -64,6 +64,8 @@ const envSchema = z.object({
   /** Must match an authorised redirect URI in the Google console. Defaults to WEB_ORIGIN + /api/auth/google/callback. */
   GOOGLE_CALLBACK_URL: z.string().optional().default(''),
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(15 * 1024 * 1024),
+  /** Organiser album videos. */
+  MAX_VIDEO_BYTES: z.coerce.number().int().positive().default(200 * 1024 * 1024),
   MAX_PHOTOS_PER_RESPONSE: z.coerce.number().int().positive().default(8),
 })
 

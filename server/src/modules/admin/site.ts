@@ -1,4 +1,7 @@
+import { readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { Router } from 'express'
+import sharp from 'sharp'
 import multer from 'multer'
 import { z } from 'zod'
 import type { Prisma } from '@prisma/client'
@@ -8,6 +11,7 @@ import { audit } from '../../lib/audit.js'
 import { env } from '../../lib/env.js'
 import { HttpError, parseBody, route, text, uuidParam } from '../../lib/http.js'
 import { processImage } from '../../lib/images.js'
+import { sniffVideo, streamVideo } from '../../lib/video.js'
 import { prisma } from '../../lib/prisma.js'
 import { storage } from '../../lib/storage.js'
 import { tenantMedia, tenantRetreat } from '../../lib/tenant.js'
@@ -160,6 +164,8 @@ siteRouter.post(
 // Organiser images (hero slideshow and writing-time memory prompts)
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: env.MAX_UPLOAD_BYTES, files: 1 } })
+// Videos go to a temporary file, not memory; the poster frame comes from the organiser's browser.
+const videoUpload = multer({ dest: tmpdir(), limits: { fileSize: env.MAX_VIDEO_BYTES, files: 2 } })
 
 function organiserMediaView(orgSlug: string, m: Awaited<ReturnType<typeof tenantMedia>>) {
   return {
@@ -179,6 +185,9 @@ function organiserMediaView(orgSlug: string, m: Awaited<ReturnType<typeof tenant
     inAlbum: m.kind === 'album' || m.inAlbum,
     sharedByGuest: m.kind === 'guest',
     albumOrder: m.albumOrder,
+    isVideo: Boolean(m.videoKey),
+    videoUrl: m.videoKey ? `/api/admin/orgs/${orgSlug}/media/${m.id}/video` : null,
+    durationSec: m.durationSec,
   }
 }
 
@@ -236,6 +245,79 @@ siteRouter.post(
     })
     await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'media.uploaded', entityType: 'media', entityId: m.id })
     res.status(201).json({ media: organiserMediaView(t.org.slug, m) })
+  }),
+)
+
+// Album videos (organisers only). The browser sends the video plus a poster frame it captured.
+siteRouter.post(
+  '/retreats/:retreatId/album/videos',
+  uploadLimiter,
+  videoUpload.fields([
+    { name: 'video', maxCount: 1 },
+    { name: 'poster', maxCount: 1 },
+  ]),
+  route(async (req, res) => {
+    const files = (req.files ?? {}) as Record<string, Express.Multer.File[] | undefined>
+    const video = files.video?.[0]
+    const poster = files.poster?.[0]
+    try {
+      const t = tenantOf(req)
+      const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
+      if (retreat.kind !== 'itinerary') throw new HttpError(400, 'Albums are for itinerary retreats')
+      if (!video) throw new HttpError(400, 'Choose a video')
+      const type = await sniffVideo(video.path)
+      const meta = parseBody(
+        z.object({
+          width: z.coerce.number().int().min(16).max(8000).optional(),
+          height: z.coerce.number().int().min(16).max(8000).optional(),
+          duration: z.coerce.number().min(0).max(24 * 3600).optional(),
+        }),
+        req.body,
+      )
+      // A poster from the browser if it could make one, else a plain dark frame.
+      const posterImage = poster
+        ? await processImage(await readFile(poster.path))
+        : await processImage(await sharp({ create: { width: 1280, height: 720, channels: 3, background: '#183d3b' } }).jpeg().toBuffer())
+      const id = crypto.randomUUID()
+      const prefix = `org/${t.org.id}/retreat/${retreat.id}/album/${id}`
+      await storage.putFile(`${prefix}/video.${type.ext}`, video.path, type.mime)
+      await storage.put(`${prefix}/poster.webp`, posterImage.derivative, 'image/webp')
+      const m = await prisma.mediaAsset.create({
+        data: {
+          id,
+          organisationId: t.org.id,
+          retreatId: retreat.id,
+          kind: 'album',
+          originalKey: `${prefix}/video.${type.ext}`,
+          derivativeKey: `${prefix}/poster.webp`,
+          videoKey: `${prefix}/video.${type.ext}`,
+          mime: type.mime,
+          sizeBytes: video.size,
+          width: meta.width ?? posterImage.width,
+          height: meta.height ?? posterImage.height,
+          durationSec: meta.duration ?? null,
+          albumOrder: ((await prisma.mediaAsset.aggregate({ where: { retreatId: retreat.id, removedAt: null }, _max: { albumOrder: true } }))._max.albumOrder ?? -1) + 1,
+          inHeroSlideshow: false,
+          inWritingSlideshow: false,
+          moderation: 'approved',
+        },
+      })
+      await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'media.video_uploaded', entityType: 'media', entityId: m.id })
+      res.status(201).json({ media: organiserMediaView(t.org.slug, m) })
+    } finally {
+      await Promise.all([video, poster].filter(Boolean).map((f) => rm(f!.path, { force: true })))
+    }
+  }),
+)
+
+/** The organiser's own preview of an album video. */
+siteRouter.get(
+  '/media/:mediaId/video',
+  route(async (req, res) => {
+    const t = tenantOf(req)
+    const media = await tenantMedia(t.org.id, uuidParam(req, 'mediaId'))
+    if (!media.videoKey) throw new HttpError(404, 'Not a video')
+    await streamVideo(req, res, media.videoKey, media.mime, 'private, no-store')
   }),
 )
 

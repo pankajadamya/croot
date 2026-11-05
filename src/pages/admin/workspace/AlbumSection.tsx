@@ -6,6 +6,10 @@ import { ErrorNotice, Loading } from '../../../components/States'
 import { MutationError, retreatKey } from '../adminUi'
 import type { OrganiserMedia, Retreat } from '../types'
 import { AlbumGrid } from './AlbumGrid'
+import { videoPoster } from '../../../lib/videoPoster'
+
+/** Matches the server's MAX_VIDEO_BYTES default. */
+const MAX_VIDEO_MB = 200
 
 /**
  * Itinerary retreats: a thank-you photo album each guest unlocks by sending their review. It's
@@ -41,20 +45,37 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
   const [failures, setFailures] = useState<Array<{ name: string; message: string }>>([])
   const [dragging, setDragging] = useState(false)
   async function uploadAll(files: File[]) {
-    const images = files.filter((f) => f.type.startsWith('image/') || /\.(jpe?g|png|webp)$/i.test(f.name))
-    const failed = files.filter((f) => !images.includes(f)).map((f) => ({ name: f.name, message: 'Not an image' }))
+    const isVideo = (f: File) => f.type.startsWith('video/') || /\.(mp4|m4v|mov|webm)$/i.test(f.name)
+    const isImage = (f: File) => f.type.startsWith('image/') || /\.(jpe?g|png|webp)$/i.test(f.name)
+    const usable = files.filter((f) => isImage(f) || isVideo(f))
+    const failed = files.filter((f) => !usable.includes(f)).map((f) => ({ name: f.name, message: 'Not a photo or video' }))
+    for (const f of usable.filter(isVideo)) {
+      if (f.size > MAX_VIDEO_MB * 1024 * 1024) failed.push({ name: f.name, message: `Videos can be up to ${MAX_VIDEO_MB} MB` })
+    }
+    const queue = usable.filter((f) => !failed.some((x) => x.name === f.name))
     setFailures(failed)
-    if (!images.length) return
-    setProgress({ done: 0, total: images.length })
-    for (const [i, file] of images.entries()) {
+    if (!queue.length) return
+    setProgress({ done: 0, total: queue.length })
+    for (const [i, file] of queue.entries()) {
       const data = new FormData()
-      data.append('image', file)
       try {
-        await post(`${orgApi(orgSlug)}/retreats/${retreat.id}/media?album=1`, data)
+        if (isVideo(file)) {
+          // The browser picks a poster frame and reads the size and length; the server stores the rest.
+          const meta = await videoPoster(file)
+          data.append('video', file)
+          if (meta.poster) data.append('poster', meta.poster, 'poster.jpg')
+          if (meta.width) data.append('width', String(meta.width))
+          if (meta.height) data.append('height', String(meta.height))
+          if (meta.duration) data.append('duration', String(meta.duration))
+          await post(`${orgApi(orgSlug)}/retreats/${retreat.id}/album/videos`, data)
+        } else {
+          data.append('image', file)
+          await post(`${orgApi(orgSlug)}/retreats/${retreat.id}/media?album=1`, data)
+        }
       } catch (e) {
         failed.push({ name: file.name, message: e instanceof ApiError ? e.message : 'Upload failed' })
       }
-      setProgress({ done: i + 1, total: images.length })
+      setProgress({ done: i + 1, total: queue.length })
       void queryClient.invalidateQueries({ queryKey: key })
     }
     setFailures([...failed])
@@ -162,17 +183,17 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
         }}
       >
         <label htmlFor="album-upload" style={{ fontWeight: 600 }}>
-          Add album photos
+          Add album photos and videos
         </label>
         <span className="hint" id="album-upload-hint">
-          Choose several at once, or drag them here. Album photos are public: anyone with the link, or visiting your public page, can see them. If others appear
+          Choose several at once, or drag them here. Videos: MP4, MOV or WebM, up to {MAX_VIDEO_MB} MB each. Album photos are public: anyone with the link, or visiting your public page, can see them. If others appear
           in a photo, include it only if they’re happy for it to be shared.
         </span>
         <input
           id="album-upload"
           type="file"
           multiple
-          accept="image/jpeg,image/png,image/webp"
+          accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
           aria-describedby="album-upload-hint"
           disabled={Boolean(progress)}
           onChange={(e) => {

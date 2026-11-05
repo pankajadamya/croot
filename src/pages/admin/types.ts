@@ -197,4 +197,7 @@ export interface OrganiserMedia {
   kind?: 'organiser' | 'album' | 'guest'
   inAlbum?: boolean
   albumOrder?: number
+  isVideo?: boolean
+  videoUrl?: string | null
+  durationSec?: number | null
 }

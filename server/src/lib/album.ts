@@ -1,4 +1,4 @@
-import type { Response as ExpressResponse } from 'express'
+import type { Request as ExpressRequest, Response as ExpressResponse } from 'express'
 import type { Prisma } from '@prisma/client'
 import sharp from 'sharp'
 import { CONSENT_WORDING_VERSION } from '../../../shared/categories.js'
@@ -7,6 +7,7 @@ import { env } from './env.js'
 import { HttpError } from './http.js'
 import { heartCounts } from './hearts.js'
 import { processImage } from './images.js'
+import { streamVideo } from './video.js'
 import { prisma } from './prisma.js'
 import { storage } from './storage.js'
 
@@ -104,6 +105,8 @@ export async function albumListing(retreat: RetreatLike, response: ResponseLike,
   if (!opts.publicView && !isUnlocked(response)) throw new HttpError(403, 'Send your review to unlock the photo album')
   const photos = await albumPhotos(retreat.id, retreat.rewardAlbumCoverId)
   const hearts = await heartCounts(photos.map((p) => p.id))
+  // Videos always stream from the album's public address ("/o/x/r/y/album" → "/api/public/orgs/x/retreats/y/album").
+  const videoBase = `/api/public${opts.pagePath.replace(/^\/o\//, '/orgs/').replace('/r/', '/retreats/')}`
   return {
     pageUrl: opts.pagePath,
     title: retreat.title,
@@ -121,8 +124,18 @@ export async function albumListing(retreat: RetreatLike, response: ResponseLike,
       sharedByGuest: p.kind === 'guest',
       mine: Boolean(response && p.responseId === response.id),
       hearts: hearts.get(p.id) ?? 0,
+      video: p.videoKey ? `${videoBase}/${p.id}/video` : null,
+      duration: p.durationSec,
     })),
   }
+}
+
+/** An album video, streamed with Range support. Public, like the album. */
+export async function sendAlbumVideo(req: ExpressRequest, res: ExpressResponse, retreat: RetreatLike, id: string) {
+  if (!available(retreat)) throw new HttpError(404, 'There is no photo album for this retreat')
+  const item = await prisma.mediaAsset.findFirst({ where: { ...albumWhere(retreat.id), id, videoKey: { not: null } } })
+  if (!item?.videoKey) throw new HttpError(404, 'Video not found')
+  await streamVideo(req, res, item.videoKey, item.mime, 'public, max-age=3600')
 }
 
 /** Is this photo in the retreat's album (so it can be hearted)? */

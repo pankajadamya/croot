@@ -559,6 +559,9 @@ model MediaAsset {
   albumConsent       Boolean      @default(false)
   /// Position in the thank-you album (separate from the slideshow order).
   albumOrder         Int          @default(0)
+  /// Album videos (organisers only): the video file. derivativeKey is then its poster image.
+  videoKey           String?
+  durationSec        Float?
   removedAt      DateTime?
   /// When the private original was deleted under the retention policy (originalKey is then stale).
   originalPurgedAt DateTime?

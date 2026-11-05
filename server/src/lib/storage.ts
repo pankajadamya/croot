@@ -1,6 +1,8 @@
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { createReadStream } from 'node:fs'
+import { copyFile, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import type { Readable } from 'node:stream'
 import { dirname, resolve, sep } from 'node:path'
-import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { env } from './env.js'
 
 /**
@@ -12,6 +14,12 @@ export interface Storage {
   put(key: string, body: Buffer, contentType: string): Promise<void>
   get(key: string): Promise<Buffer | null>
   remove(key: string): Promise<void>
+  /** Uploads a file from disk without holding it all in memory (videos). */
+  putFile(key: string, path: string, contentType: string): Promise<void>
+  /** Size in bytes, or null when missing. */
+  size(key: string): Promise<number | null>
+  /** Bytes start..end inclusive, as a stream (for HTTP Range requests). */
+  stream(key: string, start: number, end: number): Promise<Readable>
 }
 
 class LocalStorage implements Storage {
@@ -40,6 +48,24 @@ class LocalStorage implements Storage {
   async remove(key: string) {
     await rm(this.pathFor(key), { force: true })
   }
+
+  async putFile(key: string, path: string) {
+    const target = this.pathFor(key)
+    await mkdir(dirname(target), { recursive: true })
+    await copyFile(path, target)
+  }
+
+  async size(key: string) {
+    try {
+      return (await stat(this.pathFor(key))).size
+    } catch {
+      return null
+    }
+  }
+
+  async stream(key: string, start: number, end: number) {
+    return createReadStream(this.pathFor(key), { start, end })
+  }
 }
 
 class S3Storage implements Storage {
@@ -66,6 +92,27 @@ class S3Storage implements Storage {
 
   async remove(key: string) {
     await this.client.send(new DeleteObjectCommand({ Bucket: env.S3_BUCKET, Key: key }))
+  }
+
+  async putFile(key: string, path: string, contentType: string) {
+    const { size } = await stat(path)
+    await this.client.send(
+      new PutObjectCommand({ Bucket: env.S3_BUCKET, Key: key, Body: createReadStream(path), ContentLength: size, ContentType: contentType }),
+    )
+  }
+
+  async size(key: string) {
+    try {
+      const out = await this.client.send(new HeadObjectCommand({ Bucket: env.S3_BUCKET, Key: key }))
+      return out.ContentLength ?? null
+    } catch {
+      return null
+    }
+  }
+
+  async stream(key: string, start: number, end: number) {
+    const out = await this.client.send(new GetObjectCommand({ Bucket: env.S3_BUCKET, Key: key, Range: `bytes=${start}-${end}` }))
+    return out.Body as Readable
   }
 }
 

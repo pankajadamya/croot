@@ -30,3 +30,9 @@ export function formatShort(value: string | Date) {
 export function toDateInput(value: string | Date | null | undefined) {
   return value ? new Date(value).toISOString().slice(0, 10) : ''
 }
+
+/** 75 → "1:15". */
+export function formatDuration(seconds: number) {
+  const s = Math.round(seconds)
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+}

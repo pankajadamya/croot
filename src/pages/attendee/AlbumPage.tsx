@@ -5,6 +5,7 @@ import { api, ApiError, del, get } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
 import { LinkUnavailable, Loading } from '../../components/States'
 import { HeartButton, useHearts } from '../../components/Hearts'
+import { formatDuration } from '../../lib/format'
 
 interface AlbumPhoto {
   id: string
@@ -16,6 +17,9 @@ interface AlbumPhoto {
   sharedByGuest: boolean
   mine: boolean
   hearts: number
+  /** For videos: where to stream it from; url is then its poster. */
+  video: string | null
+  duration: number | null
 }
 interface AlbumListing {
   pageUrl: string
@@ -179,8 +183,13 @@ function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { ba
           <ul className="album-mosaic">
             {photos.map((p, i) => (
               <li key={p.id} style={{ aspectRatio: `${p.width} / ${p.height}` }}>
-                <button type="button" onClick={() => setOpen(i)} aria-label={`Open photo ${i + 1} of ${photos.length}${p.caption ? `: ${p.caption}` : ''}`}>
+                <button type="button" onClick={() => setOpen(i)} aria-label={`${p.video ? 'Play video' : 'Open photo'} ${i + 1} of ${photos.length}${p.caption ? `: ${p.caption}` : ''}`}>
                   <img src={p.url} alt={p.alt} loading={i < 6 ? 'eager' : 'lazy'} />
+                  {p.video && (
+                    <span className="video-badge on-photo" aria-hidden="true">
+                      ▶{p.duration ? ` ${formatDuration(p.duration)}` : ''}
+                    </span>
+                  )}
                 </button>
                 {(p.sharedByGuest || p.caption) && (
                   <span className="album-tag">{p.mine ? 'Shared by you' : p.sharedByGuest ? 'Shared by a guest' : p.caption}</span>
@@ -243,7 +252,8 @@ function Lightbox({
   }, [go, onClose])
 
   function onPointerDown(e: PointerEvent) {
-    startX.current = e.clientX
+    // Dragging along a video's own controls (seek bar, volume) must not change the photo.
+    startX.current = (e.target as HTMLElement).tagName === 'VIDEO' ? null : e.clientX
   }
   function onPointerUp(e: PointerEvent) {
     if (startX.current === null) return
@@ -255,7 +265,12 @@ function Lightbox({
   return (
     <div className="lightbox" role="dialog" aria-modal="true" aria-label={`Photo ${index + 1} of ${photos.length}`}>
       <div className="lightbox-stage" onPointerDown={onPointerDown} onPointerUp={onPointerUp}>
-        <img key={p.id} src={p.url} alt={p.alt} draggable={false} />
+        {p.video ? (
+          // Plays straight away when opened, with the browser's own controls (sound off until the viewer turns it on).
+          <video key={p.id} src={p.video} poster={p.url} controls autoPlay playsInline muted preload="metadata" aria-label={p.alt} />
+        ) : (
+          <img key={p.id} src={p.url} alt={p.alt} draggable={false} />
+        )}
       </div>
       <button ref={closeRef} type="button" className="lightbox-close" onClick={onClose} aria-label="Close">
         ✕

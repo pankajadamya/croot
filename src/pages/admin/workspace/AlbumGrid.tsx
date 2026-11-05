@@ -3,6 +3,7 @@ import { useMutation } from '@tanstack/react-query'
 import { del, orgApi, patch, post, put } from '../../../lib/api'
 import { MutationError } from '../adminUi'
 import type { OrganiserMedia } from '../types'
+import { formatDuration } from '../../../lib/format'
 
 /**
  * The album's photos in the order guests see them: drag to reorder, or Move earlier/later (keyboard
@@ -111,6 +112,11 @@ export function AlbumGrid({
                       {i + 1}
                     </span>
                     {isCover && <span className="album-tile-cover">Title photo</span>}
+                    {m.isVideo && (
+                      <span className="video-badge" aria-label="Video">
+                        ▶{m.durationSec ? ` ${formatDuration(m.durationSec)}` : ''}
+                      </span>
+                    )}
                   </div>
                   <span className="small muted">{fromGuest ? 'Shared by a guest' : fromImages ? 'From your images' : 'Album upload'}</span>
                   <div className="album-tile-actions">

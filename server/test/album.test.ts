@@ -186,6 +186,51 @@ describe('thank-you photo album (itinerary retreats)', () => {
   })
 })
 
+describe('album videos (organisers)', () => {
+  // The start of an MP4 file ("ftyp" box), padded out: enough for type checks and range requests.
+  const fakeMp4 = () => Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from('ftypisom'), Buffer.alloc(4000, 7)])
+
+  it('uploads with a poster, lists it as a video, and streams it with Range support', async () => {
+    const { agent, csrf, retreat } = await albumSetup()
+    const up = await agent
+      .post(`/api/admin/orgs/alpha/retreats/${retreat.id}/album/videos`)
+      .set('X-CSRF-Token', csrf)
+      .attach('video', fakeMp4(), 'clip.mp4')
+      .attach('poster', await png(), 'poster.png')
+      .field('width', '1920')
+      .field('height', '1080')
+      .field('duration', '12.5')
+    expect(up.status).toBe(201)
+    expect(up.body.media).toMatchObject({ isVideo: true, durationSec: 12.5 })
+
+    const album = await request(app).get(`/api/public/orgs/alpha/retreats/${retreat.slug}/album`)
+    const video = album.body.photos.find((p: { id: string }) => p.id === up.body.media.id)
+    expect(video).toMatchObject({ width: 1920, height: 1080, duration: 12.5, video: expect.stringContaining('/video') })
+    expect((await request(app).get(video.url)).headers['content-type']).toBe('image/webp') // its poster
+
+    const whole = await request(app).get(video.video).buffer(true)
+    expect(whole.status).toBe(200)
+    expect(whole.headers['accept-ranges']).toBe('bytes')
+    expect(Number(whole.headers['content-length'])).toBe(fakeMp4().length)
+    const part = await request(app).get(video.video).set('Range', 'bytes=4-11').buffer(true)
+    expect(part.status).toBe(206)
+    expect(part.headers['content-range']).toBe(`bytes 4-11/${fakeMp4().length}`)
+    expect(Buffer.from(part.body).toString('ascii')).toBe('ftypisom')
+  })
+
+  it('refuses files that are not videos, and only organisers can upload', async () => {
+    const { agent, csrf, retreat, token } = await albumSetup()
+    const bad = await agent
+      .post(`/api/admin/orgs/alpha/retreats/${retreat.id}/album/videos`)
+      .set('X-CSRF-Token', csrf)
+      .attach('video', Buffer.from('not a video at all'), 'clip.mp4')
+    expect(bad.status).toBe(415)
+    expect((await request(app).post(`/api/admin/orgs/alpha/retreats/${retreat.id}/album/videos`).attach('video', fakeMp4(), 'x.mp4')).status).toBe(401)
+    // Guests' own album uploads are photos only.
+    expect((await request(app).post(`/api/invites/${token}/album/photos`).attach('photo', fakeMp4(), 'x.mp4')).status).not.toBe(201)
+  })
+})
+
 describe('property stay dates', () => {
   it('are prefilled from the invitation and editable by the guest', async () => {
     const { org, retreat } = await makeTenant('lodge', { kind: 'property' })
