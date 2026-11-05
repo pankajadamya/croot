@@ -51,6 +51,34 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
       refresh()
     },
   })
+  // "Copy a link": makes a fresh link and puts it straight on the clipboard. The clipboard write starts
+  // inside the click (as Safari requires) with the link arriving a moment later from the server.
+  const [copyNote, setCopyNote] = useState<{ id: string; text: string; url?: string } | null>(null)
+  function copyLink(a: AttendeeRowView) {
+    const live = a.invitation && !a.invitation.revoked
+    if (live && !window.confirm(`Make a new link for ${a.name}? Their current link (ending …${a.invitation!.hint}) will stop working. Their draft is kept.`)) return
+    setCopyNote(null)
+    const link = issue.mutateAsync(a)
+    const url = link.then((l) => l.url)
+    let copied: Promise<void>
+    try {
+      copied =
+        typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write
+          ? navigator.clipboard.write([new ClipboardItem({ 'text/plain': url.then((u) => new Blob([u], { type: 'text/plain' })) })])
+          : url.then((u) => navigator.clipboard.writeText(u))
+    } catch (e) {
+      copied = Promise.reject(e)
+    }
+    void link.then(
+      (l) =>
+        copied.then(
+          () => setCopyNote({ id: a.id, text: 'Link copied. Paste it into a message to the guest.' }),
+          // The browser wouldn't let us copy: show the link right here instead.
+          () => setCopyNote({ id: a.id, text: 'Your browser didn’t allow copying automatically. Here’s the new link:', url: l.url }),
+        ),
+      () => {}, // the error shows above the table
+    )
+  }
   const revoke = useMutation({
     mutationFn: (a: AttendeeRowView) => post(`${orgApi(orgSlug)}/attendees/${a.id}/revoke`),
     onSuccess: refresh,
@@ -231,8 +259,8 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
                         <button type="button" className="btn secondary small" disabled={!collecting || emailOne.isPending} onClick={() => emailOne.mutate(a)}>
                           {a.invitation?.emailedAt ? 'Email again' : 'Email invitation'}
                         </button>
-                        <button type="button" className="btn ghost small" disabled={issue.isPending} onClick={() => issue.mutate(a)}>
-                          Copy a link
+                        <button type="button" className="btn ghost small" disabled={issue.isPending} onClick={() => copyLink(a)}>
+                          {issue.isPending && issue.variables?.id === a.id ? 'Copying…' : a.invitation && !a.invitation.revoked ? 'Copy a new link' : 'Copy a link'}
                         </button>
                         {a.invitation && !a.invitation.revoked && (
                           <button
@@ -259,6 +287,20 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
                           </button>
                         )}
                       </div>
+                      {copyNote?.id === a.id && (
+                        <p className="small" role="status" style={{ margin: '0.4rem 0 0', color: copyNote.text.startsWith('Link copied') ? 'var(--ok, inherit)' : undefined }}>
+                          {copyNote.text}
+                        </p>
+                      )}
+                      {copyNote?.id === a.id && copyNote.url && (
+                        <div className="row" style={{ gap: '0.4rem', marginTop: '0.3rem', flexWrap: 'nowrap' }}>
+                          <label className="sr-only" htmlFor={`row-link-${a.id}`}>
+                            New invitation link for {a.name}
+                          </label>
+                          <input id={`row-link-${a.id}`} type="text" readOnly value={copyNote.url} className="mono-input" autoFocus onFocus={(e) => e.currentTarget.select()} />
+                          <CopyButton text={copyNote.url} />
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
