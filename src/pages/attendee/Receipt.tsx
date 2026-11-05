@@ -50,7 +50,7 @@ export default function Receipt() {
     setBusy(true)
     try {
       await post(`${base}/withdraw`, body)
-      setNotice({ kind: 'ok', text: 'Done. This takes effect on the public site straight away.' })
+      setNotice({ kind: 'ok', text: doneMessage(body.scope) })
       await qc.invalidateQueries({ queryKey: ['receipt', token] })
     } catch (e) {
       setNotice({ kind: 'error', text: e instanceof ApiError ? e.message : 'Something went wrong' })
@@ -124,7 +124,7 @@ export default function Receipt() {
           <div className="notice warn">
             <strong>The organiser asked:</strong> {d.organiserMessage}
             <br />
-            Open your original invitation link to update your response.
+            To update it, open your invitation link and sign in when asked, or sign in and open My reviews.
           </div>
         )}
 
@@ -171,25 +171,30 @@ export default function Receipt() {
             <PermissionRow label="Reuse in social media or advertising" on={c.marketing} busy={busy} onWithdraw={() => withdraw({ scope: 'marketing' }, 'Withdraw marketing permission?')} />
             <PermissionRow label="Contact me about my feedback" on={c.followUp} busy={busy} onWithdraw={() => withdraw({ scope: 'follow_up' }, 'Ask the organiser not to contact you?')} />
             {d.photos.map((p, i) => (
-              <PermissionRow
-                key={p.id}
-                label={`Photo ${i + 1}${p.caption ? `: ${p.caption}` : ''}${p.published ? ' (published)' : ''}`}
-                on={p.publishConsent}
-                busy={busy}
-                onWithdraw={() => withdraw({ scope: 'photo', photoId: p.id }, 'Stop publishing this photo?')}
-              />
+              <li key={p.id} className="receipt-photo">
+                <img src={`${base}/photos/${p.id}/image`} alt={p.caption || `Your photo ${i + 1}`} loading="lazy" />
+                <div className="stack" style={{ gap: '0.4rem', flex: 1 }}>
+                  <span className="small" style={{ fontWeight: 600 }}>
+                    {p.caption || `Photo ${i + 1}`}
+                    {p.published ? ' · published' : ''}
+                  </span>
+                  <PhotoPermission
+                    label="With my story"
+                    on={p.publishConsent}
+                    busy={busy}
+                    onWithdraw={() => withdraw({ scope: 'photo', photoId: p.id }, 'Stop publishing this photo with your story?')}
+                  />
+                  {(p.albumConsent || d.album) && (
+                    <PhotoPermission
+                      label="In the photo album"
+                      on={Boolean(p.albumConsent)}
+                      busy={busy}
+                      onWithdraw={() => withdraw({ scope: 'album_photo', photoId: p.id }, 'Stop sharing this photo in the photo album?')}
+                    />
+                  )}
+                </div>
+              </li>
             ))}
-            {d.photos
-              .filter((p) => p.albumConsent)
-              .map((p) => (
-                <PermissionRow
-                  key={`album-${p.id}`}
-                  label={`${p.caption ? `“${p.caption}”` : 'A photo'} shared in the group album`}
-                  on={p.albumConsent}
-                  busy={busy}
-                  onWithdraw={() => withdraw({ scope: 'album_photo', photoId: p.id }, 'Stop sharing this photo in the group album?')}
-                />
-              ))}
           </ul>
         </section>
 
@@ -227,7 +232,7 @@ export default function Receipt() {
             .
           </p>
           <a className="btn secondary" href={`${base}/export`} download>
-            Download my data (JSON)
+            Download a copy of everything you sent
           </a>
           <details style={{ marginTop: '1.25rem' }}>
             <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Delete everything</summary>
@@ -252,6 +257,37 @@ export default function Receipt() {
         )}
       </main>
     </div>
+  )
+}
+
+function doneMessage(scope: string) {
+  switch (scope) {
+    case 'public_text':
+    case 'first_name':
+    case 'photo':
+      return 'Done. Your public page has been updated.'
+    case 'album_photo':
+      return 'Done. The photo has been taken out of the album.'
+    case 'follow_up':
+      return 'Done. The organiser has been asked not to contact you about your feedback.'
+    case 'marketing':
+      return 'Done. Your story and photos won’t be used in social media or advertising.'
+    default:
+      return 'Done.'
+  }
+}
+
+function PhotoPermission({ label, on, busy, onWithdraw }: { label: string; on: boolean; busy: boolean; onWithdraw: () => void }) {
+  return (
+    <span className="row" style={{ gap: '0.5rem' }}>
+      <span className="small">{label}</span>
+      <span className={`badge ${on ? 'ok' : 'neutral'}`}>{on ? 'Allowed' : 'Not allowed'}</span>
+      {on && (
+        <button className="btn ghost small" onClick={onWithdraw} disabled={busy}>
+          Withdraw
+        </button>
+      )}
+    </span>
   )
 }
 

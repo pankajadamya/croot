@@ -149,8 +149,17 @@ describe('anonymous notes', () => {
     const res = await request(app).post(view.body.retreat.anonymousNotePath).send({ message: 'The transfers were rushed.' })
     expect(res.status).toBe(201)
     const note = await prisma.anonymousNote.findFirstOrThrow()
-    expect(Object.keys(note).sort()).toEqual(['id', 'message', 'organisationId', 'receivedOn', 'retreatId'])
+    expect(Object.keys(note).sort()).toEqual(['id', 'message', 'organisationId', 'receivedOn', 'retreatId', 'sendKeyHash'])
+    expect(note.sendKeyHash).toBeNull()
     expect(note.receivedOn.toISOString()).toMatch(/T00:00:00\.000Z$/) // the day only, no time
+
+    // A retried send with the same one-time key is stored once.
+    const sendKey = 'retry-key-abcdefghijklmnop'
+    for (let i = 0; i < 2; i++) {
+      expect((await request(app).post(view.body.retreat.anonymousNotePath).send({ message: 'Please add more rest days.', sendKey })).status).toBe(201)
+    }
+    expect(await prisma.anonymousNote.count({ where: { message: 'Please add more rest days.' } })).toBe(1)
+    await prisma.anonymousNote.deleteMany({ where: { message: 'Please add more rest days.' } })
     expect(await prisma.auditEvent.count()).toBe(before)
     expect(JSON.stringify(await prisma.response.findMany())).not.toContain('transfers were rushed')
 

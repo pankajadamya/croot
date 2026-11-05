@@ -14,7 +14,7 @@ import { canEdit, ensureResponse, resolveInvite, type ResolvedInvite } from '../
 import { prisma } from '../lib/prisma.js'
 import { publishedContent } from '../lib/site.js'
 import { storage } from '../lib/storage.js'
-import { hashToken, newToken } from '../lib/tokens.js'
+import { hashToken, receiptTokenFor } from '../lib/tokens.js'
 import { tokenLimiter, uploadLimiter } from '../middleware/rateLimits.js'
 
 /**
@@ -442,9 +442,9 @@ reviewRoutes.post(
     const r = current(res)
     const body = parseBody(submitSchema, req.body)
 
-    // Idempotent: a retried submit after success issues a fresh receipt link rather than a duplicate.
+    // Idempotent: asking again after sending re-shows the same private link (it never changes).
     if (r.response?.status === 'submitted') {
-      const receiptToken = newToken()
+      const receiptToken = receiptTokenFor(r.response.id)
       await prisma.response.update({ where: { id: r.response.id }, data: { receiptTokenHash: hashToken(receiptToken) } })
       return res.json({ receiptToken, alreadySubmitted: true })
     }
@@ -454,7 +454,7 @@ reviewRoutes.post(
       throw new HttpError(409, 'This response was updated somewhere else. Reload to see the latest version.', { conflict: true })
     }
 
-    const receiptToken = newToken()
+    const receiptToken = receiptTokenFor(response.id)
     await prisma.$transaction(async (tx) => {
       const full = await tx.response.findUniqueOrThrow({
         where: { id: response.id },

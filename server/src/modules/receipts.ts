@@ -8,6 +8,7 @@ import { addContribution, albumListing, albumPagePath, albumSummary, sendAlbumPh
 import { env } from '../lib/env.js'
 import { eraseAttendee, exportGuestData } from '../lib/gdpr.js'
 import { prisma } from '../lib/prisma.js'
+import { storage } from '../lib/storage.js'
 import { dropNameFromLive, dropPhotoFromLive, livePublication, takeDown } from '../lib/publication.js'
 import { hashToken, looksLikeToken } from '../lib/tokens.js'
 import { tokenLimiter, uploadLimiter } from '../middleware/rateLimits.js'
@@ -144,6 +145,19 @@ receiptsRouter.delete(
     const response = await resolveReceipt(req.params.token)
     await setAlbumSharing(response, uuidParam(req, 'photoId'), false)
     res.status(204).end()
+  }),
+)
+
+/** The guest's own photo (web copy), for the thumbnails on their private page. */
+receiptsRouter.get(
+  '/:token/photos/:photoId/image',
+  route(async (req, res) => {
+    const response = await resolveReceipt(req.params.token)
+    const photo = await prisma.mediaAsset.findFirst({ where: { id: uuidParam(req, 'photoId'), responseId: response.id, kind: 'guest', removedAt: null } })
+    if (!photo) throw new HttpError(404, 'Photo not found')
+    const bytes = await storage.get(photo.derivativeKey)
+    if (!bytes) throw new HttpError(404, 'Photo not found')
+    res.set({ 'Content-Type': 'image/webp', 'Cache-Control': 'private, no-store' }).send(bytes)
   }),
 )
 

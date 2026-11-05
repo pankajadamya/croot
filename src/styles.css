@@ -3564,3 +3564,67 @@ details.advanced summary {
   cursor: pointer;
   font-weight: 600;
 }
+
+/* ---------- guest flow polish ---------- */
+.progress {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+.progress-step {
+  flex: 1;
+  height: 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  position: relative;
+}
+.progress-step::before {
+  content: '';
+  position: absolute;
+  inset: 3.5px 0;
+  border-radius: 99px;
+  background: var(--border);
+}
+.progress-step.done::before,
+.progress-step.current::before {
+  background: var(--button);
+}
+.progress-step:disabled {
+  cursor: default;
+}
+.progress-step:focus-visible {
+  outline: 2px solid var(--button);
+  outline-offset: 2px;
+}
+/* File pickers styled as buttons show keyboard focus too. */
+input.sr-only:focus-visible + label,
+label:has(+ input.sr-only:focus-visible),
+.drop-zone:focus-within {
+  outline: 3px solid var(--button);
+  outline-offset: 2px;
+}
+@media (max-width: 860px) {
+  .flow-visual.photo-panel.mobile-compact {
+    height: 150px;
+  }
+  .photo-panel.mobile-compact .photo-band,
+  .photo-panel.mobile-compact .photo-top .serif + p {
+    display: none;
+  }
+}
+.receipt-photo {
+  display: flex;
+  gap: 0.9rem;
+  align-items: flex-start;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.7rem;
+}
+.receipt-photo img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 8px;
+  flex: none;
+}

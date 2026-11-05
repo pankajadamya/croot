@@ -27,14 +27,32 @@ export function PhotoPanel({
   slides,
   header,
   footer,
+  compactOnMobile = false,
 }: {
   slides: PanelSlide[]
   /** Organisation, retreat title and dates. */
   header: ReactNode
   /** Shown in the plain panel (e.g. the privacy reassurance). */
   footer: ReactNode
+  /** After the first step, phones get a short strip so the form isn't pushed down. */
+  compactOnMobile?: boolean
 }) {
-  const [hidden, setHidden] = useState(false)
+  // "Hide photos" is remembered on this device.
+  const [hidden, setHiddenState] = useState(() => {
+    try {
+      return window.localStorage.getItem('croot.hidePhotos') === '1'
+    } catch {
+      return false
+    }
+  })
+  const setHidden = (v: boolean) => {
+    setHiddenState(v)
+    try {
+      window.localStorage.setItem('croot.hidePhotos', v ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+  }
   const [index, setIndex] = useState(0)
   const [reduced] = useState(prefersReducedMotion)
   const [paused, setPaused] = useState(reduced)
@@ -122,7 +140,7 @@ export function PhotoPanel({
   }
 
   return (
-    <aside className={`flow-visual photo-panel ${paused ? 'is-paused' : ''}`} aria-label="Retreat">
+    <aside className={`flow-visual photo-panel ${paused ? 'is-paused' : ''} ${compactOnMobile ? 'mobile-compact' : ''}`} aria-label="Retreat">
       <div
         className="photo-stage"
         role="region"

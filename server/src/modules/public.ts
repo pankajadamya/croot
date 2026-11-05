@@ -4,6 +4,7 @@ import type { PublicationRevision } from '@prisma/client'
 import { altFor } from '../lib/altText.js'
 import { HttpError, param, parseBody, route, text, uuidParam } from '../lib/http.js'
 import { prisma } from '../lib/prisma.js'
+import { hashToken } from '../lib/tokens.js'
 import { livePublication } from '../lib/publication.js'
 import { activeOrgBySlug, publicRetreat, publishedContent, publishedTheme, retreatFacts, tenantForHost } from '../lib/site.js'
 import { storage } from '../lib/storage.js'
@@ -429,7 +430,11 @@ publicRouter.get(
 // This path carries no invite token, and is mounted before cookies are parsed, so it never reads a
 // session either: nothing in the request says who sent it.
 
-const noteSchema = z.object({ message: text(4000).refine((v) => v.length >= 3, 'Please write a little more') })
+const noteSchema = z.object({
+  message: text(4000).refine((v) => v.length >= 3, 'Please write a little more'),
+  /** Random per note, made by the browser: sending the same note twice (a retry) stores it once. */
+  sendKey: z.string().regex(/^[A-Za-z0-9_-]{16,64}$/).optional(),
+})
 
 publicRouter.post(
   '/notes/:retreatId',
@@ -444,7 +449,16 @@ publicRouter.post(
     // sent at the same moment).
     const now = new Date()
     const receivedOn = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
-    await prisma.anonymousNote.create({ data: { organisationId: retreat.organisationId, retreatId: retreat.id, message: body.message, receivedOn } })
+    const sendKeyHash = body.sendKey ? hashToken(`note:${body.sendKey}`) : null
+    if (sendKeyHash && (await prisma.anonymousNote.findUnique({ where: { sendKeyHash }, select: { id: true } }))) {
+      res.set('Cache-Control', 'no-store')
+      return res.status(201).json({ ok: true, alreadySent: true })
+    }
+    await prisma.anonymousNote
+      .create({ data: { organisationId: retreat.organisationId, retreatId: retreat.id, message: body.message, receivedOn, sendKeyHash } })
+      .catch((e: { code?: string }) => {
+        if (e.code !== 'P2002') throw e // a simultaneous retry already stored it
+      })
     res.set('Cache-Control', 'no-store')
     res.status(201).json({ ok: true })
   }),

@@ -629,6 +629,8 @@ model AnonymousNote {
   organisationId String   @db.Uuid
   retreatId      String   @db.Uuid
   message        String
+  /// Hash of a random key the guest's browser makes per note, so a retried send can't duplicate it.
+  sendKeyHash    String?  @unique
   /// Date only, never shown to organisers: used solely to delete the note after the retention period.
   receivedOn     DateTime @default(dbgenerated("CURRENT_DATE")) @db.Date
   retreat        Retreat  @relation(fields: [retreatId], references: [id], onDelete: Cascade)

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import { CONSENT_WORDING, storyPromptsFor, type FeedbackCategory, type ReviewKind } from '../../../shared/categories'
 import { api, ApiError, del, get, patch, post, put } from '../../lib/api'
 import { formatRange } from '../../lib/format'
@@ -126,12 +126,28 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
   const [draft, setDraft] = useState<Draft | null>(null)
   const [photos, setPhotos] = useState<Photo[]>([])
   const [step, setStep] = useState(0)
+  // The furthest step reached, so the step bar can jump back to any of them.
+  const [furthest, setFurthest] = useState(0)
+  useEffect(() => setFurthest((f) => Math.max(f, step)), [step])
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [savedAt, setSavedAt] = useState<Date | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  // The anonymous note lives only in this browser tab: never in the auto-saved draft, which belongs to this guest.
-  const [anonNote, setAnonNote] = useState('')
+  // The anonymous note lives only in this browser tab: never in the auto-saved draft, which belongs to this
+  // guest. It is kept in this tab's session storage so a refresh doesn't lose it, with a random one-time key
+  // so a retried send can't create a duplicate.
+  const noteStore = `croot.note.${base}`
+  const [anonNote, setAnonNoteState] = useState(() => readNote(noteStore).text)
+  const [noteSent, setNoteSent] = useState(() => readNote(noteStore).sent)
+  const setAnonNote = (text: string) => {
+    setAnonNoteState(text)
+    setNoteSent(false)
+    writeNote(noteStore, { text, sent: false, key: readNote(noteStore).key || newSendKey() })
+  }
+  const anonRef = useRef(anonNote)
+  anonRef.current = noteSent ? '' : anonNote
+  const location = useLocation()
+  const [params] = useSearchParams()
   const revision = useRef(0)
   const dirty = useRef(false)
   const saving = useRef<Promise<void> | null>(null)
@@ -153,6 +169,19 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
   useEffect(() => {
     void load()
   }, [load])
+
+  // Back from signing in to edit (?edit=1): reopen the sent review straight away, then drop the flag.
+  const autoEdit = useRef(false)
+  useEffect(() => {
+    if (!view || autoEdit.current || params.get('edit') !== '1') return
+    autoEdit.current = true
+    navigate(location.pathname, { replace: true })
+    if (view.response?.status === 'submitted' && view.signIn.signedIn && view.signIn.canReopen) {
+      post(`${base}/reopen`)
+        .then(() => load())
+        .catch((e: Error) => setSubmitError(e.message))
+    }
+  }, [view, params, navigate, location.pathname, base, load])
 
   // ---- saving ---------------------------------------------------------------------------------
 
@@ -201,10 +230,10 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
     return () => window.clearTimeout(id)
   }, [draft, save, view?.editable])
 
-  // Warn before leaving with unsaved text.
+  // Warn before leaving with unsaved text, including an anonymous note that hasn't been sent yet.
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      if (dirty.current) e.preventDefault()
+      if (dirty.current || anonRef.current.trim()) e.preventDefault()
     }
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
@@ -234,19 +263,22 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
    */
   async function sendAnonymousNote() {
     const message = anonNote.trim()
-    if (!message || !view) return
+    if (!message || !view || noteSent) return
+    const stored = readNote(noteStore)
+    const sendKey = stored.key || newSendKey()
     const res = await fetch(view.retreat.anonymousNotePath, {
       method: 'POST',
       credentials: 'omit',
       referrerPolicy: 'no-referrer',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, sendKey }),
     })
     if (!res.ok) {
       const body = (await res.json().catch(() => null)) as { error?: string } | null
       throw new ApiError(res.status, `Your anonymous note couldn’t be sent: ${body?.error ?? 'please try again'}`)
     }
-    setAnonNote('')
+    setNoteSent(true)
+    writeNote(noteStore, { text: message, sent: true, key: sendKey })
   }
 
   async function submit() {
@@ -257,6 +289,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
       await save(STEPS.length - 1)
       const r = await post<{ receiptToken: string }>(`${base}/submit`, { revision: revision.current })
       dirty.current = false
+      clearNote(noteStore)
       navigate(`/response/${r.receiptToken}`, { replace: true, state: { justSubmitted: true } })
     } catch (e) {
       setSubmitError(e instanceof ApiError ? e.message : 'Could not send. Your answers are still here; please try again.')
@@ -278,6 +311,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
 
   if (loadError) return <LinkUnavailable message={loadError} />
   if (!view || !draft) return <Loading />
+  const wantsEdit = params.get('edit') === '1'
 
   async function reopen() {
     setReopening(true)
@@ -295,11 +329,13 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
   if (!view.editable) {
     const submitted = view.response?.status === 'submitted'
     const awaitingSignIn = view.signIn.required && !view.signIn.signedIn
+    // Sign-in comes straight back here and opens the review for editing.
     const signInLink = (
-      <Link className="btn secondary" to={`/signin?next=${encodeURIComponent('/my-reviews')}`}>
+      <Link className="btn secondary" to={`/signin?next=${encodeURIComponent(`${location.pathname}?edit=1`)}`}>
         Sign in to edit my review
       </Link>
     )
+    if (wantsEdit && view.signIn.signedIn && view.signIn.canReopen && submitted && !submitError) return <Loading />
     if (view.response?.status === 'changes_requested' && awaitingSignIn) {
       return (
         <main className="calm">
@@ -358,12 +394,21 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                     : 'To change a review you’ve already sent, sign in with the email address your invitation was sent to.'}
                 </p>
               )}
-              <p className="small muted" style={{ marginTop: '1rem' }}>
-                This creates a fresh private link; any earlier response link stops working.
-              </p>
             </>
           ) : (
-            <p>Responses for this retreat are not being collected at the moment. Please contact {view.retreat.organiserName || 'the organiser'} if you think this is a mistake.</p>
+            <>
+              <p>Responses for this retreat are not being collected at the moment. Please contact {view.retreat.organiserName || 'the organiser'} if you think this is a mistake.</p>
+              <div className="row">
+                {view.retreat.publicPagePath && (
+                  <Link className="btn secondary" to={view.retreat.publicPagePath}>
+                    See the retreat page
+                  </Link>
+                )}
+                <Link className="btn ghost" to="/">
+                  Croot home
+                </Link>
+              </div>
+            </>
           )}
           {submitError && <div className="notice error" role="alert">{submitError}</div>}
         </div>
@@ -390,7 +435,13 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
     conflict: (
       <>
         Changed on another device.{' '}
-        <button type="button" className="btn ghost small" onClick={() => void load()}>
+        <button
+          type="button"
+          className="btn ghost small"
+          onClick={() => {
+            if (window.confirm('Load the version from your other device? Changes you made here since your last save will be replaced.')) void load()
+          }}
+        >
           Load latest
         </button>
       </>
@@ -401,6 +452,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
     <div className="calm">
       <div className="flow">
         <PhotoPanel
+          compactOnMobile={step > 0}
           slides={view.retreat.slideshow}
           header={
             <>
@@ -428,11 +480,19 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
             </Link>
           )}
           {step > 0 && (
-            <div aria-hidden="true" className="progress">
+            <nav className="progress" aria-label="Steps">
               {STEPS.slice(1).map((s, i) => (
-                <span key={s} className={i < step ? 'done' : ''} />
+                <button
+                  key={s}
+                  type="button"
+                  className={`progress-step ${i < step ? 'done' : ''} ${i + 1 === step ? 'current' : ''}`}
+                  aria-label={`Step ${i + 1}: ${s}`}
+                  aria-current={i + 1 === step ? 'step' : undefined}
+                  disabled={i + 1 > furthest || i + 1 === step}
+                  onClick={() => void goTo(i + 1)}
+                />
               ))}
-            </div>
+            </nav>
           )}
           {step > 0 && (
             <p className="small muted" style={{ marginTop: 0 }}>
@@ -464,8 +524,8 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                 </section>
               )}
               <p style={{ fontSize: '1.15rem' }}>
-                We’d love to hear about your time {isProperty ? 'at' : 'on the'} {view.retreat.title}. It takes about seven minutes, and every question is
-                optional.
+                We’d love to hear about your time {isProperty ? 'at' : 'on the'} {view.retreat.title}. Most people take 10 to 15 minutes. Every question is
+                optional, and your answers save as you go.
               </p>
               {view.stay && (
                 <fieldset className="stay-dates">
@@ -501,7 +561,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
               <div className="flow-actions">
                 <span />
                 <button className="btn" onClick={() => goTo(1)}>
-                  Begin reflection
+                  Start
                 </button>
               </div>
             </section>
@@ -546,7 +606,10 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
               </h1>
               <p className="muted">
                 Only the {isProperty ? 'property team' : 'organisers'} see this. It’s never published, and it helps shape {isProperty ? 'future stays' : 'the next retreat'}. Skip
-                anything that doesn’t apply.
+                anything that doesn’t apply.{' '}
+                <button type="button" className="link-button" onClick={() => void goTo(3)}>
+                  Skip this section
+                </button>
               </p>
               <div className="stack">
                 {view.retreat.categories.map((cat) => {
@@ -648,10 +711,16 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
               />
               <h2 style={{ fontSize: '1.3rem', marginTop: '2rem' }}>Photos (optional)</h2>
               <p className="small muted">
-                If others appear in a photo, please only share it if they’re happy for it to be seen. The organiser checks every photo before it’s
-                published, and location and camera details are removed.
+                If others appear in a photo, please only share it if they’re happy for it to be seen. The organiser checks every photo before it
+                appears anywhere, and location and camera details are removed. Up to 8 photos, each up to 15 MB.
               </p>
-              <PhotoManager base={base} photos={photos} setPhotos={setPhotos} albumAvailable={Boolean(view.retreat.album)} />
+              <PhotoManager
+                base={base}
+                photos={photos}
+                setPhotos={setPhotos}
+                albumAvailable={Boolean(view.retreat.album)}
+                storyShared={c.publicText && Boolean(draft.storyText.trim())}
+              />
               <Actions step={step} goTo={goTo} saveLabel={saveLabel[saveState]} nextLabel="Review" />
             </section>
           )}
@@ -683,19 +752,36 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
               ) : (
                 <p className="notice">Nothing will be published. Your response stays private to the organisers.</p>
               )}
+              <h2 style={{ fontSize: '1.2rem', marginTop: '1.5rem' }}>Your choices</h2>
+              <ul className="muted">
+                <li>{c.publicText && draft.storyText.trim() ? 'Your story may be published, if the organiser approves it' : 'Your story stays private'}</li>
+                {c.publicText && <li>{c.firstName ? `Shown with your first name, “${view.firstName}”` : 'Shown without your name'}</li>}
+                <li>{c.marketing ? 'May be reused in social media or advertising' : 'Not reused in social media or advertising'}</li>
+                {photos.length > 0 && (
+                  <li>
+                    {photos.filter((ph) => ph.publishConsent).length} of {photos.length} photo{photos.length === 1 ? '' : 's'} may be published with your story
+                    {view.retreat.album ? `; ${photos.filter((ph) => ph.albumConsent).length} shared in the photo album once approved` : ''}
+                  </li>
+                )}
+              </ul>
               <h2 style={{ fontSize: '1.2rem', marginTop: '1.5rem' }}>Private to the organisers</h2>
               <ul className="muted">
                 <li>{Object.values(draft.ratings).filter((r) => r.score || r.notApplicable).length} of {view.retreat.categories.length} feedback areas answered</li>
                 <li>{draft.keepText || draft.changeText ? 'Your keep / change answers' : 'No keep / change answers'}</li>
                 <li>{c.followUp ? 'Happy to be contacted' : 'Not to be contacted'}</li>
-                <li>{photos.length} photo{photos.length === 1 ? '' : 's'} ({photos.filter((p) => p.publishConsent).length} with publishing permission)</li>
               </ul>
               <h2 style={{ fontSize: '1.2rem', marginTop: '1.5rem' }}>Anonymous</h2>
               <p className="muted">
-                {anonNote.trim() ? 'Your anonymous note, sent separately with no link to you.' : 'No anonymous note.'}{' '}
-                <button type="button" className="link-button" onClick={() => goTo(3)}>
-                  {anonNote.trim() ? 'Edit' : 'Add one'}
-                </button>
+                {noteSent ? (
+                  'Your anonymous note has been sent, separately and with no link to you.'
+                ) : (
+                  <>
+                    {anonNote.trim() ? 'Your anonymous note, sent separately with no link to you.' : 'No anonymous note.'}{' '}
+                    <button type="button" className="link-button" onClick={() => goTo(3)}>
+                      {anonNote.trim() ? 'Edit' : 'Add one'}
+                    </button>
+                  </>
+                )}
               </p>
               {view.retreat.album && !view.retreat.album.unlocked && (
                 <p className="notice ok small">Sending unlocks the retreat photo album, our thank-you whatever you choose to share.</p>
@@ -748,11 +834,13 @@ function PhotoManager({
   photos,
   setPhotos,
   albumAvailable,
+  storyShared,
 }: {
   base: string
   photos: Photo[]
   setPhotos: (p: Photo[]) => void
   albumAvailable: boolean
+  storyShared: boolean
 }) {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -790,6 +878,7 @@ function PhotoManager({
   }
 
   async function remove(p: Photo) {
+    if (!window.confirm('Remove this photo? It will be deleted.')) return
     try {
       await del(`${base}/photos/${p.id}`)
       setPhotos(photos.filter((x) => x.id !== p.id))
@@ -827,7 +916,13 @@ function PhotoManager({
               <Field id={`alt-${p.id}`} label="Describe the photo (for screen readers)">
                 <input id={`alt-${p.id}`} type="text" defaultValue={p.altText} maxLength={300} onBlur={(e) => e.target.value !== p.altText && void change(p, { altText: e.target.value })} />
               </Field>
-              <Switch checked={p.publishConsent} onChange={(v) => void change(p, { publishConsent: v })} label="May be published with my story" description={CONSENT_WORDING.photo} />
+              <Switch
+                checked={p.publishConsent && storyShared}
+                disabled={!storyShared}
+                onChange={(v) => void change(p, { publishConsent: v })}
+                label="May be published with my story"
+                description={storyShared ? CONSENT_WORDING.photo : 'Only possible if you share your story above.'}
+              />
               {albumAvailable && (
                 <Switch
                   checked={Boolean(p.albumConsent)}
@@ -845,4 +940,33 @@ function PhotoManager({
       )}
     </div>
   )
+}
+
+type StoredNote = { text: string; sent: boolean; key: string }
+function readNote(k: string): StoredNote {
+  try {
+    const v = JSON.parse(window.sessionStorage.getItem(k) ?? 'null') as StoredNote | null
+    return v && typeof v.text === 'string' ? v : { text: '', sent: false, key: '' }
+  } catch {
+    return { text: '', sent: false, key: '' }
+  }
+}
+function writeNote(k: string, v: StoredNote) {
+  try {
+    if (!v.text) window.sessionStorage.removeItem(k)
+    else window.sessionStorage.setItem(k, JSON.stringify(v))
+  } catch {
+    /* storage blocked: the note stays in memory */
+  }
+}
+function clearNote(k: string) {
+  try {
+    window.sessionStorage.removeItem(k)
+  } catch {
+    /* ignore */
+  }
+}
+function newSendKey() {
+  const b = crypto.getRandomValues(new Uint8Array(18))
+  return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }

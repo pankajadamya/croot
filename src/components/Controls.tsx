@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from 'react'
+import { cloneElement, isValidElement, useId, type ReactElement, type ReactNode } from 'react'
 import { SCALE_LABELS } from '../../shared/categories'
 
 export function Switch({
@@ -87,7 +87,7 @@ export function Field({ label, hint, error, children, id }: { label: string; hin
           {hint}
         </span>
       )}
-      {children}
+      {withDescription(children, [hint ? `${id}-hint` : null, error ? `${id}-error` : null])}
       {error && (
         <span className="error" id={`${id}-error`} role="alert">
           {error}
@@ -95,4 +95,14 @@ export function Field({ label, hint, error, children, id }: { label: string; hin
       )}
     </div>
   )
+}
+
+/** Links a field's hint and error to its input (aria-describedby), keeping any ids it already has. */
+function withDescription(children: ReactNode, ids: Array<string | null>) {
+  const extra = ids.filter(Boolean) as string[]
+  if (!extra.length || !isValidElement(children)) return children
+  const el = children as ReactElement<{ 'aria-describedby'?: string; 'aria-invalid'?: boolean }>
+  const existing = el.props['aria-describedby']?.split(/\s+/) ?? []
+  const all = Array.from(new Set([...existing, ...extra])).join(' ')
+  return cloneElement(el, { 'aria-describedby': all, ...(ids[1] ? { 'aria-invalid': true } : {}) })
 }

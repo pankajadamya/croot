@@ -1,9 +1,19 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
+import { authSecret } from './env.js'
 
 /**
- * Opaque bearer tokens: 32 random bytes, base64url. They are never derived from an email or any
+ * Opaque bearer tokens: 32 random bytes, base64url (the private response link is the one keyed-hash
+ * exception, below). They are never derived from an email or any
  * identity, and only their SHA-256 hash is stored, so a database leak does not leak working links.
  */
+/**
+ * The guest's private response link. Derived (keyed hash) from the response id, so every time they ask
+ * for it they get the same link and a bookmark keeps working. Only its hash is stored, as before.
+ */
+export function receiptTokenFor(responseId: string): string {
+  return createHmac('sha256', authSecret).update(`receipt:${responseId}`).digest('base64url')
+}
+
 export function newToken(bytes = 32): string {
   return randomBytes(bytes).toString('base64url')
 }

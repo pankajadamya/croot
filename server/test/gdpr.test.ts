@@ -17,6 +17,15 @@ async function submitted(token: string, story = 'A calm and kind week.', consent
 }
 
 describe('guest rights', () => {
+  it('keeps one private response link: asking again re-shows the same working link', async () => {
+    const { org, retreat } = await makeTenant('alpha')
+    const { token } = await invite(org.id, retreat.id, 'Ivy Guest', 'ivy@example.test')
+    const first = await submitted(token)
+    const again = (await request(app).post(`/api/invites/${token}/submit`).send({ revision: 0 })).body.receiptToken
+    expect(again).toBe(first)
+    expect((await request(app).get(`/api/responses/${first}`)).status).toBe(200)
+  })
+
   it('lets a guest download their data, without anonymous notes', async () => {
     const { org, retreat } = await makeTenant('alpha')
     const { token } = await invite(org.id, retreat.id, 'Anika Example')
