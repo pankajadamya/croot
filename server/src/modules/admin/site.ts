@@ -3,6 +3,7 @@ import multer from 'multer'
 import { z } from 'zod'
 import type { Prisma } from '@prisma/client'
 import { DEFAULT_THEME, THEME_PRESETS, validateTheme } from '../../../../shared/themes.js'
+import { ensureShareToken, resetShareToken, sharePath } from '../../lib/album.js'
 import { audit } from '../../lib/audit.js'
 import { env } from '../../lib/env.js'
 import { HttpError, parseBody, route, text, uuidParam } from '../../lib/http.js'
@@ -205,7 +206,7 @@ siteRouter.post(
     if (!req.file) throw new HttpError(400, 'Choose an image')
     const image = await processImage(req.file.buffer)
     const id = crypto.randomUUID()
-    // ?album=1: a thank-you album photo (never public; only guests who sent a review can see it).
+    // ?album=1: a thank-you album photo (not on the public site; guests who reviewed and anyone with the share link see it).
     const kind = req.query.album ? 'album' : 'organiser'
     const prefix = `org/${t.org.id}/retreat/${retreat.id}/${kind}/${id}`
     await storage.put(`${prefix}/original`, image.original, image.originalMime)
@@ -308,7 +309,23 @@ siteRouter.get(
       },
       orderBy: [{ albumOrder: 'asc' }, { createdAt: 'asc' }],
     })
-    res.json({ coverId: retreat.rewardAlbumCoverId, media: media.map((m) => organiserMediaView(t.org.slug, m)) })
+    res.json({
+      coverId: retreat.rewardAlbumCoverId,
+      shareUrl: retreat.kind === 'itinerary' ? sharePath(await ensureShareToken(retreat)) : null,
+      media: media.map((m) => organiserMediaView(t.org.slug, m)),
+    })
+  }),
+)
+
+/** A new share link for the album; the old one stops working. */
+siteRouter.post(
+  '/retreats/:retreatId/album/share-link',
+  route(async (req, res) => {
+    const t = tenantOf(req)
+    const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
+    const token = await resetShareToken(retreat.id)
+    await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'album.share_link_reset', entityType: 'retreat', entityId: retreat.id })
+    res.json({ shareUrl: sharePath(token) })
   }),
 )
 

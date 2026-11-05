@@ -16,6 +16,7 @@ const Receipt = lazy(() => import('./pages/attendee/Receipt'))
 const InviteAlbumPage = lazy(() => import('./pages/attendee/AlbumPage'))
 const ReceiptAlbumPage = lazy(() => import('./pages/attendee/AlbumPage').then((m) => ({ default: m.ReceiptAlbumPage })))
 const SignedInAlbumPage = lazy(() => import('./pages/attendee/AlbumPage').then((m) => ({ default: m.SignedInAlbumPage })))
+const SharedAlbumPage = lazy(() => import('./pages/attendee/AlbumPage').then((m) => ({ default: m.SharedAlbumPage })))
 
 const SignIn = lazy(() => import('./pages/SignIn'))
 const MyReviews = lazy(() => import('./pages/attendee/MyReviews'))
@@ -48,6 +49,7 @@ export function App() {
         <Route path="/invite/:token/album" element={<InviteAlbumPage />} />
         <Route path="/response/:token" element={<Receipt />} />
         <Route path="/response/:token/album" element={<ReceiptAlbumPage />} />
+        <Route path="/album/:token" element={<SharedAlbumPage />} />
 
         <Route path="/signin" element={<SignIn />} />
         <Route path="/admin/login" element={<SignIn />} />

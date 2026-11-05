@@ -16,6 +16,7 @@ interface AlbumPhoto {
   mine: boolean
 }
 interface AlbumListing {
+  shareUrl: string
   title: string
   note: string | null
   url: string | null
@@ -25,17 +26,18 @@ interface AlbumListing {
 }
 
 /**
- * The group photo album, full page. Reached only through a guest's own private link or sign-in, and the
- * server refuses it to anyone who hasn't sent a review, so a copied address shows nothing.
- * `base` is the guest's API base: /api/invites/:token, /api/responses/:token or /api/me/reviews/:id.
+ * The group photo album, full page. Guests who sent a review reach it through their own private link or
+ * sign-in (and can add photos); anyone else through the album's share link, view only, no sign-in.
+ * `base` is the API base: /api/invites/:token, /api/responses/:token, /api/me/reviews/:id or /api/albums/:token.
  */
-function AlbumView({ base, backTo, backLabel }: { base: string; backTo: string; backLabel: string }) {
+function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { base: string; listPath?: string; backTo?: string; backLabel?: string }) {
   const qc = useQueryClient()
   const key = ['album-page', base]
-  const q = useQuery({ queryKey: key, queryFn: () => get<AlbumListing>(`${base}/album`), retry: false })
+  const q = useQuery({ queryKey: key, queryFn: () => get<AlbumListing>(listPath), retry: false })
   const [open, setOpen] = useState<number | null>(null)
   const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [shared, setShared] = useState<string | null>(null)
 
   useEffect(() => {
     if (q.data) document.title = `Photo album · ${q.data.title}`
@@ -71,6 +73,22 @@ function AlbumView({ base, backTo, backLabel }: { base: string; backTo: string; 
     if (failed.length) setError(failed.join(' · '))
   }
 
+  async function share() {
+    const url = new URL(album.shareUrl, window.location.origin).toString()
+    const data = { title: `Photo album · ${album.title}`, url }
+    try {
+      if (navigator.share && navigator.canShare?.(data)) {
+        await navigator.share(data)
+        return
+      }
+      await navigator.clipboard.writeText(url)
+      setShared('Link copied. Anyone with it can view the album, no sign-in needed.')
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return
+      window.prompt('Copy this link to share the album:', url)
+    }
+  }
+
   async function stopSharing(p: AlbumPhoto) {
     if (!window.confirm('Stop sharing this photo in the album? It stays in your review, private to you and the organiser.')) return
     await del(`${base}/album/photos/${p.id}`)
@@ -81,9 +99,13 @@ function AlbumView({ base, backTo, backLabel }: { base: string; backTo: string; 
   return (
     <div className="album-page">
       <header className="album-page-bar">
-        <Link to={backTo} className="album-back">
-          ← {backLabel}
-        </Link>
+        {backTo ? (
+          <Link to={backTo} className="album-back">
+            ← {backLabel}
+          </Link>
+        ) : (
+          <span />
+        )}
         <Link to="/" className="brand" aria-label="Croot home page">
           <img className="brand-logo" src="/croot-logo-light.svg" alt="Croot" />
         </Link>
@@ -101,12 +123,20 @@ function AlbumView({ base, backTo, backLabel }: { base: string; backTo: string; 
                 View photos
               </button>
             )}
+            <button type="button" className="album-btn ghost" onClick={() => void share()}>
+              Share album
+            </button>
             {album.url && (
               <a className="album-btn ghost" href={album.url} target="_blank" rel="noopener noreferrer">
                 Full-resolution album ↗
               </a>
             )}
           </div>
+          {shared && (
+            <p className="album-hero-note" role="status" style={{ marginTop: '0.75rem' }}>
+              {shared}
+            </p>
+          )}
         </div>
       </section>
 
@@ -115,7 +145,7 @@ function AlbumView({ base, backTo, backLabel }: { base: string; backTo: string; 
           <div className="album-contribute">
             <div>
               <h2>Add your photos</h2>
-              <p>Share your own moments with everyone who reviewed the retreat. Only add photos the people in them would be happy for the group to see.</p>
+              <p>Share your own moments with the group. Anyone with the album link can see them, so only add photos the people in them would be happy to share.</p>
             </div>
             <label className="album-btn" htmlFor="album-add">
               {uploading ? `Adding ${Math.min(uploading.done + 1, uploading.total)} of ${uploading.total}…` : 'Add photos'}
@@ -266,6 +296,20 @@ export function SignedInAlbumPage() {
   if (loading) return <Loading />
   if (!session) return <Navigate to={`/signin?next=${encodeURIComponent(location.pathname)}`} replace />
   return <AlbumView base={`/api/me/reviews/${attendeeId}`} backTo={`/my-reviews/${attendeeId}`} backLabel="Back to my review" />
+}
+
+/** /album/:token: the album's share link. Anyone with it can view, no sign-in. */
+export function SharedAlbumPage() {
+  const { token = '' } = useParams()
+  useEffect(() => {
+    // Keep the private link out of search engines.
+    const meta = document.createElement('meta')
+    meta.name = 'robots'
+    meta.content = 'noindex, nofollow'
+    document.head.appendChild(meta)
+    return () => meta.remove()
+  }, [])
+  return <AlbumView base={`/api/albums/${token}`} listPath={`/api/albums/${token}`} />
 }
 
 export default InviteAlbumPage

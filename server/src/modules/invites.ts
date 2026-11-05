@@ -314,7 +314,7 @@ const photoPatch = z.object({
   altText: text(300).optional(),
   caption: text(300).optional(),
   publishConsent: z.boolean().optional(),
-  /** Share in the group album (fellow guests who sent a review). Opt-in, separate from publishing. */
+  /** Share in the group album (fellow reviewers and anyone with its share link). Opt-in, separate from publishing. */
   albumConsent: z.boolean().optional(),
 })
 

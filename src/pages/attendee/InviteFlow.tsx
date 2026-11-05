@@ -787,7 +787,7 @@ function PhotoManager({
                   checked={Boolean(p.albumConsent)}
                   onChange={(v) => void change(p, { albumConsent: v })}
                   label="Also share in the group photo album"
-                  description="Seen only by fellow guests who send their review, not published. You can stop sharing at any time."
+                  description={CONSENT_WORDING.albumPhoto}
                 />
               )}
               <button className="btn ghost small" onClick={() => void remove(p)}>

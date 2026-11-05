@@ -9,7 +9,8 @@ import { AlbumGrid } from './AlbumGrid'
 
 /**
  * Itinerary retreats: a thank-you photo album each guest unlocks by sending their review. It's
- * teased (blurred) on the guest's welcome screen to encourage reviews. Album photos are never public.
+ * teased (blurred) on the guest's welcome screen to encourage reviews. It is never on the public site, but it
+ * has a share link anyone can open without signing in; a new link stops the old one working.
  * The reward depends only on sending a review, never on its rating or on agreeing to publish anything.
  */
 export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat }) {
@@ -18,7 +19,7 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
   const photos = useQuery({
     queryKey: key,
     // Everything that can be in the album: its uploads and the earlier images from "Your images".
-    queryFn: () => get<{ coverId: string | null; media: OrganiserMedia[] }>(`${orgApi(orgSlug)}/retreats/${retreat.id}/album`),
+    queryFn: () => get<{ coverId: string | null; shareUrl: string | null; media: OrganiserMedia[] }>(`${orgApi(orgSlug)}/retreats/${retreat.id}/album`),
   })
   const [url, setUrl] = useState(retreat.rewardAlbumUrl ?? '')
   const [note, setNote] = useState(retreat.rewardAlbumNote ?? '')
@@ -31,6 +32,25 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
       await queryClient.invalidateQueries({ queryKey: retreatKey(orgSlug, retreat.id) })
     },
   })
+
+  const [linkNote, setLinkNote] = useState<string | null>(null)
+  const newLink = useMutation({
+    mutationFn: () => post<{ shareUrl: string }>(`${orgApi(orgSlug)}/retreats/${retreat.id}/album/share-link`),
+    onSuccess: async () => {
+      setLinkNote('New link made. The old one no longer works.')
+      await queryClient.invalidateQueries({ queryKey: key })
+    },
+  })
+  const shareLink = photos.data?.shareUrl ? new URL(photos.data.shareUrl, window.location.origin).toString() : null
+  async function copyLink() {
+    if (!shareLink) return
+    try {
+      await navigator.clipboard.writeText(shareLink)
+      setLinkNote('Link copied')
+    } catch {
+      window.prompt('Copy the album link:', shareLink)
+    }
+  }
 
   // Several photos at once, one after another, as in "Your images".
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
@@ -65,7 +85,8 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
       <h2 id="album-title">Photo album for guests who review</h2>
       <p className="small muted" style={{ maxWidth: '70ch' }}>
         A thank-you that encourages reviews. Guests see a blurred preview when they open their review link, and the album unlocks as soon as they
-        send their review, <strong>whatever they choose to share or rate</strong>. Album photos are never shown on the public site.
+        send their review, <strong>whatever they choose to share or rate</strong>. It isn’t on the public site, but anyone you or a guest
+        gives the share link to can view it without signing in.
       </p>
 
       <div className="panel-sage" style={{ margin: '1rem 0' }}>
@@ -83,6 +104,36 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
           }
         />
       </div>
+
+      {retreat.rewardAlbumEnabled && shareLink && (
+        <div className="stack" style={{ gap: '0.4rem', marginBottom: '1rem' }}>
+          <label htmlFor="album-share-link" style={{ fontWeight: 600 }}>
+            Share link
+          </label>
+          <span className="hint">Anyone with this link can view the album, no sign-in or review needed. Guests who reviewed can share it too.</span>
+          <div className="row" style={{ flexWrap: 'wrap' }}>
+            <input id="album-share-link" readOnly value={shareLink} onFocus={(e) => e.target.select()} style={{ flex: '1 1 22rem' }} />
+            <button type="button" className="btn secondary small" onClick={() => void copyLink()}>
+              Copy link
+            </button>
+            <a className="btn ghost small" href={shareLink} target="_blank" rel="noopener noreferrer">
+              Open
+            </a>
+            <button
+              type="button"
+              className="btn ghost small"
+              disabled={newLink.isPending}
+              onClick={() => window.confirm('Make a new link? The current one will stop working for everyone who has it.') && newLink.mutate()}
+            >
+              Make a new link
+            </button>
+          </div>
+          <span className="small muted" aria-live="polite">
+            {linkNote}
+          </span>
+          <MutationError error={newLink.error} />
+        </div>
+      )}
 
       <div className="grid-2">
         <Field id="album-url" label="Link to the full album (optional)" hint="E.g. a shared Google Photos or Dropbox album with full-resolution photos.">
@@ -133,8 +184,8 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
           Add album photos
         </label>
         <span className="hint" id="album-upload-hint">
-          Choose several at once, or drag them here. Only guests who sent a review can see them. If others appear in a photo, include it only if
-          they’re happy for fellow guests to see it.
+          Choose several at once, or drag them here. Guests who sent a review and anyone with the share link can see them. If others appear
+          in a photo, include it only if they’re happy for it to be shared.
         </span>
         <input
           id="album-upload"

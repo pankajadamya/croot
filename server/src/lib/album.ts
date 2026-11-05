@@ -6,6 +6,7 @@ import { altFor } from './altText.js'
 import { env } from './env.js'
 import { HttpError } from './http.js'
 import { processImage } from './images.js'
+import { newToken } from './tokens.js'
 import { prisma } from './prisma.js'
 import { storage } from './storage.js'
 
@@ -13,8 +14,9 @@ import { storage } from './storage.js'
  * The group photo album (itinerary retreats). Unlocked by sending a review, any review, whatever the
  * guest chooses to share or rate. It is never tied to publication consent or a rating. It holds the
  * organiser's album uploads and images, plus photos guests chose to share with the group (opt-in,
- * per photo). It is never public: only guests who sent a review can see it, through their own private
- * link or sign-in.
+ * per photo). It is never listed or indexed. Guests who sent a review reach it through their own private
+ * link or sign-in; anyone else needs the album's share link (/album/<random token>), which needs no sign-in
+ * and can be replaced by the organiser to stop the old one working.
  */
 type RetreatLike = {
   id: string
@@ -24,6 +26,7 @@ type RetreatLike = {
   rewardAlbumUrl: string | null
   rewardAlbumNote: string
   rewardAlbumCoverId: string | null
+  albumShareToken?: string | null
   organisationId: string
 }
 type ResponseLike = { id: string; submittedAt: Date | null; status: string } | null | undefined
@@ -75,17 +78,43 @@ export async function albumSummary(retreat: RetreatLike, response: ResponseLike,
   }
 }
 
-/** The full album, for its own page. */
-export async function albumListing(retreat: RetreatLike, response: ResponseLike, base: string) {
+/** The album's share token, created the first time anyone asks for it. */
+export async function ensureShareToken(retreat: { id: string; albumShareToken?: string | null }) {
+  if (retreat.albumShareToken) return retreat.albumShareToken
+  const token = newToken(24)
+  // Only set it if still empty, so two first requests at once end up with the same link.
+  await prisma.retreat.updateMany({ where: { id: retreat.id, albumShareToken: null }, data: { albumShareToken: token } })
+  return (await prisma.retreat.findUniqueOrThrow({ where: { id: retreat.id }, select: { albumShareToken: true } })).albumShareToken!
+}
+
+/** Replaces the share link; the old one stops working at once. */
+export async function resetShareToken(retreatId: string) {
+  const token = newToken(24)
+  await prisma.retreat.update({ where: { id: retreatId }, data: { albumShareToken: token } })
+  return token
+}
+
+export const sharePath = (token: string) => `/album/${token}`
+
+/** The retreat behind a share link, if the link is current and the album is on. */
+export async function sharedRetreat(token: string) {
+  const retreat = token.length >= 16 && token.length <= 64 ? await prisma.retreat.findUnique({ where: { albumShareToken: token } }) : null
+  if (!retreat || !available(retreat)) throw new HttpError(404, 'This album link isn’t valid any more. Ask the person who shared it for a new one.')
+  return retreat
+}
+
+/** The full album, for its own page. With no response, it is being viewed through the share link. */
+export async function albumListing(retreat: RetreatLike, response: ResponseLike, base: string, viaShareLink = false) {
   if (!available(retreat)) throw new HttpError(404, 'There is no photo album for this retreat')
-  if (!isUnlocked(response)) throw new HttpError(403, 'Send your review to unlock the photo album')
+  if (!viaShareLink && !isUnlocked(response)) throw new HttpError(403, 'Send your review to unlock the photo album')
   const photos = await albumPhotos(retreat.id, retreat.rewardAlbumCoverId)
   return {
+    shareUrl: sharePath(await ensureShareToken(retreat)),
     title: retreat.title,
     note: retreat.rewardAlbumNote || null,
     url: retreat.rewardAlbumUrl,
     coverId: photos[0] && photos[0].id === retreat.rewardAlbumCoverId ? photos[0].id : null,
-    canContribute: true,
+    canContribute: !viaShareLink,
     photos: photos.map((p) => ({
       id: p.id,
       url: `${base}/album/${p.id}`,
@@ -107,9 +136,9 @@ async function photoOf(retreatId: string, photoId: string) {
   return { photo, bytes }
 }
 
-/** A full album photo, for a guest who has sent their review. Never cached by shared caches. */
-export async function sendAlbumPhoto(res: ExpressResponse, retreat: RetreatLike, response: ResponseLike, photoId: string) {
-  if (!available(retreat) || !isUnlocked(response)) throw new HttpError(403, 'Send your review to unlock the photo album')
+/** A full album photo, for a guest who has sent their review or someone with the share link. Never cached by shared caches. */
+export async function sendAlbumPhoto(res: ExpressResponse, retreat: RetreatLike, response: ResponseLike, photoId: string, viaShareLink = false) {
+  if (!available(retreat) || (!viaShareLink && !isUnlocked(response))) throw new HttpError(403, 'Send your review to unlock the photo album')
   const { bytes } = await photoOf(retreat.id, photoId)
   res.set({ 'Content-Type': 'image/webp', 'Cache-Control': 'private, max-age=3600', 'Content-Disposition': 'inline' }).send(bytes)
 }
