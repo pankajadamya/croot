@@ -36,7 +36,7 @@ export function SiteFooter({ retreat, orgSlug }: { retreat: RetreatFacts; orgSlu
         <span className="row">
           <Link to={`/o/${orgSlug}/privacy?programme=${retreat.slug}`}>Privacy</Link>
           <Link to="/legal/cookies">Cookies</Link>
-          <span>Powered by croot</span>
+          <span>Powered by Croot</span>
         </span>
       </div>
     </footer>

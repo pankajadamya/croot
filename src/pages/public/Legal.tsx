@@ -3,7 +3,7 @@ import { Link, Navigate, useParams } from 'react-router'
 import { PLATFORM_OPERATOR, PLATFORM_PRIVACY_VERSION, PROCESSING_TERMS_VERSION } from '../../../shared/legal'
 
 /**
- * Platform-level legal texts. These are working DRAFTS written to match how croot actually
+ * Platform-level legal texts. These are working DRAFTS written to match how Croot actually
  * processes data; a qualified privacy professional must review them before launch.
  */
 function Shell({ title, version, children }: { title: string; version: string; children: ReactNode }) {
@@ -11,7 +11,7 @@ function Shell({ title, version, children }: { title: string; version: string; c
     <main className="calm">
       <article className="narrow legal" style={{ padding: '3rem 0 5rem' }}>
         <p className="eyebrow">
-          <Link to="/">croot</Link> · Legal
+          <Link to="/">Croot</Link> · Legal
         </p>
         <h1>{title}</h1>
         <p className="muted small">Version {version}</p>
@@ -31,11 +31,11 @@ function Shell({ title, version, children }: { title: string; version: string; c
 
 function PlatformPrivacy() {
   return (
-    <Shell title="croot platform privacy notice" version={PLATFORM_PRIVACY_VERSION}>
+    <Shell title="Croot platform privacy notice" version={PLATFORM_PRIVACY_VERSION}>
       <h2>Two roles</h2>
       <p>
-        <strong>Guests:</strong> each retreat organiser or property owner using croot is the <em>controller</em> of their guests’ information, and
-        croot is their <em>processor</em>. Each organiser’s own privacy notice, linked from every invitation, explains how they use your
+        <strong>Guests:</strong> each retreat organiser or property owner using Croot is the <em>controller</em> of their guests’ information, and
+        Croot is their <em>processor</em>. Each organiser’s own privacy notice, linked from every invitation, explains how they use your
         information. Send requests about guest data to the organiser. If you contact us instead, we will pass your request to them without delay.
       </p>
       <p>
@@ -58,7 +58,7 @@ function PlatformPrivacy() {
       <h2>Retention</h2>
       <ul>
         <li>Declined access requests: 6 months. Approved requests: 24 months.</li>
-        <li>Accounts: while the organisation uses croot. Deleted with the organisation unless you belong to another.</li>
+        <li>Accounts: while the organisation uses Croot. Deleted with the organisation unless you belong to another.</li>
         <li>Sessions expire after inactivity and are deleted automatically. Audit records follow each organisation’s retention setting.</li>
       </ul>
       <h2>Sub-processors and transfers</h2>
@@ -76,8 +76,8 @@ function ProcessingTerms() {
   return (
     <Shell title="Data processing terms (summary)" version={PROCESSING_TERMS_VERSION}>
       <p>
-        These terms apply between each organisation using croot (the controller) and {PLATFORM_OPERATOR.name} (the processor), as required by
-        Article 28 of the UK GDPR and EU GDPR. The full agreement will be supplied for signature before launch. In summary, croot:
+        These terms apply between each organisation using Croot (the controller) and {PLATFORM_OPERATOR.name} (the processor), as required by
+        Article 28 of the UK GDPR and EU GDPR. The full agreement will be supplied for signature before launch. In summary, Croot:
       </p>
       <ol>
         <li>Processes guest data only on the organisation’s documented instructions, given through the product’s settings and actions.</li>
@@ -100,7 +100,7 @@ function ProcessingTerms() {
 function Cookies() {
   return (
     <Shell title="Cookies" version={PLATFORM_PRIVACY_VERSION}>
-      <p>croot sets cookies only when someone signs in (organisers, or guests who choose to sign in instead of using their link):</p>
+      <p>Croot sets cookies only when someone signs in (organisers, or guests who choose to sign in instead of using their link):</p>
       <div className="table-wrap">
         <table className="data">
           <thead>

@@ -67,7 +67,7 @@ export default function Privacy() {
         </Link>
       </div>
       <p className="muted" style={{ maxWidth: '70ch' }}>
-        Under UK and EU GDPR your organisation is the <strong>controller</strong> of your guests’ information and croot is your processor. These
+        Under UK and EU GDPR your organisation is the <strong>controller</strong> of your guests’ information and Croot is your processor. These
         settings feed your guest privacy notice and the automatic deletion schedule.
       </p>
 
@@ -148,7 +148,7 @@ export default function Privacy() {
       {isOwner && (
         <section className="card" style={{ marginTop: '1.5rem' }}>
           <h2>Export everything</h2>
-          <p className="small muted">A machine-readable copy of all programmes, guests, responses, permissions and settings, for your records or if you leave croot.</p>
+          <p className="small muted">A machine-readable copy of all programmes, guests, responses, permissions and settings, for your records or if you leave Croot.</p>
           <a className="btn secondary" href={`${base}/export`} download>
             Download organisation export (JSON)
           </a>

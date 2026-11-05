@@ -68,7 +68,7 @@ export async function sendMail(mail: Mail): Promise<void> {
 const escape = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
 
 export function loginCodeEmail(to: string, code: string, purpose: 'signin' | 'signup', minutes: number): Mail {
-  const action = purpose === 'signup' ? 'finish creating your croot account' : 'sign in to croot'
+  const action = purpose === 'signup' ? 'finish creating your Croot account' : 'sign in to Croot'
   const text = [
     `Your code to ${action} is:`,
     '',
@@ -83,5 +83,5 @@ export function loginCodeEmail(to: string, code: string, purpose: 'signin' | 'si
 <p>It expires in ${minutes} minutes and can be used once.</p>
 <p style="color:#4A5F5A;font-size:14px">If you didn’t ask for this, you can ignore this email. Nobody can sign in without the code.</p>
 </div>`
-  return { to, subject: `${code} is your croot code`, text, html, category: 'login_code' }
+  return { to, subject: `${code} is your Croot code`, text, html, category: 'login_code' }
 }

@@ -31,7 +31,7 @@ export function AppHeader({ session, orgSlug, orgName }: { session: Session; org
     <header className="admin-top">
       <div className="container">
         <div className="row">
-          <Link className="brand" to="/" aria-label="croot home page">
+          <Link className="brand" to="/" aria-label="Croot home page">
             <img className="brand-logo" src="/croot-logo.svg" alt="Croot" />
           </Link>
           {orgSlug && (

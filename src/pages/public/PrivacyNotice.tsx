@@ -73,8 +73,8 @@ export default function PrivacyNotice() {
           {c.dpoContact && <> Their data protection officer or representative: {c.dpoContact}.</>}
         </p>
         <p>
-          The review site is provided by croot, which acts as a <em>processor</em>: it stores and handles your information only on {c.name}’s
-          instructions. See the <Link to="/legal/privacy">croot platform privacy notice</Link>.
+          The review site is provided by Croot, which acts as a <em>processor</em>: it stores and handles your information only on {c.name}’s
+          instructions. See the <Link to="/legal/privacy">Croot platform privacy notice</Link>.
         </p>
 
         <h2>What we collect, why, and our legal basis</h2>
@@ -135,7 +135,7 @@ export default function PrivacyNotice() {
         <ul>
           <li>{c.name}’s organiser team: your invitation details, answers, photos and permissions.</li>
           <li>The public: only the story, first name and photos you agreed to publish, and only after the organiser approves them.</li>
-          <li>croot and its hosting providers, as processors, to run the service securely ({PLATFORM_OPERATOR.hosting}).</li>
+          <li>Croot and its hosting providers, as processors, to run the service securely ({PLATFORM_OPERATOR.hosting}).</li>
         </ul>
         <p>
           If any provider processes data outside the UK or European Economic Area, it does so under appropriate safeguards such as adequacy decisions

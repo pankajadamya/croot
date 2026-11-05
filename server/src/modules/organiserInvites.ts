@@ -16,7 +16,7 @@ import { tokenLimiter } from '../middleware/rateLimits.js'
 export const organiserInvitesRouter = Router()
 organiserInvitesRouter.use(tokenLimiter)
 
-const INVALID = 'This invitation link is not valid, has expired or has already been used. Ask the croot team for a new one.'
+const INVALID = 'This invitation link is not valid, has expired or has already been used. Ask the Croot team for a new one.'
 
 async function resolve(token: unknown) {
   if (!looksLikeToken(token)) throw new HttpError(404, INVALID)

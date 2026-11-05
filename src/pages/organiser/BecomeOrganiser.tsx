@@ -46,7 +46,7 @@ export default function BecomeOrganiser() {
         ) : (
           <p className="muted" style={{ maxWidth: '62ch' }}>
             Organisers invite their guests to review a retreat or a stay, then publish the stories guests agree to share. Tell us a little about you
-            and the croot team will review your request, usually within a couple of working days. We’ll email you either way.
+            and the Croot team will review your request, usually within a couple of working days. We’ll email you either way.
           </p>
         )}
         {q.isLoading && <Loading />}
@@ -64,7 +64,7 @@ export default function BecomeOrganiser() {
         {latest?.status === 'declined' && (
           <div className="notice warn" style={{ marginBottom: '1.5rem' }}>
             Your request for {latest.orgName} was declined on {formatDate(latest.reviewedAt)}.
-            {latest.declineReason && <> Note from the croot team: {latest.declineReason}</>} You can send a new request below.
+            {latest.declineReason && <> Note from the Croot team: {latest.declineReason}</>} You can send a new request below.
           </div>
         )}
 

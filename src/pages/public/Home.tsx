@@ -12,7 +12,7 @@ interface SiteInfo {
   org?: { slug: string; name: string }
 }
 
-/** `/` serves a tenant's site on its custom domain, and the croot landing page everywhere else. */
+/** `/` serves a tenant's site on its custom domain, and the Croot landing page everywhere else. */
 export function Home() {
   const site = useQuery({ queryKey: ['site'], queryFn: () => get<SiteInfo>('/api/public/site') })
   if (site.isLoading) return <Loading />
@@ -188,7 +188,7 @@ function Landing() {
               {[
                 ['Separate permissions', 'Story text, first name, each photo and marketing reuse are separate choices, and all start switched off.'],
                 ['Never rewritten', 'Organisers can’t edit a guest’s words. They can ask the guest, who makes any change themselves.'],
-                ['Truly separate anonymous notes', 'Stored without name, email, invitation or precise time, so they can’t be traced back through croot.'],
+                ['Truly separate anonymous notes', 'Stored without name, email, invitation or precise time, so they can’t be traced back through Croot.'],
                 ['Withdraw any time', 'Guests have a private page to withdraw permissions. Public pages update immediately.'],
               ].map(([t, b]) => (
                 <div key={t}>
@@ -208,7 +208,7 @@ function Landing() {
             <ol className="muted" style={{ paddingLeft: '1.2rem', margin: 0 }}>
               <li>Create your account with your email (we send a code) or Google.</li>
               <li>Tell us about your retreats or property: a short form.</li>
-              <li>A person at croot reviews it, usually within a couple of working days, and emails you.</li>
+              <li>A person at Croot reviews it, usually within a couple of working days, and emails you.</li>
             </ol>
             <p className="small muted" style={{ margin: 0 }}>
               Been sent an invitation link? Just open it: you’ll be set up straight away.
@@ -224,7 +224,7 @@ function Landing() {
 
       <footer className="site-footer">
         <div className="container spread small muted">
-          <span>croot · retreat stories, shared with permission</span>
+          <span>Croot · retreat stories, shared with permission</span>
           <nav className="row" aria-label="Legal">
             <Link to="/legal/privacy">Privacy</Link>
             <Link to="/legal/terms">Data processing terms</Link>

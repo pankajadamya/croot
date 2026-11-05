@@ -135,7 +135,7 @@ export default function Team() {
             <OneTimeLinkNotice title={`Setup link for ${setupUrl.name}`} url={setupUrl.url} onDismiss={() => setSetupUrl(null)} />
           ) : (
             <div className="notice ok" role="status">
-              {setupUrl.name} already has a croot account and can sign in straight away.
+              {setupUrl.name} already has a Croot account and can sign in straight away.
             </div>
           )}
         </div>

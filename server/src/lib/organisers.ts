@@ -97,24 +97,24 @@ export const organiserMails = {
   approved: (to: string, name: string, orgName: string) =>
     simpleMail(
       to,
-      'You’re now an organiser on croot',
-      [`Hello ${name},`, `Your request was approved. You’re the owner of ${orgName} on croot and can start creating review programmes.`, 'Sign in with this email address to get started.'],
-      { url: `${env.WEB_ORIGIN}/signin`, label: 'Sign in to croot' },
+      'You’re now an organiser on Croot',
+      [`Hello ${name},`, `Your request was approved. You’re the owner of ${orgName} on Croot and can start creating review programmes.`, 'Sign in with this email address to get started.'],
+      { url: `${env.WEB_ORIGIN}/signin`, label: 'Sign in to Croot' },
     ),
   declined: (to: string, name: string, reason?: string | null) =>
-    simpleMail(to, 'Your croot organiser request', [
+    simpleMail(to, 'Your Croot organiser request', [
       `Hello ${name},`,
-      'Thank you for your interest in croot. We aren’t able to give organiser access at the moment.',
-      ...(reason ? [`Note from the croot team: ${reason}`] : []),
+      'Thank you for your interest in Croot. We aren’t able to give organiser access at the moment.',
+      ...(reason ? [`Note from the Croot team: ${reason}`] : []),
       'You can still sign in to see any reviews you’ve been invited to give.',
     ]),
   invite: (to: string, url: string, orgName: string | null, days: number) =>
     simpleMail(
       to,
-      'You’re invited to be an organiser on croot',
+      'You’re invited to be an organiser on Croot',
       [
         'Hello,',
-        orgName ? `You’ve been invited to join ${orgName} as an organiser on croot.` : 'You’ve been invited to become an organiser on croot, to collect reviews from your retreat guests.',
+        orgName ? `You’ve been invited to join ${orgName} as an organiser on Croot.` : 'You’ve been invited to become an organiser on Croot, to collect reviews from your retreat guests.',
         `Open the link, sign in with this email address (${to}) and add a few details. The link works once and expires in ${days} days.`,
       ],
       { url, label: 'Accept invitation' },

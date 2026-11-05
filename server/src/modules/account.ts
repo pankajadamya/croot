@@ -62,7 +62,7 @@ accountRouter.post(
     const body = parseBody(organiserDetailsSchema, req.body)
     if (await prisma.membership.count({ where: { userId: user.id } })) throw new HttpError(409, 'You’re already an organiser')
     if (await prisma.tenantRequest.count({ where: { userId: user.id, status: 'pending' } })) {
-      throw new HttpError(409, 'Your request is already with the croot team')
+      throw new HttpError(409, 'Your request is already with the Croot team')
     }
     const { acceptTerms: _a, contactName, phone, ...rest } = body
     const created = await prisma.$transaction(async (tx) => {

@@ -9,7 +9,7 @@ export const PLATFORM_PRIVACY_VERSION = '2026-11-draft-1'
 export const PROCESSING_TERMS_VERSION = '2026-11-draft-1'
 
 /**
- * The company operating croot (the processor). PLACEHOLDERS — fill in before launch.
+ * The company operating Croot (the processor). PLACEHOLDERS — fill in before launch.
  */
 export const PLATFORM_OPERATOR = {
   name: '[Operator legal name — to confirm]',

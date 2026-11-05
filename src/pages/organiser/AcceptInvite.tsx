@@ -39,13 +39,13 @@ export default function AcceptInvite() {
   return (
     <main className="calm">
       <div className="narrow" style={{ padding: '3rem 0 5rem' }}>
-        <Link to="/" className="brand" aria-label="croot home page">
+        <Link to="/" className="brand" aria-label="Croot home page">
           <img className="brand-logo" src="/croot-logo.svg" alt="Croot" />
         </Link>
         <p className="eyebrow" style={{ marginTop: '2rem' }}>
           Organiser invitation
         </p>
-        <h1>{joining ? `Join ${joining} on croot` : 'You’re invited to be an organiser'}</h1>
+        <h1>{joining ? `Join ${joining} on Croot` : 'You’re invited to be an organiser'}</h1>
         <p className="muted" style={{ maxWidth: '62ch' }}>
           {joining
             ? `You’ll be ${inv.role === 'owner' ? 'an owner' : 'an organiser'} of ${joining}, able to invite guests to review and publish the stories they share.`
@@ -85,7 +85,7 @@ export default function AcceptInvite() {
               email={session.user.email}
               initial={{ contactName: session.user.name, orgName: joining ?? '' }}
               orgNameLabel={joining ? 'Your business name' : 'Organisation or business name'}
-              orgNameHint={joining ? `You’ll join ${joining}.` : 'This becomes your organisation on croot. You can change it later.'}
+              orgNameHint={joining ? `You’ll join ${joining}.` : 'This becomes your organisation on Croot. You can change it later.'}
               submitLabel={joining ? `Join ${joining}` : 'Become an organiser'}
               onSubmit={async (details) => {
                 const r = await post<{ organisation: { slug: string } }>(`/api/organiser-invites/${token}/accept`, details)
