@@ -59,6 +59,17 @@ describe('retreat photo slideshows', () => {
     expect((await request(app).get(`/api/invites/${token}`)).body.retreat.slideshow).toEqual([])
   })
 
+  it('shows the organiser’s opening to guests only once it is published', async () => {
+    const { org, retreat } = await makeTenant('alpha')
+    const { token } = await invite(org.id, retreat.id)
+    const opening = { organisationId: org.id, retreatId: retreat.id, headline: 'From Delhi to the foothills', introParagraphs: ['Ten days together.'], ctaLabel: 'Explore', ctaUrl: 'https://example.test' }
+    await prisma.contentRevision.create({ data: { ...opening, status: 'draft' } })
+    expect((await request(app).get(`/api/invites/${token}`)).body.retreat.opening).toBeNull()
+    await prisma.contentRevision.create({ data: { ...opening, status: 'published' } })
+    const view = await request(app).get(`/api/invites/${token}`)
+    expect(view.body.retreat.opening).toEqual({ headline: 'From Delhi to the foothills', introParagraphs: ['Ten days together.'] })
+  })
+
   it('shows nothing beside the form while the programme switch is off', async () => {
     const { org, retreat } = await makeTenant('alpha')
     const { token } = await invite(org.id, retreat.id)

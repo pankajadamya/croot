@@ -42,6 +42,7 @@ interface InviteView {
     anonymousPath: string
     privacyNoticePath: string
     slideshow: Array<{ url: string; alt: string; caption: string }>
+    opening: { headline: string; introParagraphs: string[] } | null
   }
   response: {
     status: 'draft' | 'submitted' | 'changes_requested' | 'withdrawn'
@@ -393,6 +394,17 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
               <h1 id="step-heading" ref={headingRef} tabIndex={-1}>
                 Hello {view.firstName}, how was your {visit}?
               </h1>
+              {view.retreat.opening && (view.retreat.opening.headline || view.retreat.opening.introParagraphs.length > 0) && (
+                <section className="organiser-opening" aria-label={`A message from ${view.retreat.organiserName || view.retreat.organisationName}`}>
+                  <p className="eyebrow" style={{ margin: 0 }}>
+                    From {view.retreat.organiserName || view.retreat.organisationName}
+                  </p>
+                  {view.retreat.opening.headline && <h2 className="serif">{view.retreat.opening.headline}</h2>}
+                  {view.retreat.opening.introParagraphs.filter((p) => p.trim()).map((p, i) => (
+                    <p key={i}>{p}</p>
+                  ))}
+                </section>
+              )}
               <p style={{ fontSize: '1.15rem' }}>
                 We’d love to hear about your time {isProperty ? 'at' : 'on the'} {view.retreat.title}. It takes about seven minutes, and every question is
                 optional.

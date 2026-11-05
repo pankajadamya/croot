@@ -11,6 +11,7 @@ import { HttpError, parseBody, route, text, uuidParam } from '../lib/http.js'
 import { processImage } from '../lib/images.js'
 import { canEdit, ensureResponse, resolveInvite, type ResolvedInvite } from '../lib/invites.js'
 import { prisma } from '../lib/prisma.js'
+import { publishedContent } from '../lib/site.js'
 import { storage } from '../lib/storage.js'
 import { hashToken, newToken } from '../lib/tokens.js'
 import { tokenLimiter, uploadLimiter } from '../middleware/rateLimits.js'
@@ -151,6 +152,8 @@ async function draftView(r: Review, req: Request) {
       anonymousPath: `/o/${r.retreat.organisation.slug}/r/${r.retreat.slug}/anonymous`,
       privacyNoticePath: `/o/${r.retreat.organisation.slug}/privacy?programme=${r.retreat.slug}`,
       slideshow: slideshow.map((s) => ({ url: `/media/${s.id}`, alt: altFor(s), caption: s.caption })),
+      // The organiser's published opening (the same words as the public page), shown on the welcome step.
+      opening: await publishedContent(r.retreat.id).then((c) => c && { headline: c.headline, introParagraphs: c.introParagraphs }),
     },
     response: response && {
       status: response.status,

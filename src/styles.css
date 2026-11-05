@@ -1233,3 +1233,18 @@ table.data th {
   background: var(--button);
   transition: width 0.2s;
 }
+
+/* ---------- organiser's opening on the guest welcome step ---------- */
+
+.organiser-opening {
+  border-left: 3px solid var(--accent);
+  padding: 0.25rem 0 0.25rem 1.25rem;
+  max-width: 62ch;
+}
+.organiser-opening h2 {
+  font-size: clamp(1.3rem, 2.2vw, 1.6rem);
+  margin: 0.4rem 0 0.6rem;
+}
+.organiser-opening p:last-child {
+  margin-bottom: 0;
+}
