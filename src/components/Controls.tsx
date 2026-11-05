@@ -18,7 +18,8 @@ export function Switch({
     <label className="switch">
       <input type="checkbox" role="switch" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
       <span>
-        <span style={{ fontWeight: 600 }}>{label}</span> <span className="state">{checked ? 'On' : 'Off'}</span>
+        {/* State is shown by the knob position (not colour alone) and announced by role="switch"; no On/Off text. */}
+        <span style={{ fontWeight: 600 }}>{label}</span>
         {description && <span className="muted small" style={{ display: 'block' }}>{description}</span>}
       </span>
     </label>

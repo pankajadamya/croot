@@ -358,11 +358,6 @@ textarea[aria-invalid='true'] {
 .switch input:checked::after {
   transform: translateX(18px);
 }
-.switch .state {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--muted);
-}
 
 .notice {
   border-radius: var(--radius-sm);

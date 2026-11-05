@@ -34,14 +34,18 @@ export function SlideshowSettings({ orgSlug, retreat, media }: { orgSlug: string
         disabled={update.isPending}
         onChange={(v) => update.mutate({ heroSlideshowEnabled: v })}
         label="Show a photo slideshow on the public review page"
-        description={`${plural(heroCount)} will show.`}
+        description={retreat.heroSlideshowEnabled ? `Showing ${plural(heroCount)}.` : 'The public page has no slideshow.'}
       />
       <Switch
         checked={retreat.writingSlideshowEnabled}
         disabled={update.isPending}
         onChange={(v) => update.mutate({ writingSlideshowEnabled: v })}
         label="Show retreat photos beside the guest’s review form"
-        description={`A quiet memory prompt on the “Your story” step that guests can hide. ${plural(writingCount)} will show.`}
+        description={
+          retreat.writingSlideshowEnabled
+            ? `Showing ${plural(writingCount)} beside the form. Guests can hide them.`
+            : 'Guests see a plain panel beside the form.'
+        }
       />
       <p className="small" style={{ margin: '0.6rem 0 0' }}>
         <strong>

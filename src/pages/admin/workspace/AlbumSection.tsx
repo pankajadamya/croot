@@ -75,9 +75,9 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
           description={
             retreat.rewardAlbumEnabled
               ? live
-                ? `On: ${count} photo${count === 1 ? '' : 's'}${retreat.rewardAlbumUrl ? ' and a link to the full album' : ''}.`
-                : 'On, but add photos or a link below before guests will see it.'
-              : 'Off: guests won’t see an album.'
+                ? `Guests who send their review will unlock ${count > 0 ? `${count} photo${count === 1 ? '' : 's'}` : ''}${count > 0 && retreat.rewardAlbumUrl ? ' and ' : ''}${retreat.rewardAlbumUrl ? 'the full-album link' : ''}.`
+                : 'Add photos or a link below so guests have something to unlock.'
+              : 'Guests won’t see an album.'
           }
         />
       </div>
