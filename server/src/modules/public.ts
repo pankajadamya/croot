@@ -32,9 +32,26 @@ publicRouter.get(
     const retreats = await prisma.retreat.findMany({
       where: { organisationId: org.id, status: { in: ['collecting', 'closed'] } },
       orderBy: [{ startDate: { sort: 'desc', nulls: 'first' } }, { createdAt: 'desc' }],
-      select: { slug: true, kind: true, title: true, startDate: true, endDate: true, locationSummary: true },
+      select: { id: true, slug: true, kind: true, title: true, startDate: true, endDate: true, locationSummary: true, publicReviewsEnabled: true },
     })
-    res.json({ org: { slug: org.slug, name: org.name, websiteUrl: org.websiteUrl }, retreats })
+    const cards = await Promise.all(
+      retreats.map(async ({ id, publicReviewsEnabled, ...r }) => {
+        // The card's title image: the first slideshow photo, else the first of the organiser's public images.
+        const [image, stories] = await Promise.all([
+          prisma.mediaAsset.findFirst({
+            where: { retreatId: id, kind: 'organiser', moderation: 'approved', publishConsent: true, removedAt: null },
+            orderBy: [{ inHeroSlideshow: 'desc' }, { displayOrder: 'asc' }, { createdAt: 'asc' }],
+          }),
+          publicReviewsEnabled ? prisma.response.count({ where: { retreatId: id, publicationStatus: 'published', publicSlug: { not: null } } }) : 0,
+        ])
+        return {
+          ...r,
+          image: image ? { url: `/media/${image.id}`, alt: altFor(image), focalX: image.focalX, focalY: image.focalY } : null,
+          storyCount: stories,
+        }
+      }),
+    )
+    res.json({ org: { slug: org.slug, name: org.name, websiteUrl: org.websiteUrl }, retreats: cards })
   }),
 )
 

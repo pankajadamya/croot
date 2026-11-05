@@ -2112,3 +2112,108 @@ ol.album-admin-grid {
   flex-wrap: wrap;
   align-items: center;
 }
+
+/* Organiser's page: one card per retreat, led by its title image. */
+.retreat-grid {
+  list-style: none;
+  padding: 0;
+  margin: 2rem 0 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: 1.5rem;
+}
+.retreat-tile {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  color: var(--text);
+  text-decoration: none;
+  box-shadow: 0 1px 2px rgba(24, 61, 59, 0.06), 0 8px 24px rgba(24, 61, 59, 0.06);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.retreat-tile:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 2px 4px rgba(24, 61, 59, 0.08), 0 16px 36px rgba(24, 61, 59, 0.12);
+}
+.retreat-tile:focus-visible {
+  outline: 3px solid var(--button);
+  outline-offset: 3px;
+}
+.retreat-tile-image {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: var(--forest);
+  overflow: hidden;
+}
+.retreat-tile-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.6s ease;
+}
+.retreat-tile:hover .retreat-tile-image img {
+  transform: scale(1.04);
+}
+.retreat-tile-placeholder {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  font-family: var(--serif);
+  font-size: 4rem;
+  color: var(--canvas);
+  opacity: 0.6;
+}
+.retreat-tile-kind {
+  position: absolute;
+  top: 0.9rem;
+  left: 0.9rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(248, 245, 239, 0.92);
+  color: var(--forest);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.retreat-tile-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 1.25rem 1.4rem 1.3rem;
+  flex: 1;
+}
+.retreat-tile-body h2 {
+  margin: 0;
+  font-size: 1.45rem;
+  line-height: 1.2;
+}
+.retreat-tile-meta {
+  margin: 0;
+  color: var(--muted);
+}
+.retreat-tile-foot {
+  margin-top: auto;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.retreat-tile-cta {
+  font-weight: 700;
+}
+@media (prefers-reduced-motion: reduce) {
+  .retreat-tile,
+  .retreat-tile-image img {
+    transition: none;
+  }
+  .retreat-tile:hover,
+  .retreat-tile:hover .retreat-tile-image img {
+    transform: none;
+  }
+}

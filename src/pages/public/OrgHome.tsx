@@ -9,7 +9,16 @@ import { SiteHeader } from './RetreatLanding'
 
 interface OrgPublic {
   org: { slug: string; name: string; websiteUrl?: string | null }
-  retreats: Array<{ slug: string; kind: 'itinerary' | 'property'; title: string; startDate: string | null; endDate: string | null; locationSummary: string }>
+  retreats: Array<{
+    slug: string
+    kind: 'itinerary' | 'property'
+    title: string
+    startDate: string | null
+    endDate: string | null
+    locationSummary: string
+    image: { url: string; alt: string; focalX: number; focalY: number } | null
+    storyCount: number
+  }>
 }
 
 /** Every public retreat and property from one organiser, each linking to its own page. */
@@ -38,21 +47,40 @@ export function OrgSite({ orgSlug }: { orgSlug: string }) {
         {data.retreats.length === 0 ? (
           <p className="muted">Retreats will appear here once they’re open.</p>
         ) : (
-          <div className="story-cards" style={{ marginTop: '1.5rem' }}>
+          <ul className="retreat-grid">
             {data.retreats.map((r) => (
-              <Link key={r.slug} to={`/o/${orgSlug}/r/${r.slug}`} className="story-card">
-                <span className="badge" style={{ justifySelf: 'start' }}>
-                  {REVIEW_KINDS[r.kind].short}
-                </span>
-                <h2 style={{ fontSize: '1.4rem', margin: 0 }}>{r.title}</h2>
-                {r.kind === 'itinerary' && <span className="muted">{formatRange(r.startDate, r.endDate)}</span>}
-                {r.locationSummary && <span className="muted small">{r.locationSummary}</span>}
-                <span className="small" style={{ fontWeight: 600 }}>
-                  Read guest stories →
-                </span>
-              </Link>
+              <li key={r.slug}>
+                <Link to={`/o/${orgSlug}/r/${r.slug}`} className="retreat-tile">
+                  <div className="retreat-tile-image">
+                    {r.image ? (
+                      <img src={r.image.url} alt="" loading="lazy" style={{ objectPosition: `${r.image.focalX * 100}% ${r.image.focalY * 100}%` }} />
+                    ) : (
+                      <span className="retreat-tile-placeholder" aria-hidden="true">
+                        {r.title.slice(0, 1)}
+                      </span>
+                    )}
+                    <span className="retreat-tile-kind">{REVIEW_KINDS[r.kind].short}</span>
+                  </div>
+                  <div className="retreat-tile-body">
+                    <h2>{r.title}</h2>
+                    <p className="retreat-tile-meta">
+                      {r.kind === 'itinerary' && formatRange(r.startDate, r.endDate)}
+                      {r.kind === 'itinerary' && r.locationSummary && ' · '}
+                      {r.locationSummary}
+                    </p>
+                    <div className="retreat-tile-foot">
+                      <span className="small muted">
+                        {r.storyCount > 0 ? `${r.storyCount} guest stor${r.storyCount === 1 ? 'y' : 'ies'}` : 'Guest stories coming soon'}
+                      </span>
+                      <span className="retreat-tile-cta" aria-hidden="true">
+                        View retreat →
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </main>
     </div>
