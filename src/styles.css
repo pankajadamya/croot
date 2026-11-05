@@ -1956,3 +1956,22 @@ ol.album-admin-grid {
   color: #e7e1d5;
   margin-bottom: 0.6rem;
 }
+
+/* "See what others are saying": a link out to the retreat's public page. */
+.retreat-page-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+/* A button that reads as an inline text link. */
+.link-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--link, var(--button));
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}

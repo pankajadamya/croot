@@ -95,7 +95,7 @@ export async function exportOrganisation(organisationId: string) {
     where: { organisationId },
     include: {
       attendees: { include: { response: { include: { ratings: true, consents: true, publications: true, changeRequests: true, media: true } } } },
-      anonymousNotes: { select: { message: true, category: true, receivedWeek: true } },
+      anonymousNotes: { select: { message: true }, orderBy: { message: 'asc' } },
       contents: true,
       themes: true,
       media: { where: { kind: 'organiser' } },

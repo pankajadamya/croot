@@ -125,7 +125,7 @@ function Cookies() {
         </table>
       </div>
       <p>
-        Invitation links, anonymous notes and public story pages set no cookies and use no analytics, advertising or tracking, so no cookie
+        Invitation links and public story pages set no cookies and use no analytics, advertising or tracking, so no cookie
         consent banner is needed. Strictly necessary cookies are exempt from consent under PECR and the ePrivacy Directive. If analytics are ever
         added, they will stay off guest pages and require consent first.
       </p>

@@ -6,7 +6,7 @@
 // tenant data only through `server/src/lib/tenant.ts`, which always filters by organisation.
 //
 // Privacy boundaries from the design spec are structural, not just UI:
-//   - AnonymousNote has no attendee / response / invitation key and no precise timestamp.
+//   - AnonymousNote has no attendee / response / invitation key and no timestamp at all.
 //   - Public pages read PublicationRevision snapshots, never Response rows.
 //   - Tokens (invite, receipt, session, setup) are stored only as SHA-256 hashes.
 
@@ -573,14 +573,14 @@ model MediaAsset {
 // ---------------------------------------------------------------------------------------------
 // Anonymous notes — deliberately unlinked.
 
+/// Only the words and which retreat they're about: no guest, response, invitation, category or time of
+/// any kind (not even a week). The id is random, so it carries no order either. Deleted by retention a
+/// set time after the retreat ends.
 model AnonymousNote {
   id             String   @id @default(uuid()) @db.Uuid
   organisationId String   @db.Uuid
   retreatId      String   @db.Uuid
   message        String
-  category       String?
-  /// Calendar week start only: no precise time is stored, to prevent matching in small cohorts.
-  receivedWeek   DateTime @db.Date
   retreat        Retreat  @relation(fields: [retreatId], references: [id], onDelete: Cascade)
 
   @@index([organisationId, retreatId])

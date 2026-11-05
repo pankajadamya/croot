@@ -11,7 +11,7 @@ import { livePublication } from '../lib/publication.js'
  *                                      published ones keep only the published story, and private
  *                                      feedback, unpublished photos and the email address are deleted
  *   4. original photo uploads        → deleted after originalPhotoRetentionDays (web copies remain)
- *   5. anonymous notes, audit events → deleted after their retention period
+ *   5. anonymous notes (counted from the retreat's end, as they hold no date), audit events → deleted after their retention period
  * plus platform housekeeping: expired sessions, spent setup links, old invitations and access requests.
  *
  * Idempotent and safe to run often. Returns counts for logging.
@@ -101,7 +101,13 @@ export async function runRetention(now = new Date()) {
     }
 
     // 5. Anonymous notes and audit events.
-    counts.notes += (await prisma.anonymousNote.deleteMany({ where: { organisationId: org.id, receivedWeek: { lt: monthsAgo(now, org.anonymousNoteRetentionMonths) } } })).count
+    // Notes carry no date of their own: they go the set time after their retreat ended (or was created, if it has no end date).
+    const noteCutoff = monthsAgo(now, org.anonymousNoteRetentionMonths)
+    counts.notes += (
+      await prisma.anonymousNote.deleteMany({
+        where: { organisationId: org.id, retreat: { OR: [{ endDate: { lt: noteCutoff } }, { endDate: null, createdAt: { lt: noteCutoff } }] } },
+      })
+    ).count
     counts.auditEvents += (await prisma.auditEvent.deleteMany({ where: { organisationId: org.id, createdAt: { lt: monthsAgo(now, org.auditRetentionMonths) } } })).count
   }
 

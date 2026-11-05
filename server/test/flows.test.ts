@@ -137,18 +137,43 @@ describe('publication and consent', () => {
 })
 
 describe('anonymous notes', () => {
-  it('stores no identity, timing or link to a response', async () => {
+  it('stores only the words: no identity, time or link to a response', async () => {
     const { org, user, retreat } = await makeTenant('alpha')
-    const res = await request(app).post('/api/public/orgs/alpha/retreats/trip/anonymous').send({ message: 'The transfers were rushed.' })
+    const { token } = await invite(org.id, retreat.id)
+    // The review form tells the browser where to send it: by retreat only, never the invite token.
+    const view = await request(app).get(`/api/invites/${token}`)
+    expect(view.body.retreat.anonymousNotePath).toBe(`/api/public/notes/${retreat.id}`)
+    const before = await prisma.auditEvent.count()
+
+    const res = await request(app).post(view.body.retreat.anonymousNotePath).send({ message: 'The transfers were rushed.' })
     expect(res.status).toBe(201)
     const note = await prisma.anonymousNote.findFirstOrThrow()
-    expect(Object.keys(note).sort()).toEqual(['category', 'id', 'message', 'organisationId', 'receivedWeek', 'retreatId'])
-    expect(note.receivedWeek.getUTCDay()).toBe(1) // stored as a Monday, not a timestamp
-    expect(await prisma.auditEvent.count()).toBe(0)
+    expect(Object.keys(note).sort()).toEqual(['id', 'message', 'organisationId', 'retreatId'])
+    expect(await prisma.auditEvent.count()).toBe(before)
+    expect(JSON.stringify(await prisma.response.findMany())).not.toContain('transfers were rushed')
+
+    // Held back until there are enough that a new one can't be matched to the review just sent.
     const { agent } = await login(user.email)
-    const list = await agent.get(`/api/admin/orgs/alpha/retreats/${retreat.id}/anonymous`)
-    expect(list.body.notes[0]).toEqual({ message: 'The transfers were rushed.', category: null, receivedWeek: expect.any(String) })
-    expect(org.id).toBeTruthy()
+    let list = await agent.get(`/api/admin/orgs/alpha/retreats/${retreat.id}/anonymous`)
+    expect(list.body).toEqual({ notes: [], held: 1, minimum: 3 })
+    await request(app).post(`/api/public/notes/${retreat.id}`).send({ message: 'Zero complaints about the food.' })
+    await request(app).post(`/api/public/notes/${retreat.id}`).send({ message: 'A quieter room would help.' })
+    list = await agent.get(`/api/admin/orgs/alpha/retreats/${retreat.id}/anonymous`)
+    // Alphabetical, never arrival order.
+    expect(list.body.notes).toEqual([{ message: 'A quieter room would help.' }, { message: 'The transfers were rushed.' }, { message: 'Zero complaints about the food.' }])
+  })
+
+  it('refuses notes for retreats that are not collecting', async () => {
+    const { retreat } = await makeTenant('alpha')
+    await prisma.retreat.update({ where: { id: retreat.id }, data: { status: 'closed' } })
+    expect((await request(app).post(`/api/public/notes/${retreat.id}`).send({ message: 'Too late?' })).status).toBe(409)
+  })
+
+  it('points guests to the retreat’s public page once they have sent their review', async () => {
+    const { org, retreat } = await makeTenant('alpha')
+    const { token } = await invite(org.id, retreat.id)
+    const view = await request(app).get(`/api/invites/${token}`)
+    expect(view.body.retreat.publicPagePath).toBe(`/o/alpha/r/${retreat.slug}`)
   })
 })
 

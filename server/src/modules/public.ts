@@ -173,40 +173,23 @@ publicRouter.get(
 )
 
 // ---------------------------------------------------------------------------------------------
-// Anonymous notes: a separate path with no invite token, cookie, session or attendee key.
+// Anonymous notes, written in the review form and sent on their own when the guest sends their review.
+// This path carries no invite token, and is mounted before cookies are parsed, so it never reads a
+// session either: nothing in the request says who sent it.
 
-publicRouter.get(
-  '/orgs/:orgSlug/retreats/:retreatSlug/anonymous',
-  route(async (req, res) => {
-    const org = await activeOrgBySlug(param(req, 'orgSlug'))
-    const retreat = await publicRetreat(org.id, param(req, 'retreatSlug'))
-    res.json({ org: { name: org.name }, retreat: { title: retreat.title, organiserName: retreat.organiserName, privacyUrl: retreat.privacyUrl }, open: retreat.status === 'collecting' })
-  }),
-)
-
-const noteSchema = z.object({
-  message: text(4000).refine((v) => v.length >= 3, 'Please write a little more'),
-  category: z.enum(['instruction', 'accommodation', 'food', 'travel', 'safety', 'people', 'other']).optional(),
-})
-
-function weekStart(d = new Date()): Date {
-  const day = (d.getUTCDay() + 6) % 7 // Monday = 0
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - day))
-}
+const noteSchema = z.object({ message: text(4000).refine((v) => v.length >= 3, 'Please write a little more') })
 
 publicRouter.post(
-  '/orgs/:orgSlug/retreats/:retreatSlug/anonymous',
+  '/notes/:retreatId',
   anonymousLimiter,
   route(async (req, res) => {
-    const org = await activeOrgBySlug(param(req, 'orgSlug'))
-    const retreat = await publicRetreat(org.id, param(req, 'retreatSlug'))
+    const retreat = await prisma.retreat.findFirst({ where: { id: uuidParam(req, 'retreatId'), organisation: { status: 'active' } } })
+    if (!retreat) throw new HttpError(404, 'Not found')
     if (retreat.status !== 'collecting') throw new HttpError(409, 'Notes for this retreat are closed.')
     const body = parseBody(noteSchema, req.body)
-    // Only the week is stored. No IP, user agent, cookie, referrer or request id is recorded, and no
-    // audit event is written (an audit timestamp would re-introduce precise timing).
-    await prisma.anonymousNote.create({
-      data: { organisationId: org.id, retreatId: retreat.id, message: body.message, category: body.category ?? null, receivedWeek: weekStart() },
-    })
+    // Only the words are stored: no time, IP, user agent, cookie, referrer or request id, and no audit
+    // event (its timestamp would let a note be matched to a review sent at the same moment).
+    await prisma.anonymousNote.create({ data: { organisationId: retreat.organisationId, retreatId: retreat.id, message: body.message } })
     res.set('Cache-Control', 'no-store')
     res.status(201).json({ ok: true })
   }),

@@ -177,9 +177,10 @@ async function seedBalanceAndBeyond(adminId: string) {
 
   await prisma.anonymousNote.createMany({
     data: [
-      { message: 'The early starts were hard with jet lag. A gentler first morning would help.', category: 'instruction' },
-      { message: 'One transfer felt rushed; more buffer time please.', category: 'travel' },
-    ].map((n) => ({ ...n, organisationId: org.id, retreatId: retreat.id, receivedWeek: new Date('2026-11-02') })),
+      { message: 'The early starts were hard with jet lag. A gentler first morning would help.' },
+      { message: 'One transfer felt rushed; more buffer time please.' },
+      { message: 'I would have liked more time to talk to the teachers one to one.' },
+    ].map((n) => ({ ...n, organisationId: org.id, retreatId: retreat.id })),
   })
   return links
 }

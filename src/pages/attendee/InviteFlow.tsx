@@ -7,6 +7,7 @@ import { Field, RatingScale, Switch } from '../../components/Controls'
 import { LinkUnavailable, Loading } from '../../components/States'
 import { PhotoPanel } from './PhotoPanel'
 import { AlbumLinkCard, AlbumTeaser, type AlbumSummary } from '../../components/AlbumGallery'
+import { RetreatPageLink } from '../../components/RetreatPageLink'
 
 interface Rating {
   categoryKey: string
@@ -42,7 +43,8 @@ interface InviteView {
     organisationName: string
     categories: FeedbackCategory[]
     privacyUrl: string | null
-    anonymousPath: string
+    anonymousNotePath: string
+    publicPagePath: string | null
     privacyNoticePath: string
     slideshow: Array<{ url: string; alt: string; caption: string }>
     opening: { headline: string; introParagraphs: string[] } | null
@@ -124,6 +126,8 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
   const [savedAt, setSavedAt] = useState<Date | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  // The anonymous note lives only in this browser tab: never in the auto-saved draft, which belongs to this guest.
+  const [anonNote, setAnonNote] = useState('')
   const revision = useRef(0)
   const dirty = useRef(false)
   const saving = useRef<Promise<void> | null>(null)
@@ -219,10 +223,32 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
     requestAnimationFrame(() => headingRef.current?.focus())
   }
 
+  /**
+   * Sends the anonymous note on its own: a separate request with no invite token and no cookies, so
+   * nothing in it says who wrote it. The server keeps only the words.
+   */
+  async function sendAnonymousNote() {
+    const message = anonNote.trim()
+    if (!message || !view) return
+    const res = await fetch(view.retreat.anonymousNotePath, {
+      method: 'POST',
+      credentials: 'omit',
+      referrerPolicy: 'no-referrer',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message }),
+    })
+    if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as { error?: string } | null
+      throw new ApiError(res.status, `Your anonymous note couldn’t be sent: ${body?.error ?? 'please try again'}`)
+    }
+    setAnonNote('')
+  }
+
   async function submit() {
     setSubmitting(true)
     setSubmitError(null)
     try {
+      await sendAnonymousNote()
       await save(STEPS.length - 1)
       const r = await post<{ receiptToken: string }>(`${base}/submit`, { revision: revision.current })
       dirty.current = false
@@ -304,6 +330,9 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                   <AlbumLinkCard album={view.retreat.album} href={albumPagePath(base)} />
                 </div>
               )}
+              <div style={{ margin: '1.5rem 0' }}>
+                <RetreatPageLink href={view.retreat.publicPagePath} title={view.retreat.title} />
+              </div>
               <div className="row">
                 <button className="btn" onClick={openReceipt}>
                   Open my private response page
@@ -452,7 +481,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
               <ul className="muted">
                 <li>A story others could read, if you choose to share it</li>
                 <li>Private feedback for the organisers only</li>
-                <li>An optional anonymous note, sent separately</li>
+                <li>An optional anonymous note, stored separately with no link to you</li>
                 <li>Photos, only with your permission for each one</li>
               </ul>
               <p className="small muted">
@@ -564,13 +593,13 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                 Something you’d rather say anonymously?
               </h1>
               <p>
-                You can send a separate note without your name. It opens on its own page, isn’t saved with this response, and the organiser can’t link it
-                back to you.
+                Write it here and it’s sent separately when you send your review. It’s stored on its own, with no name, link or time, so the organiser
+                can’t tell who wrote it.
               </p>
-              <p className="small muted">Details you write in the note itself may still identify you, so we don’t promise absolute anonymity.</p>
-              <a className="btn secondary" href={view.retreat.anonymousPath} target="_blank" rel="noopener noreferrer">
-                Open the anonymous note page ↗
-              </a>
+              <Field id="anon-note" label="Anonymous note (optional)" hint="It isn’t saved as you go, so it stays in this browser window until you send.">
+                <textarea id="anon-note" value={anonNote} maxLength={4000} onChange={(e) => setAnonNote(e.target.value)} style={{ minHeight: '8rem' }} />
+              </Field>
+              <p className="small muted">Details you write in the note itself may still identify you, so we can’t promise complete anonymity.</p>
               <Actions step={step} goTo={goTo} saveLabel={saveLabel[saveState]} nextLabel="Continue" />
             </section>
           )}
@@ -651,6 +680,13 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                 <li>{c.followUp ? 'Happy to be contacted' : 'Not to be contacted'}</li>
                 <li>{photos.length} photo{photos.length === 1 ? '' : 's'} ({photos.filter((p) => p.publishConsent).length} with publishing permission)</li>
               </ul>
+              <h2 style={{ fontSize: '1.2rem', marginTop: '1.5rem' }}>Anonymous</h2>
+              <p className="muted">
+                {anonNote.trim() ? 'Your anonymous note, sent separately with no link to you.' : 'No anonymous note.'}{' '}
+                <button type="button" className="link-button" onClick={() => goTo(3)}>
+                  {anonNote.trim() ? 'Edit' : 'Add one'}
+                </button>
+              </p>
               {view.retreat.album && !view.retreat.album.unlocked && (
                 <p className="notice ok small">Sending unlocks the retreat photo album, our thank-you whatever you choose to share.</p>
               )}

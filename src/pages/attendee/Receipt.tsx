@@ -7,9 +7,10 @@ import { Field } from '../../components/Controls'
 import { LinkUnavailable, Loading } from '../../components/States'
 import { AlbumLinkCard, type AlbumSummary } from '../../components/AlbumGallery'
 import { GuestHeader } from '../../components/AppHeader'
+import { RetreatPageLink } from '../../components/RetreatPageLink'
 
 interface ReceiptView {
-  retreat: { title: string; organiserName: string; organisationName: string; contactEmail: string | null; privacyNoticePath: string }
+  retreat: { title: string; organiserName: string; organisationName: string; contactEmail: string | null; privacyNoticePath: string; publicPagePath: string | null }
   status: 'draft' | 'submitted' | 'changes_requested' | 'withdrawn'
   submittedAt: string | null
   storyText: string
@@ -127,6 +128,7 @@ export default function Receipt() {
         )}
 
         {d.album?.unlocked && <AlbumLinkCard album={d.album} href={`/response/${token}/album`} />}
+        {d.status !== 'draft' && <RetreatPageLink href={d.retreat.publicPagePath} title={d.retreat.title} />}
 
         <section className="card">
           <div className="spread">

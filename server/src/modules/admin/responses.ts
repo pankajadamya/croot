@@ -252,6 +252,8 @@ responsesRouter.get(
 // ---------------------------------------------------------------------------------------------
 // Anonymous notes: no link to any attendee, response or invitation exists to follow.
 
+const MIN_ANONYMOUS_NOTES = 3
+
 responsesRouter.get(
   '/retreats/:retreatId/anonymous',
   route(async (req, res) => {
@@ -259,12 +261,14 @@ responsesRouter.get(
     const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
     const notes = await prisma.anonymousNote.findMany({
       where: { organisationId: t.org.id, retreatId: retreat.id },
-      // Week, then message text: never insertion order, which could hint at timing.
-      orderBy: [{ receivedWeek: 'desc' }, { message: 'asc' }],
-      select: { message: true, category: true, receivedWeek: true },
+      // Alphabetical: never the order they arrived in, which could hint at who sent which.
+      orderBy: { message: 'asc' },
+      select: { message: true },
     })
     res.set('Cache-Control', 'no-store')
-    res.json({ notes })
+    // Held back until a few have arrived, so a new note can't be matched to the review sent just before it.
+    const held = notes.length < MIN_ANONYMOUS_NOTES
+    res.json({ notes: held ? [] : notes, held: held ? notes.length : 0, minimum: MIN_ANONYMOUS_NOTES })
   }),
 )
 

@@ -51,14 +51,9 @@ export default function RetreatWorkspace() {
           </div>
 
           <details className="card tight" style={{ marginBottom: '1.5rem' }}>
-            <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Share links</summary>
-            <div className="grid-2" style={{ marginTop: '1rem' }}>
+            <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Share link</summary>
+            <div style={{ marginTop: '1rem' }}>
               <CopyField label="Public review site" value={publicRetreatUrl(orgSlug, retreat.data.slug)} hint="Shows your opening and published guest stories." />
-              <CopyField
-                label="Anonymous note form"
-                value={`${publicRetreatUrl(orgSlug, retreat.data.slug)}/anonymous`}
-                hint="Anyone with this link can leave a note. It is never connected to a guest."
-              />
             </div>
           </details>
 

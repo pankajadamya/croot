@@ -149,8 +149,10 @@ async function draftView(r: Review, req: Request) {
       organisationName: r.retreat.organisation.name,
       categories: categoriesOf(r),
       privacyUrl: r.retreat.privacyUrl,
-      // The anonymous page is addressed by public slugs only: no token or attendee key crosses over.
-      anonymousPath: `/o/${r.retreat.organisation.slug}/r/${r.retreat.slug}/anonymous`,
+      // Where the anonymous note goes: by retreat only, so no token or attendee key crosses over.
+      anonymousNotePath: `/api/public/notes/${r.retreat.id}`,
+      // The retreat's public page (details and published reviews), once it's live.
+      publicPagePath: r.retreat.status === 'draft' || r.retreat.status === 'archived' ? null : `/o/${r.retreat.organisation.slug}/r/${r.retreat.slug}`,
       privacyNoticePath: `/o/${r.retreat.organisation.slug}/privacy?programme=${r.retreat.slug}`,
       slideshow: slideshow.map((s) => ({ url: `/media/${s.id}`, alt: altFor(s), caption: s.caption })),
       // The organiser's published opening (the same words as the public page), shown on the welcome step.

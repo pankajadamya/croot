@@ -7,7 +7,6 @@ import { NotFound } from './components/States'
 const OrgHome = lazy(() => import('./pages/public/OrgHome'))
 const RetreatLanding = lazy(() => import('./pages/public/RetreatLanding'))
 const StoryPage = lazy(() => import('./pages/public/StoryPage'))
-const AnonymousNote = lazy(() => import('./pages/public/AnonymousNote'))
 const PrivacyNotice = lazy(() => import('./pages/public/PrivacyNotice'))
 const Legal = lazy(() => import('./pages/public/Legal'))
 const AdminPrivacy = lazy(() => import('./pages/admin/Privacy'))
@@ -40,7 +39,6 @@ export function App() {
         <Route path="/" element={<Home />} />
         <Route path="/o/:orgSlug" element={<OrgHome />} />
         <Route path="/o/:orgSlug/r/:retreatSlug" element={<RetreatLanding />} />
-        <Route path="/o/:orgSlug/r/:retreatSlug/anonymous" element={<AnonymousNote />} />
         <Route path="/stories/:slug" element={<StoryPage />} />
         <Route path="/o/:orgSlug/privacy" element={<PrivacyNotice />} />
         <Route path="/legal/:doc" element={<Legal />} />

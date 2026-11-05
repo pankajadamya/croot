@@ -87,7 +87,7 @@ export function createApp() {
   if (existsSync(dist)) {
     app.use(express.static(dist, { index: false, maxAge: '1h' }))
     app.get(/^(?!\/api\/|\/media\/|\/health\/).*/, (req: Request, res: Response) => {
-      if (/^\/(invite|response|admin|platform|o\/[^/]+\/r\/[^/]+\/anonymous)/.test(req.path)) {
+      if (/^\/(invite|response|admin|platform|album)/.test(req.path)) {
         res.set('X-Robots-Tag', 'noindex, nofollow')
       }
       res.set('Cache-Control', 'no-cache')

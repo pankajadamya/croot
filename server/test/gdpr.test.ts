@@ -20,7 +20,7 @@ describe('guest rights', () => {
   it('lets a guest download their data, without anonymous notes', async () => {
     const { org, retreat } = await makeTenant('alpha')
     const { token } = await invite(org.id, retreat.id, 'Anika Example')
-    await request(app).post('/api/public/orgs/alpha/retreats/trip/anonymous').send({ message: 'ANON-TEXT here' })
+    await request(app).post(`/api/public/notes/${retreat.id}`).send({ message: 'ANON-TEXT here' })
     const receipt = await submitted(token)
     const res = await request(app).get(`/api/responses/${receipt}/export`)
     expect(res.status).toBe(200)
@@ -86,8 +86,8 @@ describe('retention', () => {
     await submitted(privGuest.token, '', {})
     // Never responded → erased.
     await invite(org.id, retreat.id, 'Silent Guest', 'silent@example.test')
-    // Old anonymous note → deleted.
-    await prisma.anonymousNote.create({ data: { organisationId: org.id, retreatId: retreat.id, message: 'old', receivedWeek: new Date('2026-11-02') } })
+    // Anonymous note for a retreat that ended over 24 months ago → deleted (notes hold no date of their own).
+    await prisma.anonymousNote.create({ data: { organisationId: org.id, retreatId: retreat.id, message: 'old' } })
     await prisma.response.updateMany({ data: { submittedAt: new Date(now.getTime() - 800 * DAY) } })
 
     const counts = await runRetention(now)
