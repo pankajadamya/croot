@@ -78,6 +78,52 @@ describe('thank-you photo album (itinerary retreats)', () => {
     expect((await request(app).get(`/api/invites/${token}/album/${earlierId}`)).status).toBe(404)
   })
 
+  it('includes photos guests choose to share, only once they have sent their review', async () => {
+    const { agent, csrf, retreat, token: reviewerToken } = await albumSetup()
+    const { org } = { org: await prisma.organisation.findFirstOrThrow() }
+    const sharer = await invite(org.id, retreat.id, 'Sharer', 'sharer@example.test')
+
+    // A photo uploaded in the review form, with group sharing switched on (opt-in).
+    const up = await request(app).post(`/api/invites/${sharer.token}/photos`).attach('photo', await png(), 'mine.png')
+    const shared = up.body.id as string
+    const unsharedUp = await request(app).post(`/api/invites/${sharer.token}/photos`).attach('photo', await png(), 'private.png')
+    expect((await request(app).patch(`/api/invites/${sharer.token}/photos/${shared}`).send({ albumConsent: true })).body.albumConsent).toBe(true)
+
+    // The other guest has sent their review; the sharer hasn't yet → not in the album.
+    const d1 = await request(app).put(`/api/invites/${reviewerToken}/draft`).send({ revision: 0, keepText: 'x' })
+    await request(app).post(`/api/invites/${reviewerToken}/submit`).send({ revision: d1.body.revision })
+    const ids = async () => (await request(app).get(`/api/invites/${reviewerToken}/album`)).body.photos.map((p: { id: string }) => p.id)
+    expect(await ids()).not.toContain(shared)
+
+    // Once the sharer sends their review, it appears (the unshared one never does).
+    const rev = (await request(app).get(`/api/invites/${sharer.token}`)).body.response.revision
+    const d2 = await request(app).put(`/api/invites/${sharer.token}/draft`).send({ revision: rev, keepText: 'y' })
+    expect(d2.status).toBe(200)
+    const sent = await request(app).post(`/api/invites/${sharer.token}/submit`).send({ revision: d2.body.revision })
+    expect(await ids()).toContain(shared)
+    expect(await ids()).not.toContain(unsharedUp.body.id)
+    const mine = (await request(app).get(`/api/invites/${sharer.token}/album`)).body.photos.find((p: { id: string }) => p.id === shared)
+    expect(mine).toMatchObject({ sharedByGuest: true, mine: true })
+
+    // Contributing straight from the album page, then withdrawing from the private page.
+    const added = await request(app).post(`/api/invites/${sharer.token}/album/photos`).attach('photo', await png(), 'more.png')
+    expect(added.status).toBe(201)
+    expect(await ids()).toContain(added.body.id)
+    await request(app).post(`/api/responses/${sent.body.receiptToken}/withdraw`).send({ scope: 'album_photo', photoId: added.body.id })
+    expect(await ids()).not.toContain(added.body.id)
+
+    // The organiser can take a guest's shared photo out of the album.
+    await agent.patch(`/api/admin/orgs/alpha/media/${shared}`).set('X-CSRF-Token', csrf).send({ inAlbum: false })
+    expect(await ids()).not.toContain(shared)
+    // Still never public.
+    expect((await request(app).get(`/media/${shared}`)).status).toBe(404)
+  })
+
+  it('does not let a guest who has not sent a review add photos', async () => {
+    const { token } = await albumSetup()
+    expect((await request(app).post(`/api/invites/${token}/album/photos`).attach('photo', await png(), 'x.png')).status).toBe(403)
+  })
+
   it('does not exist for properties or when switched off', async () => {
     const { org, retreat } = await makeTenant('lodge', { kind: 'property' })
     await prisma.retreat.update({ where: { id: retreat.id }, data: { rewardAlbumEnabled: true, rewardAlbumUrl: 'https://photos.example' } })

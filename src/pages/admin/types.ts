@@ -194,7 +194,7 @@ export interface OrganiserMedia {
   focalY: number
   inHeroSlideshow: boolean
   inWritingSlideshow: boolean
-  kind?: 'organiser' | 'album'
+  kind?: 'organiser' | 'album' | 'guest'
   inAlbum?: boolean
   albumOrder?: number
 }

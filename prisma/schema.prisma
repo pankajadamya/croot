@@ -550,6 +550,9 @@ model MediaAsset {
   inWritingSlideshow Boolean      @default(false)
   /// Organiser images: part of the thank-you album too (album photos always are). Off removes it from the album only.
   inAlbum            Boolean      @default(true)
+  /// Guest photos: the guest chose to share it in the group album (seen only by guests who sent a review).
+  /// Separate from publishConsent (the public site). Opt-in: false until the guest switches it on.
+  albumConsent       Boolean      @default(false)
   /// Position in the thank-you album (separate from the slideshow order).
   albumOrder         Int          @default(0)
   removedAt      DateTime?

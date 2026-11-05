@@ -3,12 +3,16 @@ import { z } from 'zod'
 import { CONSENT_WORDING_VERSION } from '../../../shared/categories.js'
 import { audit } from '../lib/audit.js'
 import { HttpError, parseBody, route, text, uuidParam } from '../lib/http.js'
-import { albumListing, albumSummary, sendAlbumPhoto } from '../lib/album.js'
+import multer from 'multer'
+import { addContribution, albumListing, albumSummary, sendAlbumPhoto, setAlbumSharing } from '../lib/album.js'
+import { env } from '../lib/env.js'
 import { eraseAttendee, exportGuestData } from '../lib/gdpr.js'
 import { prisma } from '../lib/prisma.js'
 import { dropNameFromLive, dropPhotoFromLive, livePublication, takeDown } from '../lib/publication.js'
 import { hashToken, looksLikeToken } from '../lib/tokens.js'
-import { tokenLimiter } from '../middleware/rateLimits.js'
+import { tokenLimiter, uploadLimiter } from '../middleware/rateLimits.js'
+
+const albumUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: env.MAX_UPLOAD_BYTES, files: 1 } })
 
 /**
  * The guest's private receipt: view what they sent, see its publication state, withdraw consent
@@ -27,6 +31,7 @@ async function resolveReceipt(token: unknown) {
       retreat: {
         select: {
           id: true,
+          organisationId: true,
           slug: true,
           kind: true,
           title: true,
@@ -71,7 +76,7 @@ receiptsRouter.get(
         followUp: response.consentFollowUp,
         marketing: response.consentMarketing,
       },
-      photos: response.media.map((m) => ({ id: m.id, caption: m.caption, publishConsent: m.publishConsent, published: Boolean(live?.photoIds.includes(m.id)) })),
+      photos: response.media.map((m) => ({ id: m.id, caption: m.caption, publishConsent: m.publishConsent, albumConsent: m.albumConsent, published: Boolean(live?.photoIds.includes(m.id)) })),
       publication: { status: response.publicationStatus, url: live && response.publicSlug ? `/stories/${response.publicSlug}` : null },
       organiserMessage: response.organiserMessage,
       album: await albumSummary(response.retreat, response, req.baseUrl + '/' + req.params.token),
@@ -113,6 +118,28 @@ receiptsRouter.get(
   }),
 )
 
+receiptsRouter.post(
+  '/:token/album/photos',
+  uploadLimiter,
+  albumUpload.single('photo'),
+  route(async (req, res) => {
+    const response = await resolveReceipt(req.params.token)
+    if (!req.file) throw new HttpError(400, 'Choose a photo to add')
+    const asset = await addContribution(response.retreat, response, req.file.buffer)
+    res.status(201).json({ id: asset.id })
+  }),
+)
+
+/** Stop sharing one of my photos in the album (it stays private to me and the organiser). */
+receiptsRouter.delete(
+  '/:token/album/photos/:photoId',
+  route(async (req, res) => {
+    const response = await resolveReceipt(req.params.token)
+    await setAlbumSharing(response, uuidParam(req, 'photoId'), false)
+    res.status(204).end()
+  }),
+)
+
 receiptsRouter.get(
   '/:token/album/:photoId',
   route(async (req, res) => {
@@ -139,6 +166,7 @@ receiptsRouter.post(
 const withdrawSchema = z.union([
   z.object({ scope: z.enum(['public_text', 'first_name', 'marketing', 'follow_up']) }),
   z.object({ scope: z.literal('photo'), photoId: z.uuid() }),
+  z.object({ scope: z.literal('album_photo'), photoId: z.uuid() }),
 ])
 
 /** Withdrawals are self-service and immediate: no organiser can override a guest's declined choice. */
@@ -152,7 +180,10 @@ receiptsRouter.post(
         data: { organisationId: response.organisationId, responseId: response.id, scope, granted: false, wordingVersion: CONSENT_WORDING_VERSION, actor: 'attendee' },
       })
 
-    if (body.scope === 'photo') {
+    if (body.scope === 'album_photo') {
+      // Stop sharing a photo in the group album; immediate (the album is read on every request).
+      await setAlbumSharing(response, body.photoId, false)
+    } else if (body.scope === 'photo') {
       const photo = response.media.find((m) => m.id === body.photoId)
       if (!photo) throw new HttpError(404, 'Photo not found')
       await prisma.mediaAsset.update({ where: { id: photo.id }, data: { publishConsent: false } })

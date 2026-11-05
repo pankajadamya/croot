@@ -4,7 +4,7 @@ import { z } from 'zod'
 import type { Invitation, Prisma } from '@prisma/client'
 import { CONSENT_WORDING_VERSION, type FeedbackCategory } from '../../../shared/categories.js'
 import { firstName } from '../../../shared/slug.js'
-import { albumListing, albumSummary, sendAlbumPhoto, sendTeaser } from '../lib/album.js'
+import { addContribution, albumListing, albumSummary, sendAlbumPhoto, sendTeaser, setAlbumSharing } from '../lib/album.js'
 import { altFor } from '../lib/altText.js'
 import { audit } from '../lib/audit.js'
 import { env } from '../lib/env.js'
@@ -175,7 +175,7 @@ async function draftView(r: Review, req: Request) {
         marketing: response.consentMarketing,
       },
       ratings: response.ratings.map((x) => ({ categoryKey: x.categoryKey, score: x.score, notApplicable: x.notApplicable, comment: x.comment })),
-      photos: response.media.map((m) => ({ id: m.id, altText: m.altText, caption: m.caption, publishConsent: m.publishConsent, width: m.width, height: m.height })),
+      photos: response.media.map((m) => ({ id: m.id, altText: m.altText, caption: m.caption, publishConsent: m.publishConsent, albumConsent: m.albumConsent, width: m.width, height: m.height })),
       submittedAt: response.submittedAt,
       organiserMessage: response.status === 'changes_requested' ? response.organiserMessage : null,
       updatedAt: response.updatedAt,
@@ -314,6 +314,8 @@ const photoPatch = z.object({
   altText: text(300).optional(),
   caption: text(300).optional(),
   publishConsent: z.boolean().optional(),
+  /** Share in the group album (fellow guests who sent a review). Opt-in, separate from publishing. */
+  albumConsent: z.boolean().optional(),
 })
 
 async function ownPhoto(r: Review, photoId: string) {
@@ -330,8 +332,10 @@ reviewRoutes.patch(
     const r = requireEditable(req, res)
     const photo = await ownPhoto(r, uuidParam(req, 'photoId'))
     const body = parseBody(photoPatch, req.body)
-    const updated = await prisma.mediaAsset.update({ where: { id: photo.id }, data: body })
-    res.json({ id: updated.id, altText: updated.altText, caption: updated.caption, publishConsent: updated.publishConsent })
+    const { albumConsent, ...rest } = body
+    let updated = await prisma.mediaAsset.update({ where: { id: photo.id }, data: rest })
+    if (albumConsent !== undefined && r.response) updated = await setAlbumSharing(r.response, photo.id, albumConsent)
+    res.json({ id: updated.id, altText: updated.altText, caption: updated.caption, publishConsent: updated.publishConsent, albumConsent: updated.albumConsent })
   }),
 )
 
@@ -362,6 +366,28 @@ reviewRoutes.get(
   '/album/teaser/:photoId',
   route(async (req, res) => {
     await sendTeaser(res, current(res).retreat, uuidParam(req, 'photoId'))
+  }),
+)
+
+reviewRoutes.post(
+  '/album/photos',
+  uploadLimiter,
+  upload.single('photo'),
+  route(async (req, res) => {
+    const r = current(res)
+    if (!req.file) throw new HttpError(400, 'Choose a photo to add')
+    const asset = await addContribution(r.retreat, r.response, req.file.buffer)
+    res.status(201).json({ id: asset.id })
+  }),
+)
+
+reviewRoutes.delete(
+  '/album/photos/:photoId',
+  route(async (req, res) => {
+    const r = current(res)
+    if (!r.response) throw new HttpError(404, 'Photo not found')
+    await setAlbumSharing(r.response, uuidParam(req, 'photoId'), false)
+    res.status(204).end()
   }),
 )
 

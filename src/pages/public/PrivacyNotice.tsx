@@ -114,6 +114,11 @@ export default function PrivacyNotice() {
                 <td>Your consent (separate from website publication)</td>
               </tr>
               <tr>
+                <td>Photos you choose to share in the group photo album</td>
+                <td>To share retreat memories with fellow guests who have sent their review (never published)</td>
+                <td>Your consent, per photo, which you can withdraw at any time</td>
+              </tr>
+              <tr>
                 <td>Anonymous notes</td>
                 <td>To hear concerns you’d rather not attach your name to</td>
                 <td>Legitimate interests. Stored without your name, email, link or precise time.</td>

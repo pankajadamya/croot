@@ -176,6 +176,7 @@ function organiserMediaView(orgSlug: string, m: Awaited<ReturnType<typeof tenant
     inWritingSlideshow: m.inWritingSlideshow,
     kind: m.kind,
     inAlbum: m.kind === 'album' || m.inAlbum,
+    sharedByGuest: m.kind === 'guest',
     albumOrder: m.albumOrder,
   }
 }
@@ -256,7 +257,14 @@ siteRouter.patch(
   route(async (req, res) => {
     const t = tenantOf(req)
     const media = await tenantMedia(t.org.id, uuidParam(req, 'mediaId'))
-    if (media.kind === 'guest') throw new HttpError(403, "Guest photos are changed only by the guest's own choices")
+    if (media.kind === 'guest') {
+      // An organiser can take a guest-shared photo out of the group album (or put it back); nothing else.
+      const body = parseBody(z.object({ inAlbum: z.boolean() }), req.body)
+      if (!media.albumConsent) throw new HttpError(409, 'The guest hasn’t shared this photo in the album')
+      const updated = await prisma.mediaAsset.update({ where: { id: media.id }, data: { inAlbum: body.inAlbum } })
+      await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: body.inAlbum ? 'album.guest_photo_restored' : 'album.guest_photo_removed', entityType: 'media', entityId: media.id })
+      return res.json({ media: organiserMediaView(t.org.slug, updated) })
+    }
     if (media.kind === 'album') {
       // Album photos: only their caption, alt text and order change.
       const body = parseBody(mediaPatch.pick({ altText: true, caption: true, displayOrder: true }), req.body)
@@ -288,7 +296,16 @@ siteRouter.get(
     const t = tenantOf(req)
     const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
     const media = await prisma.mediaAsset.findMany({
-      where: { organisationId: t.org.id, retreatId: retreat.id, removedAt: null, kind: { in: ['album', 'organiser'] } },
+      where: {
+        organisationId: t.org.id,
+        retreatId: retreat.id,
+        removedAt: null,
+        OR: [
+          { kind: { in: ['album', 'organiser'] } },
+          // Photos guests chose to share with the group (from guests who sent their review).
+          { kind: 'guest', albumConsent: true, response: { submittedAt: { not: null }, status: { not: 'withdrawn' } } },
+        ],
+      },
       orderBy: [{ albumOrder: 'asc' }, { createdAt: 'asc' }],
     })
     res.json({ coverId: retreat.rewardAlbumCoverId, media: media.map((m) => organiserMediaView(t.org.slug, m)) })
@@ -302,7 +319,7 @@ siteRouter.put(
     const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
     const { ids } = parseBody(z.object({ ids: z.array(z.uuid()).max(2000) }), req.body)
     const owned = new Set(
-      (await prisma.mediaAsset.findMany({ where: { retreatId: retreat.id, id: { in: ids }, kind: { in: ['album', 'organiser'] } }, select: { id: true } })).map((m) => m.id),
+      (await prisma.mediaAsset.findMany({ where: { retreatId: retreat.id, id: { in: ids }, kind: { in: ['album', 'organiser', 'guest'] } }, select: { id: true } })).map((m) => m.id),
     )
     await prisma.$transaction(ids.filter((id) => owned.has(id)).map((id, i) => prisma.mediaAsset.update({ where: { id }, data: { albumOrder: i } })))
     res.json({ ok: true })

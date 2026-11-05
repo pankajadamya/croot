@@ -5,7 +5,7 @@ import { ApiError, get, post } from '../../lib/api'
 import { formatDate } from '../../lib/format'
 import { Field } from '../../components/Controls'
 import { LinkUnavailable, Loading } from '../../components/States'
-import { AlbumGallery, type AlbumSummary } from '../../components/AlbumGallery'
+import { AlbumLinkCard, type AlbumSummary } from '../../components/AlbumGallery'
 
 interface ReceiptView {
   retreat: { title: string; organiserName: string; organisationName: string; contactEmail: string | null; privacyNoticePath: string }
@@ -14,7 +14,7 @@ interface ReceiptView {
   storyText: string
   overallRating: number | null
   consents: { publicText: boolean; firstName: boolean; followUp: boolean; marketing: boolean }
-  photos: Array<{ id: string; caption: string; publishConsent: boolean; published: boolean }>
+  photos: Array<{ id: string; caption: string; publishConsent: boolean; albumConsent: boolean; published: boolean }>
   publication: { status: 'none' | 'published' | 'unpublished' | 'withdrawn'; url: string | null }
   organiserMessage: string | null
   changeRequests: Array<{ kind: 'edit' | 'withdraw'; message: string; status: 'open' | 'resolved'; createdAt: string }>
@@ -123,7 +123,7 @@ export default function Receipt() {
           </div>
         )}
 
-        {d.album?.unlocked && <AlbumGallery listingUrl={`${base}/album`} />}
+        {d.album?.unlocked && <AlbumLinkCard album={d.album} href={`/response/${token}/album`} />}
 
         <section className="card">
           <div className="spread">
@@ -172,6 +172,17 @@ export default function Receipt() {
                 onWithdraw={() => withdraw({ scope: 'photo', photoId: p.id }, 'Stop publishing this photo?')}
               />
             ))}
+            {d.photos
+              .filter((p) => p.albumConsent)
+              .map((p) => (
+                <PermissionRow
+                  key={`album-${p.id}`}
+                  label={`${p.caption ? `“${p.caption}”` : 'A photo'} shared in the group album`}
+                  on={p.albumConsent}
+                  busy={busy}
+                  onWithdraw={() => withdraw({ scope: 'album_photo', photoId: p.id }, 'Stop sharing this photo in the group album?')}
+                />
+              ))}
           </ul>
         </section>
 

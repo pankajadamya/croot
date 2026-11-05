@@ -13,6 +13,9 @@ const Legal = lazy(() => import('./pages/public/Legal'))
 const AdminPrivacy = lazy(() => import('./pages/admin/Privacy'))
 const InviteFlow = lazy(() => import('./pages/attendee/InviteFlow'))
 const Receipt = lazy(() => import('./pages/attendee/Receipt'))
+const InviteAlbumPage = lazy(() => import('./pages/attendee/AlbumPage'))
+const ReceiptAlbumPage = lazy(() => import('./pages/attendee/AlbumPage').then((m) => ({ default: m.ReceiptAlbumPage })))
+const SignedInAlbumPage = lazy(() => import('./pages/attendee/AlbumPage').then((m) => ({ default: m.SignedInAlbumPage })))
 
 const SignIn = lazy(() => import('./pages/SignIn'))
 const MyReviews = lazy(() => import('./pages/attendee/MyReviews'))
@@ -42,7 +45,9 @@ export function App() {
         <Route path="/legal/:doc" element={<Legal />} />
 
         <Route path="/invite/:token" element={<InviteFlow />} />
+        <Route path="/invite/:token/album" element={<InviteAlbumPage />} />
         <Route path="/response/:token" element={<Receipt />} />
+        <Route path="/response/:token/album" element={<ReceiptAlbumPage />} />
 
         <Route path="/signin" element={<SignIn />} />
         <Route path="/admin/login" element={<SignIn />} />
@@ -50,6 +55,7 @@ export function App() {
         <Route path="/organiser/request" element={<BecomeOrganiser />} />
         <Route path="/organiser/invite/:token" element={<AcceptOrganiserInvite />} />
         <Route path="/my-reviews/:attendeeId" element={<MyReviewFlow />} />
+        <Route path="/my-reviews/:attendeeId/album" element={<SignedInAlbumPage />} />
         <Route path="/admin/setup/:token" element={<Setup />} />
         <Route path="/admin" element={<AdminHome />} />
         <Route path="/admin/:orgSlug" element={<OrgDashboard />} />

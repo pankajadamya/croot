@@ -6,7 +6,7 @@ import { formatRange } from '../../lib/format'
 import { Field, RatingScale, Switch } from '../../components/Controls'
 import { LinkUnavailable, Loading } from '../../components/States'
 import { PhotoPanel } from './PhotoPanel'
-import { AlbumGallery, AlbumTeaser, type AlbumSummary } from '../../components/AlbumGallery'
+import { AlbumLinkCard, AlbumTeaser, type AlbumSummary } from '../../components/AlbumGallery'
 
 interface Rating {
   categoryKey: string
@@ -19,6 +19,7 @@ interface Photo {
   altText: string
   caption: string
   publishConsent: boolean
+  albumConsent?: boolean
   width: number
   height: number
 }
@@ -94,6 +95,11 @@ function emptyDraft(view: InviteView): Draft {
     ratings,
     stay: { start: view.stay?.start?.slice(0, 10) ?? '', end: view.stay?.end?.slice(0, 10) ?? '' },
   }
+}
+
+/** The full-page album for whichever way the guest reached their review. */
+function albumPagePath(base: string) {
+  return base.replace(/^\/api\/invites\//, '/invite/').replace(/^\/api\/me\/reviews\//, '/my-reviews/') + '/album'
 }
 
 /** Reached by the guest's unique link. */
@@ -295,7 +301,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
               <p>Your response has been sent. You can view it, change your permissions or ask for an edit from your private response page.</p>
               {view.retreat.album?.unlocked && (
                 <div style={{ margin: '1.5rem 0' }}>
-                  <AlbumGallery listingUrl={`${base}/album`} />
+                  <AlbumLinkCard album={view.retreat.album} href={albumPagePath(base)} />
                 </div>
               )}
               <div className="row">
@@ -607,7 +613,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                 If others appear in a photo, please only share it if they’re happy for it to be seen. The organiser checks every photo before it’s
                 published, and location and camera details are removed.
               </p>
-              <PhotoManager base={base} photos={photos} setPhotos={setPhotos} />
+              <PhotoManager base={base} photos={photos} setPhotos={setPhotos} albumAvailable={Boolean(view.retreat.album)} />
               <Actions step={step} goTo={goTo} saveLabel={saveLabel[saveState]} nextLabel="Review" />
             </section>
           )}
@@ -691,7 +697,17 @@ function Actions({ step, goTo, saveLabel, nextLabel = 'Continue' }: { step: numb
   )
 }
 
-function PhotoManager({ base, photos, setPhotos }: { base: string; photos: Photo[]; setPhotos: (p: Photo[]) => void }) {
+function PhotoManager({
+  base,
+  photos,
+  setPhotos,
+  albumAvailable,
+}: {
+  base: string
+  photos: Photo[]
+  setPhotos: (p: Photo[]) => void
+  albumAvailable: boolean
+}) {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -766,6 +782,14 @@ function PhotoManager({ base, photos, setPhotos }: { base: string; photos: Photo
                 <input id={`alt-${p.id}`} type="text" defaultValue={p.altText} maxLength={300} onBlur={(e) => e.target.value !== p.altText && void change(p, { altText: e.target.value })} />
               </Field>
               <Switch checked={p.publishConsent} onChange={(v) => void change(p, { publishConsent: v })} label="May be published with my story" description={CONSENT_WORDING.photo} />
+              {albumAvailable && (
+                <Switch
+                  checked={Boolean(p.albumConsent)}
+                  onChange={(v) => void change(p, { albumConsent: v })}
+                  label="Also share in the group photo album"
+                  description="Seen only by fellow guests who send their review, not published. You can stop sharing at any time."
+                />
+              )}
               <button className="btn ghost small" onClick={() => void remove(p)}>
                 Remove photo
               </button>

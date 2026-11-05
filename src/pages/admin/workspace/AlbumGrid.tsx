@@ -91,6 +91,9 @@ export function AlbumGrid({
             {ordered.map((m, i) => {
               const isCover = m.id === coverId
               const fromImages = m.kind === 'organiser'
+              const fromGuest = m.kind === 'guest'
+              // Earlier images and guests' photos are only taken out of the album; album uploads are deleted.
+              const keep = fromImages || fromGuest
               return (
                 <li
                   key={m.id}
@@ -109,7 +112,7 @@ export function AlbumGrid({
                     </span>
                     {isCover && <span className="album-tile-cover">Title photo</span>}
                   </div>
-                  <span className="small muted">{fromImages ? 'From your images' : 'Album upload'}</span>
+                  <span className="small muted">{fromGuest ? 'Shared by a guest' : fromImages ? 'From your images' : 'Album upload'}</span>
                   <div className="album-tile-actions">
                     {!isCover ? (
                       <button type="button" className="btn ghost small" disabled={setCover.isPending} onClick={() => setCover.mutate(m.id)}>
@@ -136,11 +139,11 @@ export function AlbumGrid({
                       type="button"
                       className="btn ghost small"
                       onClick={() => {
-                        if (fromImages) include.mutate({ id: m.id, inAlbum: false })
+                        if (keep) include.mutate({ id: m.id, inAlbum: false })
                         else if (window.confirm('Delete this photo from the album?')) remove.mutate(m.id)
                       }}
                     >
-                      {fromImages ? 'Take out of album' : 'Delete'}
+                      {keep ? 'Take out of album' : 'Delete'}
                     </button>
                   </div>
                 </li>
