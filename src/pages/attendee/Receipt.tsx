@@ -6,6 +6,7 @@ import { formatDate } from '../../lib/format'
 import { Field } from '../../components/Controls'
 import { LinkUnavailable, Loading } from '../../components/States'
 import { AlbumLinkCard, type AlbumSummary } from '../../components/AlbumGallery'
+import { GuestHeader } from '../../components/AppHeader'
 
 interface ReceiptView {
   retreat: { title: string; organiserName: string; organisationName: string; contactEmail: string | null; privacyNoticePath: string }
@@ -84,16 +85,17 @@ export default function Receipt() {
 
   if (erased)
     return (
-      <main className="calm">
-        <div className="narrow" style={{ padding: '4rem 0' }} role="status">
+      <div className="calm">
+        <GuestHeader />
+        <main className="narrow" style={{ padding: '4rem 0' }} role="status">
           <h1>Your information has been deleted</h1>
           <p>
             Your invitation, response, private feedback, photos and permissions have been erased, and anything published has been taken down. This
             link no longer works.
           </p>
           <p className="small muted">Anonymous notes can’t be linked to you, so they are not affected.</p>
-        </div>
-      </main>
+        </main>
+      </div>
     )
   if (q.isLoading) return <Loading />
   if (q.error) return <LinkUnavailable message={(q.error as Error).message} />
@@ -101,8 +103,9 @@ export default function Receipt() {
   const c = d.consents
 
   return (
-    <main className="calm">
-      <div className="narrow stack" style={{ padding: '3rem 0 5rem' }}>
+    <div className="calm">
+      <GuestHeader />
+      <main className="narrow stack" style={{ padding: '3rem 0 5rem' }}>
         <p className="eyebrow">{d.retreat.title}</p>
         <h1>{justSubmitted ? 'Thank you, your response has been sent' : 'Your response'}</h1>
         {justSubmitted && (
@@ -243,8 +246,8 @@ export default function Receipt() {
             Questions? Contact {d.retreat.organiserName || d.retreat.organisationName} at <a href={`mailto:${d.retreat.contactEmail}`}>{d.retreat.contactEmail}</a>.
           </p>
         )}
-      </div>
-    </main>
+      </main>
+    </div>
   )
 }
 

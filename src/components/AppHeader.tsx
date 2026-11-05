@@ -74,6 +74,29 @@ export function AppHeader({ session, orgSlug, orgName }: { session: Session; org
   )
 }
 
+/**
+ * Top bar for guest pages reached by a private link (the response page). Signed in, it is the usual
+ * AppHeader; otherwise just the logo (→ home page) and a way to sign in.
+ */
+export function GuestHeader() {
+  const { session, loading } = useAuth()
+  if (session) return <AppHeader session={session} />
+  return (
+    <header className="admin-top">
+      <div className="container">
+        <Link className="brand" to="/" aria-label="Croot home page">
+          <img className="brand-logo" src="/croot-logo.svg" alt="Croot" />
+        </Link>
+        {!loading && (
+          <Link className="btn secondary small" to="/signin?next=/my-reviews">
+            Sign in
+          </Link>
+        )}
+      </div>
+    </header>
+  )
+}
+
 /** Frame for signed-in screens outside the organiser workspace (My reviews, a signed-in review). */
 export function SignedInFrame({ session, children, className = 'calm' }: { session: Session; children: ReactNode; className?: string }) {
   return (
