@@ -11,7 +11,7 @@ export const app = createApp()
 const TABLES = [
   'AuditEvent', 'AnonymousNote', 'PublicationRevision', 'ChangeRequest', 'ConsentEvent', 'FeedbackRating', 'MediaAsset', 'Response',
   'Invitation', 'Attendee', 'ThemeRevision', 'ContentRevision', 'Retreat', 'SetupToken', 'Session', 'Membership', 'OrgDomain',
-  'TenantRequest', 'User', 'Organisation',
+  'TenantRequest', 'LoginCode', 'OrganiserInvite', 'User', 'Organisation',
 ]
 
 export async function resetDatabase() {

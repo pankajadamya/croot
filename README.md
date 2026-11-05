@@ -57,8 +57,16 @@ One Node process serves the API and the built SPA (Dockerfile → Coolify on OVH
     An admin grants it in **Admin → People**: find or add the person by email, then "Make organiser of"
     an organisation, or create a new one with them as owner. Owners can also add organisers from their Team page.
   - **Guest**: anyone else, who sees *My reviews*.
-- Self-service organiser sign-up exists but is off (`ORG_SIGNUP_ENABLED=false`). When on, new organisations start as
-  *pending* until approved (`SIGNUP_AUTO_APPROVE`).
+- **Becoming an organiser** (both capture the same details: name, phone, organisation, website, country, review types,
+  scale, note, and acceptance of the processing terms):
+  1. **Sign up, then request.** Anyone can create an account (`ACCOUNT_SIGNUP_ENABLED`, on by default); an account alone gives only
+     My reviews. *Become an organiser* (`/organiser/request`) sends the details; admins are emailed. In **Admin → Organiser requests**
+     an admin approves (new organisation with them as owner, or a role in an existing one) or declines with an optional note.
+     Either way the person is emailed.
+  2. **Invite link.** In **Admin → Invite an organiser** an admin creates a one-time link for one email (14 days; emailed and/or copied).
+     The person signs in with that address (a forwarded link is useless to anyone else), fills in the details and becomes an
+     organiser at once (`/organiser/invite/:token`).
+- Organiser self-service creation of organisations without review (`ORG_SIGNUP_ENABLED`) exists but is off.
 - Email codes are 6 digits, valid for 10 minutes and single use, and die after 5 wrong attempts. Only an HMAC (`AUTH_SECRET`) is stored.
   Responses never reveal whether an address has an account. Google uses PKCE, state and nonce, and accepts only verified emails.
 - In development `EMAIL_PROVIDER=console` prints codes to the API log. Production uses Amazon SES (`EMAIL_PROVIDER=ses`, `SES_*`, the same names as Collab) and requires `AUTH_SECRET`.

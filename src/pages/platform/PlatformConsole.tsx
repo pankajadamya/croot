@@ -9,6 +9,7 @@ import { Field } from '../../components/Controls'
 import { ErrorNotice, Loading } from '../../components/States'
 import { AdminShell } from '../admin/AdminShell'
 import { fieldError, MutationError, OneTimeLinkNotice } from '../admin/adminUi'
+import { OrganiserInvites } from './OrganiserInvites'
 import { People } from './People'
 
 interface TenantRequest {
@@ -18,6 +19,11 @@ interface TenantRequest {
   email: string
   websiteUrl: string | null
   message: string | null
+  phone: string | null
+  country: string | null
+  volume: string | null
+  source: 'request' | 'invite'
+  declineReason: string | null
   reviewKinds?: ReviewKind[]
   status: 'pending' | 'approved' | 'declined'
   createdAt: string
@@ -53,8 +59,9 @@ export default function PlatformConsole() {
         </div>
       ) : (
         <div className="stack">
-          <People />
           <Requests />
+          <OrganiserInvites />
+          <People />
           <Tenants />
           <CreateTenant />
         </div>
@@ -68,7 +75,7 @@ function CreatedNotice({ created, onDismiss }: { created: Created; onDismiss: ()
     <OneTimeLinkNotice title={`${created.organisation.name} is ready (/${created.organisation.slug}). Owner setup link:`} url={created.setupUrl} onDismiss={onDismiss} />
   ) : (
     <div className="notice ok" role="status">
-      {created.organisation.name} created at /{created.organisation.slug}. The owner already has an account and can sign in.{' '}
+      Approved: {created.organisation.name} (/{created.organisation.slug}). We’ve emailed them; they sign in with their email or Google.{' '}
       <button type="button" className="btn ghost small" onClick={onDismiss}>
         Dismiss
       </button>
@@ -80,25 +87,35 @@ function Requests() {
   const queryClient = useQueryClient()
   const requests = useQuery({ queryKey: REQUESTS_KEY, queryFn: () => get<{ requests: TenantRequest[] }>('/api/platform/tenant-requests').then((r) => r.requests) })
   const [slugs, setSlugs] = useState<Record<string, string>>({})
+  const [targets, setTargets] = useState<Record<string, string>>({})
+  const orgs = useQuery({ queryKey: ORGS_KEY, queryFn: () => get<{ orgs: Tenant[] }>('/api/platform/orgs').then((r) => r.orgs) })
   const [created, setCreated] = useState<Created | null>(null)
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: REQUESTS_KEY })
     void queryClient.invalidateQueries({ queryKey: ORGS_KEY })
   }
   const approve = useMutation({
-    mutationFn: (id: string) => post<Created>(`/api/platform/tenant-requests/${id}/approve`, slugs[id]?.trim() ? { slug: slugs[id].trim() } : {}),
+    mutationFn: (id: string) =>
+      post<Created>(
+        `/api/platform/tenant-requests/${id}/approve`,
+        targets[id] ? { organisationId: targets[id], role: 'organiser' } : slugs[id]?.trim() ? { slug: slugs[id].trim() } : {},
+      ),
     onSuccess: (r) => {
       setCreated(r)
       refresh()
     },
   })
-  const decline = useMutation({ mutationFn: (id: string) => post(`/api/platform/tenant-requests/${id}/decline`), onSuccess: refresh })
+  const decline = useMutation({
+    mutationFn: (v: { id: string; reason: string }) => post(`/api/platform/tenant-requests/${v.id}/decline`, { reason: v.reason || undefined }),
+    onSuccess: refresh,
+  })
   const pending = requests.data?.filter((r) => r.status === 'pending') ?? []
   const handled = requests.data?.filter((r) => r.status !== 'pending') ?? []
 
   return (
     <section className="card" aria-labelledby="pf-requests">
-      <h2 id="pf-requests">Tenant requests</h2>
+      <h2 id="pf-requests">Organiser requests</h2>
+      <p className="muted small">People who signed up and asked to become organisers. Approving creates their organisation (or adds them to one you choose) and emails them; declining emails them too.</p>
       {created && <CreatedNotice created={created} onDismiss={() => setCreated(null)} />}
       <MutationError error={approve.error || decline.error} />
       {requests.isLoading && <Loading />}
@@ -112,8 +129,11 @@ function Requests() {
                 <div>
                   <strong>{r.orgName}</strong>
                   <div className="small muted">
-                    {r.contactName} · {r.email} · {formatDate(r.createdAt)}
+                    {r.contactName} · {r.email}
+                    {r.phone && <> · {r.phone}</>}
+                    {r.country && <> · {r.country}</>} · {formatDate(r.createdAt)}
                   </div>
+                  {r.volume && <div className="small">Scale: {r.volume}</div>}
                   {r.websiteUrl && (
                     <div className="small">
                       <a href={r.websiteUrl} target="_blank" rel="noreferrer noopener">
@@ -133,6 +153,18 @@ function Requests() {
               {r.message && <p className="small" style={{ whiteSpace: 'pre-wrap' }}>{r.message}</p>}
               <div className="row" style={{ alignItems: 'flex-end' }}>
                 <div className="field" style={{ marginBottom: 0, flex: '1 1 220px' }}>
+                  <label htmlFor={`target-${r.id}`}>Approve as</label>
+                  <select id={`target-${r.id}`} value={targets[r.id] ?? ''} onChange={(e) => setTargets((t) => ({ ...t, [r.id]: e.target.value }))}>
+                    <option value="">Owner of a new organisation: {r.orgName}</option>
+                    {(orgs.data ?? []).map((o) => (
+                      <option key={o.id} value={o.id}>
+                        Organiser in {o.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {!targets[r.id] && (
+                <div className="field" style={{ marginBottom: 0, flex: '1 1 220px' }}>
                   <label htmlFor={`slug-${r.id}`}>Web address slug (optional)</label>
                   <input
                     id={`slug-${r.id}`}
@@ -142,6 +174,7 @@ function Requests() {
                     onChange={(e) => setSlugs((s) => ({ ...s, [r.id]: e.target.value }))}
                   />
                 </div>
+                )}
                 <button type="button" className="btn" disabled={approve.isPending} onClick={() => approve.mutate(r.id)}>
                   Approve
                 </button>
@@ -150,7 +183,8 @@ function Requests() {
                   className="btn secondary"
                   disabled={decline.isPending}
                   onClick={() => {
-                    if (window.confirm(`Decline the request from ${r.orgName}?`)) decline.mutate(r.id)
+                    const reason = window.prompt(`Decline the request from ${r.orgName}? They will be emailed. Optional note to include:`, '')
+                    if (reason !== null) decline.mutate({ id: r.id, reason })
                   }}
                 >
                   Decline
@@ -170,6 +204,7 @@ function Requests() {
                   <th scope="col">Organisation</th>
                   <th scope="col">Contact</th>
                   <th scope="col">Received</th>
+                  <th scope="col">How</th>
                   <th scope="col">Outcome</th>
                 </tr>
               </thead>
@@ -182,7 +217,8 @@ function Requests() {
                       <div className="muted">{r.email}</div>
                     </td>
                     <td className="small">{formatDate(r.createdAt)}</td>
-                    <td>
+                    <td className="small">{r.source === 'invite' ? 'Invite link' : 'Request'}</td>
+                    <td title={r.declineReason ?? undefined}>
                       <span className={`badge ${r.status === 'approved' ? 'ok' : 'neutral'}`}>{r.status === 'approved' ? 'Approved' : 'Declined'}</span>
                     </td>
                   </tr>

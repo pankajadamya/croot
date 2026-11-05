@@ -5,7 +5,9 @@ import { audit } from '../lib/audit.js'
 import { eraseOrganisation } from '../lib/gdpr.js'
 import { env } from '../lib/env.js'
 import { HttpError, parseBody, route, text, uuidParam } from '../lib/http.js'
+import { grantOrganiser, organiserMails, sendQuietly } from '../lib/organisers.js'
 import { prisma } from '../lib/prisma.js'
+import { hashToken, newToken } from '../lib/tokens.js'
 import { requireCsrf, requirePlatformAdmin } from '../middleware/auth.js'
 import { issueSetupToken } from './auth.js'
 
@@ -34,36 +36,51 @@ async function availableSlug(wanted: string) {
 }
 
 /**
- * Approval creates the tenant and its owner, and returns a one-time setup link for the operator to
- * share manually. No password is ever chosen for, or sent to, the owner by the platform.
+ * Approving an organiser request: by default creates the organisation named in it, with the person as
+ * owner. Alternatively adds them to an existing organisation. They are emailed and simply sign in (email
+ * code or Google): no setup link or password is needed.
  */
+const approveRequestSchema = approveSchema.extend({
+  organisationId: z.uuid().optional(),
+  role: z.enum(['owner', 'organiser']).optional(),
+})
+
 platformRouter.post(
   '/tenant-requests/:id/approve',
   route(async (req, res) => {
     const id = uuidParam(req, 'id')
-    const body = parseBody(approveSchema, req.body)
+    const body = parseBody(approveRequestSchema, req.body)
     const request = await prisma.tenantRequest.findUnique({ where: { id } })
     if (!request) throw new HttpError(404, 'Request not found')
     if (request.status !== 'pending') throw new HttpError(409, 'This request has already been handled')
-    const slug = await availableSlug(body.slug || request.orgName)
+    if (body.organisationId && !(await prisma.organisation.findUnique({ where: { id: body.organisationId }, select: { id: true } }))) {
+      throw new HttpError(404, 'Organisation not found')
+    }
+    const newSlug = body.organisationId ? undefined : await availableSlug(body.slug || request.orgName)
     const actor = req.auth!.user.id
 
-    const { org, user } = await prisma.$transaction(async (tx) => {
-      const org = await tx.organisation.create({
-        // The requester's acknowledgement of the processing terms carries over; the owner confirms it again in their workspace.
-        data: { slug, name: request.orgName, contactEmail: request.email, websiteUrl: request.websiteUrl, dpaVersion: request.termsVersion, dpaAcceptedAt: request.termsVersion ? request.createdAt : null },
-      })
+    const { orgId, user } = await prisma.$transaction(async (tx) => {
+      // Legacy anonymous requests have no account yet: create it for their email.
       const user =
-        (await tx.user.findUnique({ where: { email: request.email } })) ??
-        (await tx.user.create({ data: { email: request.email, name: request.contactName } }))
-      await tx.membership.create({ data: { userId: user.id, organisationId: org.id, role: 'owner' } })
-      await tx.tenantRequest.update({ where: { id }, data: { status: 'approved', reviewedById: actor, reviewedAt: new Date(), organisationId: org.id } })
-      await audit({ organisationId: org.id, actorUserId: actor, actorKind: 'platform', action: 'tenant.approved', entityType: 'organisation', entityId: org.id }, tx)
-      return { org, user }
+        (request.userId && (await tx.user.findUnique({ where: { id: request.userId } }))) ||
+        (await tx.user.findUnique({ where: { email: request.email } })) ||
+        (await tx.user.create({ data: { email: request.email, name: request.contactName, phone: request.phone } }))
+      const orgId = await grantOrganiser(tx, {
+        userId: user.id,
+        actorUserId: actor,
+        actorKind: 'platform',
+        details: { orgName: request.orgName, websiteUrl: request.websiteUrl, email: request.email },
+        newSlug,
+        organisationId: body.organisationId,
+        role: body.role,
+      })
+      await tx.tenantRequest.update({ where: { id }, data: { status: 'approved', reviewedById: actor, reviewedAt: new Date(), organisationId: orgId } })
+      await audit({ organisationId: orgId, actorUserId: actor, actorKind: 'platform', action: 'organiser_request.approved', entityType: 'tenant_request', entityId: id }, tx)
+      return { orgId, user }
     })
-    const needsSetup = !user.passwordHash
-    const setupUrl = needsSetup ? `${env.WEB_ORIGIN}/admin/setup/${await issueSetupToken(user.id)}` : null
-    res.json({ organisation: { id: org.id, slug: org.slug, name: org.name }, setupUrl })
+    const org = await prisma.organisation.findUniqueOrThrow({ where: { id: orgId }, select: { id: true, slug: true, name: true } })
+    sendQuietly(organiserMails.approved(user.email, request.contactName, org.name))
+    res.json({ organisation: org, setupUrl: null })
   }),
 )
 
@@ -71,12 +88,83 @@ platformRouter.post(
   '/tenant-requests/:id/decline',
   route(async (req, res) => {
     const id = uuidParam(req, 'id')
+    const body = parseBody(z.object({ reason: text(500).optional(), notify: z.boolean().default(true) }), req.body ?? {})
+    const request = await prisma.tenantRequest.findUnique({ where: { id } })
     const updated = await prisma.tenantRequest.updateMany({
       where: { id, status: 'pending' },
-      data: { status: 'declined', reviewedById: req.auth!.user.id, reviewedAt: new Date() },
+      data: { status: 'declined', reviewedById: req.auth!.user.id, reviewedAt: new Date(), declineReason: body.reason || null },
     })
-    if (!updated.count) throw new HttpError(409, 'This request has already been handled')
+    if (!updated.count || !request) throw new HttpError(409, 'This request has already been handled')
     await audit({ actorUserId: req.auth!.user.id, actorKind: 'platform', action: 'tenant_request.declined', entityType: 'tenant_request', entityId: id })
+    if (body.notify) sendQuietly(organiserMails.declined(request.email, request.contactName, body.reason))
+    res.json({ ok: true })
+  }),
+)
+
+// ---------------------------------------------------------------------------------------------
+// Organiser invite links: an admin names an email; that person signs in, adds details and is in.
+
+const INVITE_TTL_DAYS = 14
+
+platformRouter.get(
+  '/organiser-invites',
+  route(async (_req, res) => {
+    const invites = await prisma.organiserInvite.findMany({ orderBy: { createdAt: 'desc' }, take: 100 })
+    const orgIds = [...new Set(invites.map((i) => i.organisationId).filter((x): x is string => Boolean(x)))]
+    const orgs = new Map((await prisma.organisation.findMany({ where: { id: { in: orgIds } }, select: { id: true, name: true } })).map((o) => [o.id, o.name]))
+    const now = new Date()
+    res.json({
+      invites: invites.map((i) => ({
+        id: i.id,
+        email: i.email,
+        organisationName: i.organisationId ? (orgs.get(i.organisationId) ?? 'Deleted organisation') : null,
+        role: i.role,
+        createdAt: i.createdAt,
+        expiresAt: i.expiresAt,
+        state: i.usedAt ? 'accepted' : i.revokedAt ? 'revoked' : i.expiresAt < now ? 'expired' : 'open',
+      })),
+    })
+  }),
+)
+
+platformRouter.post(
+  '/organiser-invites',
+  route(async (req, res) => {
+    const body = parseBody(
+      z.object({ email: z.email().max(200), organisationId: z.uuid().optional(), role: z.enum(['owner', 'organiser']).default('owner'), sendEmail: z.boolean().default(true) }),
+      req.body,
+    )
+    const email = body.email.toLowerCase()
+    const org = body.organisationId ? await prisma.organisation.findUnique({ where: { id: body.organisationId }, select: { id: true, name: true } }) : null
+    if (body.organisationId && !org) throw new HttpError(404, 'Organisation not found')
+    const token = newToken()
+    // A new invite replaces any open one for the same address.
+    await prisma.organiserInvite.updateMany({ where: { email, usedAt: null, revokedAt: null }, data: { revokedAt: new Date() } })
+    const invite = await prisma.organiserInvite.create({
+      data: {
+        tokenHash: hashToken(token),
+        email,
+        organisationId: org?.id ?? null,
+        role: org ? body.role : 'owner',
+        createdById: req.auth!.user.id,
+        expiresAt: new Date(Date.now() + INVITE_TTL_DAYS * 86_400_000),
+      },
+    })
+    await audit({ organisationId: org?.id ?? null, actorUserId: req.auth!.user.id, actorKind: 'platform', action: 'organiser_invite.created', entityType: 'organiser_invite', entityId: invite.id })
+    const url = `${env.WEB_ORIGIN}/organiser/invite/${token}`
+    if (body.sendEmail) sendQuietly(organiserMails.invite(email, url, org?.name ?? null, INVITE_TTL_DAYS))
+    // The link is shown once: only its hash is stored.
+    res.status(201).json({ url, emailed: body.sendEmail, expiresAt: invite.expiresAt })
+  }),
+)
+
+platformRouter.post(
+  '/organiser-invites/:id/revoke',
+  route(async (req, res) => {
+    const id = uuidParam(req, 'id')
+    const updated = await prisma.organiserInvite.updateMany({ where: { id, usedAt: null, revokedAt: null }, data: { revokedAt: new Date() } })
+    if (!updated.count) throw new HttpError(409, 'This invitation is no longer open')
+    await audit({ actorUserId: req.auth!.user.id, actorKind: 'platform', action: 'organiser_invite.revoked', entityType: 'organiser_invite', entityId: id })
     res.json({ ok: true })
   }),
 )

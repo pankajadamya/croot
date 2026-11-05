@@ -7,6 +7,8 @@ import { env } from '../lib/env.js'
 import { HttpError, parseBody, route, text } from '../lib/http.js'
 import { prisma } from '../lib/prisma.js'
 import { requireCsrf, requireUser } from '../middleware/auth.js'
+import { publicFormLimiter } from '../middleware/rateLimits.js'
+import { notifyAdmins, organiserDetailsSchema } from '../lib/organisers.js'
 
 /**
  * Self-service onboarding: a signed-in user creates an organisation and becomes its owner.
@@ -18,6 +20,63 @@ export const accountRouter = Router()
 accountRouter.use(requireUser, requireCsrf)
 
 const MAX_OWNED = 5
+
+// ---------------------------------------------------------------------------------------------
+// "Become an organiser": a signed-in person sends their details; an admin approves or declines.
+
+function requestView(r: Awaited<ReturnType<typeof prisma.tenantRequest.findFirst>>) {
+  return (
+    r && {
+      id: r.id,
+      status: r.status,
+      orgName: r.orgName,
+      contactName: r.contactName,
+      phone: r.phone,
+      country: r.country,
+      websiteUrl: r.websiteUrl,
+      reviewKinds: r.reviewKinds,
+      volume: r.volume,
+      message: r.message,
+      declineReason: r.declineReason,
+      createdAt: r.createdAt,
+      reviewedAt: r.reviewedAt,
+    }
+  )
+}
+
+accountRouter.get(
+  '/organiser-request',
+  route(async (req, res) => {
+    const latest = await prisma.tenantRequest.findFirst({ where: { userId: req.auth!.user.id, source: 'request' }, orderBy: { createdAt: 'desc' } })
+    const me = await prisma.user.findUniqueOrThrow({ where: { id: req.auth!.user.id }, select: { name: true, phone: true } })
+    res.json({ request: requestView(latest), prefill: { contactName: me.name, phone: me.phone ?? '' } })
+  }),
+)
+
+accountRouter.post(
+  '/organiser-request',
+  publicFormLimiter,
+  route(async (req, res) => {
+    const user = req.auth!.user
+    if (!req.auth!.emailVerified) throw new HttpError(403, 'Sign in with an email code or Google first, so we know this address is yours')
+    const body = parseBody(organiserDetailsSchema, req.body)
+    if (await prisma.membership.count({ where: { userId: user.id } })) throw new HttpError(409, 'You’re already an organiser')
+    if (await prisma.tenantRequest.count({ where: { userId: user.id, status: 'pending' } })) {
+      throw new HttpError(409, 'Your request is already with the croot team')
+    }
+    const { acceptTerms: _a, contactName, phone, ...rest } = body
+    const created = await prisma.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: user.id }, data: { name: contactName, phone: phone || null } })
+      const r = await tx.tenantRequest.create({
+        data: { ...rest, contactName, phone: phone || null, email: user.email, userId: user.id, source: 'request', termsVersion: PROCESSING_TERMS_VERSION },
+      })
+      await audit({ actorUserId: user.id, actorKind: 'user', action: 'organiser_request.created', entityType: 'tenant_request', entityId: r.id }, tx)
+      return r
+    })
+    await notifyAdmins(contactName, created.orgName)
+    res.status(201).json({ request: requestView(created) })
+  }),
+)
 
 async function availableSlug(wanted: string) {
   const base = slugify(wanted) || 'retreats'

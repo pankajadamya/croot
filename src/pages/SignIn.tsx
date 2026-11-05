@@ -40,7 +40,7 @@ export default function SignIn() {
   const next = safeNext(params.get('next')) ?? safeNext((location.state as { from?: string } | null)?.from)
 
   const [mode, setMode] = useState<'email' | 'code' | 'password'>('email')
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(params.get('email') ?? '')
   const [code, setCode] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)

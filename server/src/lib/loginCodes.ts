@@ -22,11 +22,14 @@ export function normaliseEmail(email: string) {
 }
 
 /**
- * Who may get a new account by email or Google: invited guests (their invitation proves the address
- * belongs to a guest of an active organisation), and anyone when organiser sign-up is switched on.
+ * Who may get a new account by email code or Google: anyone while ACCOUNT_SIGNUP_ENABLED (an account
+ * alone grants nothing beyond My reviews and the organiser request), otherwise only invited guests and
+ * people with an open organiser invite.
  */
 export async function mayCreateAccount(email: string) {
-  if (env.ORG_SIGNUP_ENABLED) return true
+  if (env.ACCOUNT_SIGNUP_ENABLED || env.ORG_SIGNUP_ENABLED) return true
+  const invited = await prisma.organiserInvite.findFirst({ where: { email, usedAt: null, revokedAt: null, expiresAt: { gt: new Date() } }, select: { id: true } })
+  if (invited) return true
   const guest = await prisma.attendee.findFirst({ where: { email, retreat: { organisation: { status: 'active' } } }, select: { id: true } })
   return Boolean(guest)
 }

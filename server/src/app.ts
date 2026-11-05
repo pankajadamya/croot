@@ -11,6 +11,7 @@ import { poolStats, prisma } from './lib/prisma.js'
 import { loadSession, requireCsrf, requireUser } from './middleware/auth.js'
 import { errorHandler } from './middleware/errors.js'
 import { accountRouter } from './modules/account.js'
+import { organiserInvitesRouter } from './modules/organiserInvites.js'
 import { adminRouter } from './modules/admin/index.js'
 import { authRouter } from './modules/auth.js'
 import { invitesRouter, myReviewsRouter } from './modules/invites.js'
@@ -69,6 +70,7 @@ export function createApp() {
   api.use('/responses', receiptsRouter)
   api.use('/auth', authRouter)
   api.use('/account', accountRouter)
+  api.use('/organiser-invites', organiserInvitesRouter)
   api.use('/platform', platformRouter)
   api.use('/admin/orgs/:orgSlug', adminRouter)
   api.use((_req, _res, next) => next(new HttpError(404, 'Not found')))

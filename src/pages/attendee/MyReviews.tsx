@@ -98,6 +98,21 @@ export default function MyReviews() {
             )
           })}
         </div>
+        {!isOrganiser && !isAdmin && (
+          <section className="panel-sage spread" style={{ marginTop: '2.5rem' }} aria-labelledby="become-organiser">
+            <div>
+              <h2 id="become-organiser" style={{ fontSize: '1.2rem', margin: 0 }}>
+                Run retreats or a retreat property?
+              </h2>
+              <p className="small" style={{ margin: '0.3rem 0 0' }}>
+                Become an organiser to collect reviews from your own guests.
+              </p>
+            </div>
+            <Link className="btn secondary" to="/organiser/request">
+              Become an organiser
+            </Link>
+          </section>
+        )}
       </main>
     </SignedInFrame>
   )

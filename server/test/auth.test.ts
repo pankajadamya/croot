@@ -21,12 +21,15 @@ async function signInWithCode(email: string) {
 }
 
 describe('email codes', () => {
-  it('answers identically for known and unknown addresses, and only emails real ones', async () => {
+  it('answers identically for known and new addresses (no account enumeration)', async () => {
     await makeTenant('alpha') // creates alpha@owner.test
     const known = await request(app).post('/api/auth/code/request').send({ email: 'alpha@owner.test' })
     const unknown = await request(app).post('/api/auth/code/request').send({ email: 'nobody@example.test' })
     expect(known.body).toEqual(unknown.body)
-    expect(testOutbox.map((m) => m.to)).toEqual(['alpha@owner.test'])
+    // Account sign-up is open: a new address gets a code that creates its (permission-less) account.
+    expect(testOutbox.map((m) => m.to)).toEqual(['alpha@owner.test', 'nobody@example.test'])
+    expect(testOutbox[0].text).toContain('sign in')
+    expect(testOutbox[1].text).toContain('creating your croot account')
   })
 
   it('signs in with a valid code, once only', async () => {
@@ -59,7 +62,7 @@ describe('email codes', () => {
 })
 
 describe('accounts', () => {
-  it('creates accounts for invited guests only, since organiser sign-up is off', async () => {
+  it('gives a new account no organiser access, and refuses the organiser self-sign-up purpose while it is off', async () => {
     const { org, retreat } = await makeTenant('alpha')
     await invite(org.id, retreat.id, 'Guest', 'guest@example.test')
     await request(app).post('/api/auth/code/request').send({ email: 'stranger@example.test', purpose: 'signup' })

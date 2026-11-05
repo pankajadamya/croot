@@ -1,9 +1,7 @@
-import { useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
 import { REVIEW_KINDS, type ReviewKind } from '../../../shared/categories'
-import { ApiError, get, post } from '../../lib/api'
-import { Field } from '../../components/Controls'
+import { get } from '../../lib/api'
 import { Loading } from '../../components/States'
 import { workspacePath } from '../../components/AppHeader'
 import { useAuth } from '../../lib/auth'
@@ -74,18 +72,19 @@ function Landing() {
         ? { to: workspacePath(session), label: 'Organiser workspace' }
         : { to: '/my-reviews', label: 'My reviews' }
     : { to: '/signin', label: 'Sign in' }
-  const [preselect, setPreselect] = useState<ReviewKind | null>(null)
+  // Getting started: sign up (any email or Google), then ask to become an organiser.
+  const startPath = session ? '/organiser/request' : '/signin?next=%2Forganiser%2Frequest'
   return (
     <div className="calm landing">
-      <a href="#request" className="skip-link">
-        Skip to request form
+      <a href="#get-started" className="skip-link">
+        Skip to getting started
       </a>
       <header className="container site-header spread">
         <span className="brand"><img className="brand-logo" src="/croot-logo.svg" alt="Croot" /></span>
         <nav className="row" aria-label="Main">
           <a href="#types">Review types</a>
           <a href="#how">How it works</a>
-          <a href="#request">Request access</a>
+          <a href="#get-started">Get started</a>
           <Link to={account.to} className="btn secondary small">
             {account.label}
           </Link>
@@ -101,8 +100,8 @@ function Landing() {
             without the guest’s explicit consent and your approval.
           </p>
           <div className="row">
-            <a className="btn" href="#request">
-              Request access
+            <a className="btn" href="#get-started">
+              Get started
             </a>
             <a className="btn secondary" href="#types">
               Which type am I?
@@ -128,7 +127,7 @@ function Landing() {
                   ))}
                 </ul>
                 <p className="small muted">Ideal for: {t.who}</p>
-                <a className="btn secondary" href="#request" onClick={() => setPreselect(t.kind)}>
+                <a className="btn secondary" href="#get-started">
                   Get started with {t.title.toLowerCase()}
                 </a>
               </article>
@@ -203,8 +202,23 @@ function Landing() {
           </div>
         </section>
 
-        <section id="request" className="narrow" style={{ padding: '4rem 0' }}>
-          <RequestAccess key={preselect ?? 'none'} preselect={preselect} />
+        <section id="get-started" className="narrow" style={{ padding: '4rem 0' }} aria-labelledby="get-started-heading">
+          <div className="card stack">
+            <h2 id="get-started-heading">Get started as an organiser</h2>
+            <ol className="muted" style={{ paddingLeft: '1.2rem', margin: 0 }}>
+              <li>Create your account with your email (we send a code) or Google.</li>
+              <li>Tell us about your retreats or property: a short form.</li>
+              <li>A person at croot reviews it, usually within a couple of working days, and emails you.</li>
+            </ol>
+            <p className="small muted" style={{ margin: 0 }}>
+              Been sent an invitation link? Just open it: you’ll be set up straight away.
+            </p>
+            <div>
+              <Link className="btn" to={startPath}>
+                {session ? 'Become an organiser' : 'Create your account'}
+              </Link>
+            </div>
+          </div>
         </section>
       </main>
 
@@ -220,106 +234,5 @@ function Landing() {
         </div>
       </footer>
     </div>
-  )
-}
-
-function RequestAccess({ preselect }: { preselect: ReviewKind | null }) {
-  const [form, setForm] = useState({ orgName: '', contactName: '', email: '', websiteUrl: '', message: '' })
-  const [kinds, setKinds] = useState<ReviewKind[]>(preselect ? [preselect] : [])
-  const [accepted, setAccepted] = useState(false)
-  const [errors, setErrors] = useState<Record<string, string[] | undefined>>({})
-  const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
-  const [message, setMessage] = useState('')
-
-  async function submit(e: FormEvent) {
-    e.preventDefault()
-    if (!kinds.length) {
-      setErrors({ reviewKinds: ['Choose at least one type of review'] })
-      setState('error')
-      setMessage('Some fields need attention')
-      return
-    }
-    setState('sending')
-    setErrors({})
-    try {
-      await post('/api/public/tenant-requests', { ...form, reviewKinds: kinds, acceptTerms: accepted || undefined })
-      setState('sent')
-    } catch (err) {
-      setState('error')
-      setMessage((err as Error).message)
-      if (err instanceof ApiError && err.details) setErrors(err.details)
-    }
-  }
-
-  if (state === 'sent') {
-    return (
-      <div className="card" role="status">
-        <h2>Thank you</h2>
-        <p>We’ve received your request and will be in touch by email to set up your workspace.</p>
-      </div>
-    )
-  }
-
-  const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value })
-  const toggle = (k: ReviewKind) => setKinds((ks) => (ks.includes(k) ? ks.filter((x) => x !== k) : [...ks, k]))
-  return (
-    <form className="card" onSubmit={submit} noValidate>
-      <h2>Request access</h2>
-      <p className="muted">Tell us a little about what you run. A person reviews every request.</p>
-      {state === 'error' && (
-        <div className="notice error" role="alert">
-          {message}
-        </div>
-      )}
-      <fieldset className="field" style={{ border: 0, padding: 0, margin: '0 0 1rem' }} aria-describedby={errors.reviewKinds ? 'kinds-error' : undefined}>
-        <legend style={{ fontWeight: 600, marginBottom: '0.5rem' }}>What would you like to collect reviews for?</legend>
-        <div className="kind-choices">
-          {(Object.keys(REVIEW_KINDS) as ReviewKind[]).map((k) => (
-            <label key={k} className={`kind-choice ${kinds.includes(k) ? 'selected' : ''}`}>
-              <input type="checkbox" checked={kinds.includes(k)} onChange={() => toggle(k)} />
-              <span>
-                <strong>{REVIEW_KINDS[k].label}</strong>
-                <span className="small muted" style={{ display: 'block', fontWeight: 400 }}>
-                  {REVIEW_KINDS[k].description}
-                </span>
-              </span>
-            </label>
-          ))}
-        </div>
-        {errors.reviewKinds && (
-          <span className="error" id="kinds-error">
-            {errors.reviewKinds[0]}
-          </span>
-        )}
-      </fieldset>
-      <Field id="orgName" label="Business, retreat or property name" error={errors.orgName?.[0]}>
-        <input id="orgName" type="text" value={form.orgName} onChange={set('orgName')} required aria-invalid={Boolean(errors.orgName)} />
-      </Field>
-      <Field id="contactName" label="Your name" error={errors.contactName?.[0]}>
-        <input id="contactName" type="text" autoComplete="name" value={form.contactName} onChange={set('contactName')} required aria-invalid={Boolean(errors.contactName)} />
-      </Field>
-      <Field id="email" label="Email" error={errors.email?.[0]}>
-        <input id="email" type="email" autoComplete="email" value={form.email} onChange={set('email')} required aria-invalid={Boolean(errors.email)} />
-      </Field>
-      <Field id="websiteUrl" label="Website (optional)" error={errors.websiteUrl?.[0]}>
-        <input id="websiteUrl" type="url" value={form.websiteUrl} onChange={set('websiteUrl')} placeholder="https://" />
-      </Field>
-      <Field id="message" label="Anything else? (optional)" hint="For example, how many retreats or rooms you run.">
-        <textarea id="message" value={form.message} onChange={set('message')} style={{ minHeight: '6rem' }} />
-      </Field>
-      <div className="field">
-        <label className="kind-choice" style={{ fontWeight: 400 }}>
-          <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} aria-invalid={Boolean(errors.acceptTerms)} />
-          <span>
-            I’ve read the <Link to="/legal/privacy" target="_blank">privacy notice</Link>, which explains how we use the details in this form, and the{' '}
-            <Link to="/legal/terms" target="_blank">data processing terms</Link> that will apply to my guests’ data.
-          </span>
-        </label>
-        {errors.acceptTerms && <span className="error">{errors.acceptTerms[0]}</span>}
-      </div>
-      <button className="btn" disabled={state === 'sending'}>
-        {state === 'sending' ? 'Sending…' : 'Send request'}
-      </button>
-    </form>
   )
 }

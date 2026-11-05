@@ -1,14 +1,12 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import type { PublicationRevision } from '@prisma/client'
-import { PROCESSING_TERMS_VERSION } from '../../../shared/legal.js'
-import { audit } from '../lib/audit.js'
 import { HttpError, param, parseBody, route, text, uuidParam } from '../lib/http.js'
 import { prisma } from '../lib/prisma.js'
 import { livePublication } from '../lib/publication.js'
 import { activeOrgBySlug, publicRetreat, publishedContent, publishedTheme, retreatFacts, tenantForHost } from '../lib/site.js'
 import { storage } from '../lib/storage.js'
-import { anonymousLimiter, publicFormLimiter } from '../middleware/rateLimits.js'
+import { anonymousLimiter } from '../middleware/rateLimits.js'
 
 /**
  * Public projections only. Every response here is built from PublicationRevision snapshots and
@@ -213,31 +211,8 @@ publicRouter.post(
   }),
 )
 
-// ---------------------------------------------------------------------------------------------
-// Retreat owners asking to join the platform.
-
-const tenantRequestSchema = z.object({
-  orgName: text(120).refine((v) => v.length >= 2, 'Required'),
-  contactName: text(120).refine((v) => v.length >= 2, 'Required'),
-  email: z.email().max(200),
-  websiteUrl: z.url().max(300).optional().or(z.literal('').transform(() => undefined)),
-  message: text(2000).optional(),
-  reviewKinds: z.array(z.enum(['itinerary', 'property'])).min(1, 'Choose at least one').max(2).default(['itinerary']),
-  acceptTerms: z.literal(true, { error: 'Please confirm you have read the privacy notice and processing terms' }),
-})
-
-publicRouter.post(
-  '/tenant-requests',
-  publicFormLimiter,
-  route(async (req, res) => {
-    const { acceptTerms: _accepted, ...body } = parseBody(tenantRequestSchema, req.body)
-    const created = await prisma.tenantRequest.create({
-      data: { ...body, reviewKinds: [...new Set(body.reviewKinds)], email: body.email.toLowerCase(), termsVersion: PROCESSING_TERMS_VERSION },
-    })
-    await audit({ actorKind: 'system', action: 'tenant_request.created', entityType: 'tenant_request', entityId: created.id })
-    res.status(201).json({ ok: true })
-  }),
-)
+// Becoming an organiser is a signed-in request (account.ts) or an admin's invite (organiserInvites.ts):
+// there is no anonymous request form any more.
 
 // ---------------------------------------------------------------------------------------------
 // Media: every byte is gated per request, so withdrawal is effective immediately.

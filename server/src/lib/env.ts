@@ -34,6 +34,11 @@ const envSchema = z.object({
   PLATFORM_ADMIN_EMAILS: z.string().optional().default(''),
   /** With ORG_SIGNUP_ENABLED, new organisations go live without platform approval when true. */
   SIGNUP_AUTO_APPROVE: z.stringbool().default(false),
+  /**
+   * Anyone can create an account (email code or Google). An account alone gives only My reviews and the
+   * "become an organiser" request; organiser access always needs an admin's approval or invite.
+   */
+  ACCOUNT_SIGNUP_ENABLED: z.stringbool().default(true),
   /** Organiser self-service sign-up. Off: organisers are onboarded with one-time links from the platform console. */
   ORG_SIGNUP_ENABLED: z.stringbool().default(false),
   LOGIN_CODE_TTL_MINUTES: z.coerce.number().int().min(3).max(30).default(10),

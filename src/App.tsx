@@ -16,6 +16,8 @@ const Receipt = lazy(() => import('./pages/attendee/Receipt'))
 
 const SignIn = lazy(() => import('./pages/SignIn'))
 const MyReviews = lazy(() => import('./pages/attendee/MyReviews'))
+const BecomeOrganiser = lazy(() => import('./pages/organiser/BecomeOrganiser'))
+const AcceptOrganiserInvite = lazy(() => import('./pages/organiser/AcceptInvite'))
 const MyReviewFlow = lazy(() => import('./pages/attendee/MyReviews').then((m) => ({ default: m.MyReviewFlow })))
 const Setup = lazy(() => import('./pages/admin/Setup'))
 const AdminHome = lazy(() => import('./pages/admin/AdminHome'))
@@ -45,6 +47,8 @@ export function App() {
         <Route path="/signin" element={<SignIn />} />
         <Route path="/admin/login" element={<SignIn />} />
         <Route path="/my-reviews" element={<MyReviews />} />
+        <Route path="/organiser/request" element={<BecomeOrganiser />} />
+        <Route path="/organiser/invite/:token" element={<AcceptOrganiserInvite />} />
         <Route path="/my-reviews/:attendeeId" element={<MyReviewFlow />} />
         <Route path="/admin/setup/:token" element={<Setup />} />
         <Route path="/admin" element={<AdminHome />} />

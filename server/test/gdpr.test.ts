@@ -124,13 +124,6 @@ describe('retention', () => {
 })
 
 describe('transparency and processor duties', () => {
-  it('requires access requesters to acknowledge the privacy notice and processing terms', async () => {
-    const body = { orgName: 'Lakeside', contactName: 'Sam', email: 'sam@lakeside.test', reviewKinds: ['property'] }
-    expect((await request(app).post('/api/public/tenant-requests').send(body)).status).toBe(400)
-    expect((await request(app).post('/api/public/tenant-requests').send({ ...body, acceptTerms: true })).status).toBe(201)
-    expect((await prisma.tenantRequest.findFirstOrThrow()).termsVersion).toBeTruthy()
-  })
-
   it('publishes a privacy notice built from the controller settings', async () => {
     const { org } = await makeTenant('alpha')
     await prisma.organisation.update({ where: { id: org.id }, data: { legalName: 'Alpha Ltd', responseRetentionMonths: 12 } })

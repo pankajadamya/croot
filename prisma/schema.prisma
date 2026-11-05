@@ -96,14 +96,31 @@ model OrgDomain {
   @@index([organisationId])
 }
 
-/// A retreat owner asking to use croot. A platform admin approves it, which creates the tenant.
+/// How an organiser's details were captured.
+enum OrganiserRequestSource {
+  /// A signed-in person asked to become an organiser; an admin approves or declines.
+  request
+  /// An admin's one-time invite link; accepting it grants access at once.
+  invite
+}
+
+/// Someone asking to become an organiser (or accepting an invite), with the details captured first.
+/// An admin approves a request, which creates the organisation and makes the person its owner.
 model TenantRequest {
   id             String              @id @default(uuid()) @db.Uuid
+  /// The signed-in account that asked (null for legacy, anonymous requests).
+  userId         String?             @db.Uuid
+  source         OrganiserRequestSource @default(request)
   orgName        String
   contactName    String
   email          String
+  phone          String?
+  country        String?
+  /// Rough scale, in the person's words (e.g. "4 retreats, ~60 guests a year").
+  volume         String?
   websiteUrl     String?
   message        String?
+  declineReason  String?
   /// Which review types the owner wants: itinerary and/or property.
   reviewKinds    ReviewKind[]        @default([])
   /// Version of the platform privacy notice and processing terms the requester acknowledged.
@@ -115,12 +132,33 @@ model TenantRequest {
   createdAt      DateTime            @default(now())
 
   @@index([status, createdAt])
+  @@index([userId])
+}
+
+/// A one-time link an admin creates for a named email. Whoever signs in with that email and fills in
+/// their details becomes an organiser (owner of a new organisation, or a member of an existing one).
+model OrganiserInvite {
+  id                  String     @id @default(uuid()) @db.Uuid
+  tokenHash           String     @unique
+  email               String
+  /// Join this organisation; null = they create their own from the details they fill in.
+  organisationId      String?    @db.Uuid
+  role                MemberRole @default(owner)
+  createdById         String     @db.Uuid
+  expiresAt           DateTime
+  usedAt              DateTime?
+  usedByUserId        String?    @db.Uuid
+  revokedAt           DateTime?
+  createdAt           DateTime   @default(now())
+
+  @@index([email])
 }
 
 model User {
   id              String    @id @default(uuid()) @db.Uuid
   email           String    @unique
   name            String
+  phone           String?
   passwordHash    String?
   /// Google account id (OIDC `sub`), once the user has signed in with Google.
   googleSub       String?   @unique

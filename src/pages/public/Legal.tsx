@@ -44,7 +44,10 @@ function PlatformPrivacy() {
       </p>
       <h2>What we collect about organisers</h2>
       <ul>
-        <li>Access requests (name, email, organisation, website, message): to assess and set up your account. Legal basis: steps before a contract.</li>
+        <li>
+          Organiser requests and invitations (name, email, phone, organisation, website, country, the kind and scale of your retreats, and any
+          note): to decide on and set up organiser access. Legal basis: steps before a contract.
+        </li>
         <li>Account details (name, email, password hash, role, last sign-in): to provide the service. Legal basis: contract.</li>
         <li>
           Sign-in: one-time codes sent to your email (stored only as a keyed hash, deleted within a day), and, if you choose Google, your Google
