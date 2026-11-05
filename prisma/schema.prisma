@@ -715,3 +715,13 @@ model PlatformSettings {
   albumMaxVideos Int      @default(5)
   updatedAt      DateTime @updatedAt
 }
+
+/// A stored file whose deletion failed (storage briefly unavailable). The daily retention job retries
+/// it until it's gone, so an erasure never silently leaves a photo behind.
+model PendingStorageDeletion {
+  key       String   @id
+  attempts  Int      @default(0)
+  lastError String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

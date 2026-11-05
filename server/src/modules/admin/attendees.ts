@@ -155,7 +155,12 @@ attendeesRouter.post(
 
 type RetreatForMail = { id: string; title: string; kind: 'itinerary' | 'property'; status: string; organiserName: string; inviteTtlDays: number }
 
-async function emailInvite(orgId: string, orgName: string, retreat: RetreatForMail, attendee: { id: string; name: string; email: string }) {
+type OrgForMail = { id: string; name: string; slug: string; legalName: string | null; legalAddress: string | null; nonResponderRetentionDays: number }
+
+async function emailInvite(org: OrgForMail, retreat: RetreatForMail, attendee: { id: string; name: string; email: string }) {
+  const orgId = org.id
+  const orgName = org.name
+  const origin = await siteOrigin(orgId)
   if (retreat.status !== 'collecting') throw new HttpError(409, 'Start collecting reviews first, so the links work.')
   const { token, invitation } = await prisma.$transaction((tx) => issueInvitation(tx, { organisationId: orgId, attendeeId: attendee.id, ttlDays: retreat.inviteTtlDays }))
   await sendMail(
@@ -164,9 +169,12 @@ async function emailInvite(orgId: string, orgName: string, retreat: RetreatForMa
       firstName: firstName(attendee.name),
       retreatTitle: retreat.title,
       from: retreat.organiserName || orgName,
-      url: `${await siteOrigin(orgId)}/invite/${token}`,
+      url: `${origin}/invite/${token}`,
       expiresAt: invitation.expiresAt,
       kind: retreat.kind,
+      privacyUrl: `${origin}/o/${org.slug}/privacy`,
+      controller: org.legalName ? [org.legalName, org.legalAddress].filter(Boolean).join(', ') : orgName,
+      nonResponderDays: org.nonResponderRetentionDays,
     }),
   )
   await prisma.invitation.update({ where: { id: invitation.id }, data: { emailedAt: new Date() } })
@@ -177,7 +185,7 @@ attendeesRouter.post(
   route(async (req, res) => {
     const t = tenantOf(req)
     const attendee = await tenantAttendee(t.org.id, uuidParam(req, 'attendeeId'))
-    await emailInvite(t.org.id, t.org.name, attendee.retreat, attendee)
+    await emailInvite(t.org, attendee.retreat, attendee)
     await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'invitation.emailed', entityType: 'attendee', entityId: attendee.id })
     res.json({ ok: true })
   }),
@@ -203,7 +211,7 @@ attendeesRouter.post(
     const failed: string[] = []
     for (const a of attendees) {
       try {
-        await emailInvite(t.org.id, t.org.name, retreat, a)
+        await emailInvite(t.org, retreat, a)
         sent++
       } catch {
         failed.push(a.email)

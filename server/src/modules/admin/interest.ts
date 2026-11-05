@@ -3,10 +3,9 @@ import { z } from 'zod'
 import { audit } from '../../lib/audit.js'
 import { toCsv } from '../../lib/csv.js'
 import { HttpError, parseBody, route, text } from '../../lib/http.js'
-import { announcementMail } from '../../lib/interest.js'
+import { announcementMail, unsubscribeTokenFor } from '../../lib/interest.js'
 import { sendMail } from '../../lib/mailer.js'
 import { prisma } from '../../lib/prisma.js'
-import { hashToken, newToken } from '../../lib/tokens.js'
 import { tenantOf } from '../../middleware/auth.js'
 
 /** People who asked to hear about the next retreat: the list, an export, and an email to all of them. */
@@ -71,7 +70,7 @@ interestRouter.post(
     )
     // A test goes only to the signed-in organiser, with a dummy unsubscribe link.
     if (body.test) {
-      await sendMail(announcementMail(req.auth!.user.email, t.org.name, 'test-only-link', `[Test] ${body.subject}`, body.message))
+      await sendMail(announcementMail(req.auth!.user.email, t.org, 'test-only-link', `[Test] ${body.subject}`, body.message))
       return res.json({ sent: 1, failed: 0, test: true })
     }
     const last = await prisma.auditEvent.findFirst({ where: { organisationId: t.org.id, action: 'interest.emailed' }, orderBy: { createdAt: 'desc' } })
@@ -80,11 +79,10 @@ interestRouter.post(
     let sent = 0
     let failed = 0
     for (const p of people) {
-      // A fresh token per mail, so this message's unsubscribe link works (older links stop working).
-      const token = newToken(24)
-      await prisma.interestSignup.update({ where: { id: p.id }, data: { tokenHash: hashToken(token), lastMailAt: new Date() } })
+      // The same unsubscribe link in every email, so older ones keep working.
+      await prisma.interestSignup.update({ where: { id: p.id }, data: { lastMailAt: new Date() } })
       try {
-        await sendMail(announcementMail(p.email, t.org.name, token, body.subject, body.message))
+        await sendMail(announcementMail(p.email, t.org, unsubscribeTokenFor(p.id), body.subject, body.message))
         sent++
       } catch {
         failed++

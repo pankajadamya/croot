@@ -2,17 +2,13 @@ import type { FeedbackCategory } from '../../../shared/categories.js'
 import { audit } from './audit.js'
 import { HttpError } from './http.js'
 import { prisma } from './prisma.js'
-import { storage } from './storage.js'
+import { removeObjects } from './storageCleanup.js'
 
 /**
  * Data-subject rights (GDPR Arts. 15, 17, 20) and controller/processor duties (Art. 28(3)(g)).
  * Everything here is scoped by organisation id. Audit rows written here never contain the erased
  * person's name, email or words: only that an erasure happened, and by whom.
  */
-
-async function removeObjects(keys: string[]) {
-  await Promise.all(keys.filter(Boolean).map((k) => storage.remove(k).catch(() => {})))
-}
 
 function mediaKeys(media: Array<{ originalKey: string; derivativeKey: string; originalPurgedAt: Date | null }>) {
   return media.flatMap((m) => (m.originalPurgedAt ? [m.derivativeKey] : [m.originalKey, m.derivativeKey]))

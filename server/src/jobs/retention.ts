@@ -1,5 +1,6 @@
 import { audit } from '../lib/audit.js'
 import { eraseAttendee, purgeObjects } from '../lib/gdpr.js'
+import { retryPendingDeletions } from '../lib/storageCleanup.js'
 import { prisma } from '../lib/prisma.js'
 import { livePublication } from '../lib/publication.js'
 
@@ -20,7 +21,7 @@ const DAY = 86_400_000
 const monthsAgo = (now: Date, m: number) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - m, now.getUTCDate()))
 
 export async function runRetention(now = new Date()) {
-  const counts = { drafts: 0, nonResponders: 0, responsesErased: 0, responsesMinimised: 0, originals: 0, notes: 0, auditEvents: 0, sessions: 0, setupTokens: 0, invitations: 0, tenantRequests: 0, loginCodes: 0, interestUnconfirmed: 0 }
+  const counts = { drafts: 0, nonResponders: 0, responsesErased: 0, responsesMinimised: 0, originals: 0, notes: 0, auditEvents: 0, sessions: 0, setupTokens: 0, invitations: 0, tenantRequests: 0, loginCodes: 0, interestUnconfirmed: 0, storageRetried: 0, storageStillFailing: 0 }
   const orgs = await prisma.organisation.findMany()
 
   for (const org of orgs) {
@@ -121,6 +122,10 @@ export async function runRetention(now = new Date()) {
       where: { OR: [{ status: 'declined', reviewedAt: { lt: monthsAgo(now, 6) } }, { status: 'approved', reviewedAt: { lt: monthsAgo(now, 24) } }] },
     })
   ).count
+  // Files whose deletion failed earlier: try again until they're gone.
+  const retried = await retryPendingDeletions()
+  counts.storageRetried = retried.deleted
+  counts.storageStillFailing = retried.failing
   return counts
 }
 

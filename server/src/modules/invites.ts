@@ -14,6 +14,7 @@ import { canEdit, ensureResponse, resolveInvite, type ResolvedInvite } from '../
 import { prisma } from '../lib/prisma.js'
 import { publishedContent } from '../lib/site.js'
 import { storage } from '../lib/storage.js'
+import { removeObjects } from '../lib/storageCleanup.js'
 import { hashToken, receiptTokenFor } from '../lib/tokens.js'
 import { tokenLimiter, uploadLimiter } from '../middleware/rateLimits.js'
 
@@ -363,7 +364,7 @@ reviewRoutes.delete(
     const r = requireEditable(req, res)
     const photo = await ownPhoto(r, uuidParam(req, 'photoId'))
     await prisma.mediaAsset.update({ where: { id: photo.id }, data: { removedAt: new Date(), publishConsent: false } })
-    await Promise.all([storage.remove(photo.originalKey), storage.remove(photo.derivativeKey)]).catch(() => {})
+    await removeObjects([photo.originalKey, photo.derivativeKey])
     res.status(204).end()
   }),
 )

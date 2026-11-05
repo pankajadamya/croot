@@ -148,11 +148,15 @@ export default function PrivacyNotice() {
         <ul>
           <li>{c.name}’s organiser team: your invitation details, answers, photos and permissions.</li>
           <li>The public: only the story, first name and photos you agreed to publish, and only after the organiser approves them.</li>
-          <li>Croot and its hosting providers, as processors, to run the service securely ({PLATFORM_OPERATOR.hosting}).</li>
+          <li>
+            Croot ({PLATFORM_OPERATOR.name}) and its providers, as processors, to run the service securely: {PLATFORM_OPERATOR.hosting}; email
+            delivery by {PLATFORM_OPERATOR.email_delivery}; and {PLATFORM_OPERATOR.sign_in}.
+          </li>
         </ul>
         <p>
-          If any provider processes data outside the UK or European Economic Area, it does so under appropriate safeguards such as adequacy decisions
-          or standard contractual clauses. Ask for details using the contact above.
+          Your information is stored in the UK and the European Economic Area. Amazon Web Services and Google are part of groups based in the United
+          States; where information may reach them there, the transfer relies on the UK Extension to the EU–US Data Privacy Framework or on standard
+          contractual clauses with the UK Addendum. Ask for details using the contact above.
         </p>
 
         <h2>How long we keep it</h2>

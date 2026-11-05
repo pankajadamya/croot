@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
-import { Link, Navigate, useLocation, useParams } from 'react-router'
+import { useState } from 'react'
+import { useConfirm } from '../../components/ConfirmDialog'
+import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router'
 import { REVIEW_KINDS, type ReviewKind } from '../../../shared/categories'
-import { get } from '../../lib/api'
+import { api, ApiError, get } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
 import { formatDate, formatRange } from '../../lib/format'
 import { SignedInFrame } from '../../components/AppHeader'
@@ -113,8 +115,64 @@ export default function MyReviews() {
             </Link>
           </section>
         )}
+        <DeleteAccount email={session.user.email} />
       </main>
     </SignedInFrame>
+  )
+}
+
+/** Delete my account: the sign-in identity only. Reviews stay with the organiser who invited the guest. */
+function DeleteAccount({ email }: { email: string }) {
+  const confirm = useConfirm()
+  const { setSession } = useAuth()
+  const navigate = useNavigate()
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  async function run() {
+    const ok = await confirm({
+      title: 'Delete your Croot account?',
+      message: (
+        <>
+          <p>This deletes your account, your sign-ins and any organiser team access, straight away. It can’t be undone.</p>
+          <p>
+            Reviews you sent stay with the organiser who invited you. To withdraw or erase one, use its private response page, or contact that
+            organiser.
+          </p>
+        </>
+      ),
+      confirmLabel: 'Delete my account',
+      danger: true,
+      typeToConfirm: email,
+    })
+    if (!ok) return
+    setBusy(true)
+    setError(null)
+    try {
+      await api('DELETE', '/api/account', { confirmEmail: email })
+      setSession(null)
+      navigate('/', { replace: true })
+    } catch (e) {
+      setError(e instanceof ApiError || e instanceof Error ? e.message : 'Could not delete your account')
+      setBusy(false)
+    }
+  }
+  return (
+    <section style={{ marginTop: '3rem', borderTop: '1px solid var(--border)', paddingTop: '1.5rem' }} aria-labelledby='delete-account'>
+      <h2 id='delete-account' style={{ fontSize: '1.1rem', margin: 0 }}>
+        Delete my account
+      </h2>
+      <p className='small muted' style={{ margin: '0.3rem 0 0.8rem' }}>
+        Removes your sign-in and team access. Reviews you sent stay with the organiser who invited you.
+      </p>
+      {error && (
+        <p className='notice error small' role='alert'>
+          {error}
+        </p>
+      )}
+      <button type='button' className='btn danger small' disabled={busy} onClick={() => void run()}>
+        {busy ? 'Deleting…' : 'Delete my account'}
+      </button>
+    </section>
   )
 }
 

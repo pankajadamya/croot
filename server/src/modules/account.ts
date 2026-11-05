@@ -6,7 +6,7 @@ import { audit } from '../lib/audit.js'
 import { env } from '../lib/env.js'
 import { HttpError, parseBody, route, text } from '../lib/http.js'
 import { prisma } from '../lib/prisma.js'
-import { requireCsrf, requireUser } from '../middleware/auth.js'
+import { requireCsrf, requireUser, SESSION_COOKIE } from '../middleware/auth.js'
 import { publicFormLimiter } from '../middleware/rateLimits.js'
 import { notifyAdmins, organiserDetailsSchema } from '../lib/organisers.js'
 
@@ -115,5 +115,37 @@ accountRouter.post(
       return org
     })
     res.status(201).json({ organisation: { slug: org.slug, name: org.name, status: org.status } })
+  }),
+)
+
+// ---------------------------------------------------------------------------------------------
+// Delete my account. Removes the person's sign-in identity: their account, sessions, codes and team
+// memberships. Reviews they wrote as a guest belong to the organiser who invited them (the
+// controller), so they stay; the guest withdraws or erases those from their private response page.
+
+accountRouter.delete(
+  '/',
+  route(async (req, res) => {
+    const me = req.auth!.user
+    const body = parseBody(z.object({ confirmEmail: z.string().max(200) }), req.body)
+    if (body.confirmEmail.trim().toLowerCase() !== me.email) throw new HttpError(400, 'Type your email address exactly to confirm', { confirmEmail: ['Doesn’t match your email address'] })
+    if (me.isPlatformAdmin) throw new HttpError(409, 'Admin accounts can’t be deleted here. Ask another admin to remove you from the admin list first.')
+    // Never leave an organisation without an owner.
+    const owned = await prisma.membership.findMany({ where: { userId: me.id, role: 'owner' }, include: { organisation: { select: { name: true } } } })
+    for (const m of owned) {
+      const owners = await prisma.membership.count({ where: { organisationId: m.organisationId, role: 'owner' } })
+      if (owners <= 1) {
+        throw new HttpError(409, `You’re the only owner of ${m.organisation.name}. Make someone else an owner, or ask us to close the organisation, before deleting your account.`)
+      }
+    }
+    await prisma.$transaction([
+      prisma.loginCode.deleteMany({ where: { email: me.email } }),
+      prisma.tenantRequest.updateMany({ where: { userId: me.id }, data: { userId: null } }),
+      // Memberships, sessions and setup links go with the account (cascade).
+      prisma.user.delete({ where: { id: me.id } }),
+    ])
+    await audit({ actorKind: 'user', action: 'account.deleted', entityType: 'user', entityId: me.id })
+    res.clearCookie(SESSION_COOKIE, { path: '/' })
+    res.json({ ok: true })
   }),
 )

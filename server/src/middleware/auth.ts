@@ -18,7 +18,7 @@ export interface AuthContext {
 }
 
 export interface TenantContext {
-  org: Pick<Organisation, 'id' | 'slug' | 'name' | 'status'>
+  org: Pick<Organisation, 'id' | 'slug' | 'name' | 'status' | 'legalName' | 'legalAddress' | 'nonResponderRetentionDays'>
   role: MemberRole | 'platform'
 }
 
@@ -110,7 +110,7 @@ export async function requireOrgMember(req: Request, _res: Response, next: NextF
   if (typeof slug !== 'string') return next(new HttpError(404, 'Not found'))
   const org = await prisma.organisation.findUnique({
     where: { slug },
-    select: { id: true, slug: true, name: true, status: true },
+    select: { id: true, slug: true, name: true, status: true, legalName: true, legalAddress: true, nonResponderRetentionDays: true },
   })
   if (!org) return next(new HttpError(404, 'Not found'))
   const membership = await prisma.membership.findUnique({

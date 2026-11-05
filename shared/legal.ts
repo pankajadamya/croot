@@ -1,21 +1,24 @@
 /**
  * Versions of the platform's legal texts. Bump a version whenever its wording changes so the
  * acceptance recorded against an organisation (dpaVersion) or request (termsVersion) stays meaningful.
- *
- * DRAFTS: the texts these versions refer to (src/pages/public/Legal.tsx and the generated tenant
- * notice) must be reviewed by a qualified privacy professional before production use.
+ * The texts are in src/pages/public/Legal.tsx and the generated tenant notice (PrivacyNotice.tsx).
  */
-export const PLATFORM_PRIVACY_VERSION = '2026-11-draft-1'
-export const PROCESSING_TERMS_VERSION = '2026-11-draft-1'
+export const PLATFORM_PRIVACY_VERSION = '2026-11-1'
+export const PROCESSING_TERMS_VERSION = '2026-11-1'
+/** Shown as "Last updated" on the platform's legal pages. */
+export const LEGAL_LAST_UPDATED = '6 November 2026'
 
 /**
- * The company operating Croot (the processor). PLACEHOLDERS — fill in before launch.
+ * Who operates Croot (controller for organiser accounts, processor for guest data). A sole trader,
+ * so trading disclosures are the name and an address for service; no company number.
  */
 export const PLATFORM_OPERATOR = {
-  name: '[Operator legal name — to confirm]',
-  address: '[Registered address — to confirm]',
-  email: 'privacy@croot.example',
-  hosting: 'OVHcloud (servers and object storage) — confirm region and contract before launch',
+  name: 'Kamalesh Chaudhary (trading as Croot)',
+  address: '2 Muscliffe Lane, Bournemouth BH9 3NL, United Kingdom',
+  email: 'kamuchahar@gmail.com',
+  hosting: 'OVHcloud: servers in London, United Kingdom, and photo storage in Paris, France',
+  email_delivery: 'Amazon Web Services (Amazon Simple Email Service), in Ireland',
+  sign_in: 'Google, only if you choose to sign in with Google',
 }
 
 /** Bounds for the retention settings an organisation can choose. */

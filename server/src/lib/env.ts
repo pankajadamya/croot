@@ -47,8 +47,8 @@ const envSchema = z.object({
    * "console" (prints messages to the server log; development only, refused in production).
    */
   EMAIL_PROVIDER: z.enum(['console', 'ses', 'resend']).default('console'),
-  /** The sender, e.g. `Croot <no-reply@mail.snaprows.dev>`. Must sit inside a verified SES identity. */
-  EMAIL_FROM: z.string().default('Croot <no-reply@croot.example>'),
+  /** The sender. Must sit inside a verified SES identity (croot.cx). */
+  EMAIL_FROM: z.string().default('Croot <no-reply@croot.cx>'),
   /**
    * Amazon SES: an IAM user whose only permission is ses:SendEmail, separate from the object-storage
    * key. Optional configuration set for delivery, bounce and complaint events.

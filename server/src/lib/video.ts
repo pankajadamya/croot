@@ -60,3 +60,54 @@ export async function streamVideo(req: Request, res: Response, key: string, mime
   body.on('error', () => res.destroy())
   body.pipe(res)
 }
+
+/** Boxes that carry metadata (phone location ©xyz, Apple location keys, XMP), never the picture or sound. */
+const METADATA_BOXES = new Set(['udta', 'meta', 'uuid'])
+/** Containers we look inside for metadata boxes. Media data (mdat) is never touched. */
+const CONTAINERS = new Set(['moov', 'trak'])
+
+/**
+ * Removes location and camera metadata from an MP4/MOV file in place, without re-encoding: each
+ * metadata box is renamed to a "free" (padding) box and its contents overwritten with zeros. Box
+ * sizes stay the same, so every offset in the file stays valid and players ignore the padding.
+ * Returns how many boxes were cleared. WebM is left alone (phones don't record location in it).
+ */
+export async function stripVideoMetadata(path: string): Promise<number> {
+  const fh = await open(path, 'r+')
+  let cleared = 0
+  try {
+    const { size: fileSize } = await fh.stat()
+    const header = Buffer.alloc(16)
+    const walk = async (start: number, end: number, depth: number): Promise<void> => {
+      let pos = start
+      while (pos + 8 <= end) {
+        await fh.read(header, 0, 16, pos)
+        let size = header.readUInt32BE(0)
+        const type = header.toString('latin1', 4, 8)
+        let headerSize = 8
+        if (size === 1) {
+          size = Number(header.readBigUInt64BE(8))
+          headerSize = 16
+        } else if (size === 0) {
+          size = end - pos // runs to the end of its parent (or the file)
+        }
+        if (size < headerSize || pos + size > end) return // malformed: stop rather than guess
+        if (METADATA_BOXES.has(type)) {
+          await fh.write(Buffer.from('free', 'latin1'), 0, 4, pos + 4)
+          const zeros = Buffer.alloc(Math.min(size - 8, 1 << 20))
+          for (let at = pos + 8; at < pos + size; at += zeros.length) {
+            await fh.write(zeros, 0, Math.min(zeros.length, pos + size - at), at)
+          }
+          cleared++
+        } else if (CONTAINERS.has(type) && depth < 3) {
+          await walk(pos + headerSize, pos + size, depth + 1)
+        }
+        pos += size
+      }
+    }
+    await walk(0, fileSize, 0)
+  } finally {
+    await fh.close()
+  }
+  return cleared
+}

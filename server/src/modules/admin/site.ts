@@ -12,9 +12,10 @@ import { env } from '../../lib/env.js'
 import { HttpError, parseBody, route, text, uuidParam } from '../../lib/http.js'
 import { processImage } from '../../lib/images.js'
 import { albumHasPhotoRoom, albumLimits, albumUsage, assertAlbumRoom } from '../../lib/platformSettings.js'
-import { sniffVideo, streamVideo } from '../../lib/video.js'
+import { sniffVideo, streamVideo, stripVideoMetadata } from '../../lib/video.js'
 import { prisma } from '../../lib/prisma.js'
 import { storage } from '../../lib/storage.js'
+import { removeObjects } from '../../lib/storageCleanup.js'
 import { tenantMedia, tenantRetreat } from '../../lib/tenant.js'
 import { tenantOf } from '../../middleware/auth.js'
 import { uploadLimiter } from '../../middleware/rateLimits.js'
@@ -286,6 +287,8 @@ siteRouter.post(
         : await processImage(await sharp({ create: { width: 1280, height: 720, channels: 3, background: '#183d3b' } }).jpeg().toBuffer())
       const id = crypto.randomUUID()
       const prefix = `org/${t.org.id}/retreat/${retreat.id}/album/${id}`
+      // Phones record where a video was taken; the album can be public, so that never leaves here.
+      if (type.ext !== 'webm') await stripVideoMetadata(video.path)
       await storage.putFile(`${prefix}/video.${type.ext}`, video.path, type.mime)
       await storage.put(`${prefix}/poster.webp`, posterImage.derivative, 'image/webp')
       const m = await prisma.mediaAsset.create({
@@ -458,7 +461,7 @@ siteRouter.delete(
     const media = await tenantMedia(t.org.id, uuidParam(req, 'mediaId'))
     if (media.kind === 'guest') throw new HttpError(403, 'Guest photos cannot be deleted here')
     await prisma.mediaAsset.update({ where: { id: media.id }, data: { removedAt: new Date(), inHeroSlideshow: false, inWritingSlideshow: false } })
-    await Promise.all([storage.remove(media.originalKey), storage.remove(media.derivativeKey)]).catch(() => {})
+    await removeObjects([media.originalKey, media.derivativeKey, media.videoKey])
     await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'media.removed', entityType: 'media', entityId: media.id })
     res.status(204).end()
   }),

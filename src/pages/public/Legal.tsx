@@ -1,12 +1,9 @@
 import type { ReactNode } from 'react'
 import { GuestHeader } from '../../components/AppHeader'
 import { Link, Navigate, useParams } from 'react-router'
-import { PLATFORM_OPERATOR, PLATFORM_PRIVACY_VERSION, PROCESSING_TERMS_VERSION } from '../../../shared/legal'
+import { LEGAL_LAST_UPDATED, PLATFORM_OPERATOR, PLATFORM_PRIVACY_VERSION, PROCESSING_TERMS_VERSION } from '../../../shared/legal'
 
-/**
- * Platform-level legal texts. These are working DRAFTS written to match how Croot actually
- * processes data; a qualified privacy professional must review them before launch.
- */
+/** Platform-level legal texts, written to match how Croot actually processes data. */
 function Shell({ title, version, children }: { title: string; version: string; children: ReactNode }) {
   return (
     <main className="calm">
@@ -16,11 +13,14 @@ function Shell({ title, version, children }: { title: string; version: string; c
           <Link to="/">Croot</Link> · Legal
         </p>
         <h1>{title}</h1>
-        <p className="muted small">Version {version}</p>
-        <div className="notice warn" role="note">
-          Draft for legal review. This text reflects how the service works, but it has not yet been approved for publication.
-        </div>
+        <p className="muted small">
+          Last updated {LEGAL_LAST_UPDATED} · version {version}
+        </p>
         {children}
+        <p className="small muted" style={{ marginTop: '2.5rem' }}>
+          Croot is operated by {PLATFORM_OPERATOR.name}, {PLATFORM_OPERATOR.address}. Contact:{' '}
+          <a href={`mailto:${PLATFORM_OPERATOR.email}`}>{PLATFORM_OPERATOR.email}</a>.
+        </p>
         <nav className="row small" aria-label="Legal pages" style={{ marginTop: '3rem' }}>
           <Link to="/legal/privacy">Platform privacy notice</Link>
           <Link to="/legal/terms">Data processing terms</Link>
@@ -64,7 +64,15 @@ function PlatformPrivacy() {
         <li>Sessions expire after inactivity and are deleted automatically. Audit records follow each organisation’s retention setting.</li>
       </ul>
       <h2>Sub-processors and transfers</h2>
-      <p>Hosting: {PLATFORM_OPERATOR.hosting}. Email delivery: Amazon Web Services (Amazon Simple Email Service). Optional sign-in: Google (only if you choose it). We do not use advertising, analytics or tracking services. Any change is announced to organisers in advance.</p>
+      <p>
+        Hosting: {PLATFORM_OPERATOR.hosting}. Email delivery: {PLATFORM_OPERATOR.email_delivery}. Optional sign-in: {PLATFORM_OPERATOR.sign_in}. We do not use
+        advertising, analytics or tracking services. Any change is announced to organisers in advance.
+      </p>
+      <p>
+        Your information is stored in the UK and the European Economic Area. Amazon Web Services and Google are part of groups based in the
+        United States; where information may reach them there, the transfer relies on the UK Extension to the EU–US Data Privacy Framework or on the
+        UK International Data Transfer Addendum to standard contractual clauses.
+      </p>
       <h2>Your rights and complaints</h2>
       <p>
         You can access, correct, delete, restrict, object to or port your information by emailing us. You may also complain to the UK Information
