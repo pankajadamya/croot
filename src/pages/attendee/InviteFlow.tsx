@@ -5,6 +5,7 @@ import { api, ApiError, del, get, patch, post, put } from '../../lib/api'
 import { formatRange } from '../../lib/format'
 import { Field, RatingScale, Switch } from '../../components/Controls'
 import { LinkUnavailable, Loading } from '../../components/States'
+import { PhotoPanel } from './PhotoPanel'
 
 interface Rating {
   categoryKey: string
@@ -347,21 +348,25 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
   return (
     <div className="calm">
       <div className="flow">
-        <aside className="flow-visual" aria-label="Retreat">
-          <div>
-            <p className="eyebrow" style={{ color: 'var(--canvas)', opacity: 0.85 }}>
-              {view.retreat.organisationName}
+        <PhotoPanel
+          slides={view.retreat.slideshow}
+          header={
+            <>
+              <p className="eyebrow" style={{ color: 'var(--canvas)', opacity: 0.85 }}>
+                {view.retreat.organisationName}
+              </p>
+              <p className="serif" style={{ fontSize: '1.6rem', lineHeight: 1.25, margin: '0.2rem 0' }}>
+                {view.retreat.title}
+              </p>
+              {dates && <p style={{ opacity: 0.9, margin: 0 }}>{isProperty ? `Your stay: ${dates}` : dates}</p>}
+            </>
+          }
+          footer={
+            <p className="small" style={{ opacity: 0.85 }}>
+              Nothing you write is published unless you choose to share it, and the organiser approves it.
             </p>
-            <p className="serif" style={{ fontSize: '1.6rem', lineHeight: 1.25 }}>
-              {view.retreat.title}
-            </p>
-            {dates && <p style={{ opacity: 0.9 }}>{isProperty ? `Your stay: ${dates}` : dates}</p>}
-          </div>
-          {step === 1 && view.retreat.slideshow.length > 0 && <MemorySlides slides={view.retreat.slideshow} />}
-          <p className="small hide-mobile" style={{ opacity: 0.85 }}>
-            Nothing you write is published unless you choose to share it, and the organiser approves it.
-          </p>
-        </aside>
+          }
+        />
 
         <main className="flow-main" id="main">
           {viaSignIn && (
@@ -651,42 +656,6 @@ function Actions({ step, goTo, saveLabel, nextLabel = 'Continue' }: { step: numb
         {nextLabel}
       </button>
     </div>
-  )
-}
-
-/** Quiet memory prompts beside the form: manual only, never auto-advancing while someone writes. */
-function MemorySlides({ slides }: { slides: Array<{ url: string; alt: string; caption: string }> }) {
-  const [hidden, setHidden] = useState(false)
-  const [i, setI] = useState(0)
-  if (hidden)
-    return (
-      <button className="btn ghost small" style={{ color: 'var(--canvas)' }} onClick={() => setHidden(false)}>
-        View retreat photos
-      </button>
-    )
-  const s = slides[i]
-  return (
-    <figure className="memory-slides" style={{ margin: 0 }} aria-label="Retreat photos">
-      <img src={s.url} alt={s.alt} />
-      <figcaption className="small" style={{ marginTop: '0.4rem' }}>
-        {s.caption}
-      </figcaption>
-      <div className="row" style={{ marginTop: '0.4rem' }}>
-        {slides.length > 1 && (
-          <>
-            <button className="btn ghost small" style={{ color: 'var(--canvas)' }} onClick={() => setI((i - 1 + slides.length) % slides.length)} aria-label="Previous photo">
-              ←
-            </button>
-            <button className="btn ghost small" style={{ color: 'var(--canvas)' }} onClick={() => setI((i + 1) % slides.length)} aria-label="Next photo">
-              →
-            </button>
-          </>
-        )}
-        <button className="btn ghost small" style={{ color: 'var(--canvas)' }} onClick={() => setHidden(true)}>
-          Hide photos
-        </button>
-      </div>
-    </figure>
   )
 }
 
