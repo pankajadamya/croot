@@ -19,9 +19,14 @@ Priority key:
 1. **Album photos are published once the organisation owner approves them.** Guests' album photos go through the same approval as story photos. As soon as the owner approves, they appear in the album straight away. The owner can still take any photo out later. Guest wording should say exactly this, for example: "Shared in the public album once the organiser approves it. They can take it out at any time." (This replaces finding 5 / Guest P1 "Album photos skip approval": the fix is to add approval *and* match the wording.)
 2. **The logo stays lowercase "croot", always set in a sans-serif typeface.** The current logo SVGs already use Arial/Helvetica. The work is to check every other place the name is drawn as a logo (share-kit images and any text wordmark) and make sure it uses sans-serif. Ordinary sentences can still say "Croot".
 3. **A public album is fine and intended.** It can be shared with friends and family; the "thank-you" framing just needs updating in the organiser wording.
-   - **Open point:** you described the album as "a unique public link that isn't guessable". Today it isn't. It lives at a predictable address, `/o/<organisation>/r/<retreat>/album`, and the retreat page links to it. Before the work starts, decide which you want:
-     - **(a)** Keep it as it is: public, predictable and linked from the retreat page.
-     - **(b)** Bring back a random, unguessable address, and stop linking it from the public page, so only people given the link can find it.
+   - **Decided: the album gets a random, unguessable link.**
+     - **Who can open it:** anyone who has the link, with no sign-in needed.
+     - **Not found by browsing:** the retreat and story pages stop linking to it, and the predictable `/o/<organisation>/r/<retreat>/album` address goes away.
+     - **Organisers:** they see and copy the link in their workspace.
+     - **Guests who reviewed:** they reach it from their review and private page, and can share it with friends and family.
+     - **Hearts and videos:** these keep working through the new address.
+     - **Wording:** guest wording says "anyone with the album link can see it", not "public".
+     - **Open sub-question for the work:** should organisers be able to replace the link if it spreads too far? This existed before as "Make a new link".
 
 ---
 
@@ -245,3 +250,41 @@ Priority key:
 5. **Email invitations from Croot.**
 6. **Sign-in clean-up**, brand casing, and the admin console.
 7. **Accessibility and mobile polish** (field hints, focus rings, the panel on phones, tab overflow).
+
+---
+
+## Independent review additions and clarifications (5 November 2026)
+
+I completed a separate desktop and 390 px mobile review before reading this document. The full independent audit is kept outside the Croot application repository. These are the non-duplicate findings and clarifications to merge into the build plan; no application data or code was changed.
+
+### P1 — Guest submission and trust
+
+- **Make anonymous-note sending idempotent and show its own delivery state.** The existing finding says the note is posted before the review and may leave an unclear result. A further consequence is that retrying after a later save/submission failure may send the same note twice. The UI should distinguish “anonymous note sent” from “review sent”; the server should prevent duplicate note creation across retries while preserving separation from the guest's identity. Simply moving the note request later will not, on its own, make retries safe.
+- **Clarify the public album promise in both journeys.** The decision above says a public album is intended. The current organiser editor still calls it an album that “unlocks” as a thank-you after reviewing, while also saying anyone can view it from the public retreat page. The guest flow calls sending a review an unlock. Explain the actual benefit consistently: after submission, guests get direct access or a thank-you link, and the album itself is public. Keep the open point above about a public, predictable URL versus an unguessable link separate from this copy correction.
+
+### P2 — Public visitor journey
+
+- **The first-screen hierarchy problem also occurs when there is no album.** The existing P1 describes the album leading the page when enabled. In the seeded Balance & Beyond retreat there is no album; at desktop size, the practical-details card fills almost the first viewport, and at 390 px it fills most of the first mobile viewport. The organiser opening and guest stories come later. The proposed identity-first layout should be checked in both album and no-album states.
+- **Give review cards a clearer route to their dedicated story and share link.** This reinforces Public visitor P1: the seeded cards show full guest text and a helpful control, with no visible story link. The story route exists, and the organiser can reach it from response detail. A visitor should be able to open and copy the unique story URL from the card without guessing it.
+- **Design the no-image organiser page as a deliberate state.** The seeded organiser home places a large updates-signup panel before a single retreat tile whose image area shows only an initial. The page looks sparse despite having three published stories. Give the retreat card a purposeful text-first treatment or show approved review imagery; place evidence of the retreat before the newsletter prompt.
+- **Show a complete public-page preview in the editor.** The current Public site preview shows the opening and placeholder text saying guest stories follow. It does not show the current details card, actual stories or available photos, so an organiser cannot judge the first viewport, repetition or visual balance before publishing. Offer a preview of the assembled page at desktop and mobile widths.
+
+### P2 — Organiser workflow
+
+- **Explain the live version while a guest revises.** In the seeded response queue one story is simultaneously “With guest for changes” and “Published.” Its detail page says “This story can't be published” while linking the live story. The intended versioning is understandable from the guest flow: the approved version remains live until a new submission is approved. State this explicitly and label the live and pending versions separately in the queue and detail page.
+- **Make the Share Kit empty state actionable without bypassing consent.** The seeded retreat has three published stories, but Share Kit says none can be used because guests did not opt into social reuse. Point the organiser to a consent-respecting way to ask guests about reuse, or offer cards made from organiser-owned copy and images. Do not suggest changing a guest's permission on their behalf.
+- **Keep guest actions visible in mobile invitation management.** At 390 px, the Invitations table shows Guest, Status and a narrow Link column; the Actions column is offscreen. The eight-section tab strip also scrolls sideways with later sections hidden. This is more than polish because reissue/revoke and the only available invitation-link workflow depend on the obscured controls. Use stacked guest rows and a compact section selector or clear overflow affordance.
+- **Make read-only owner fields look read-only.** For a non-owner organiser, the dashboard puts a large disabled “Your website” field above the programme list, followed by “Only the organisation's owner can change this.” Render the value as information with an owner-only edit path so it does not look like a broken form.
+
+### P2 — Guest effort
+
+- **Test the seven-minute estimate against the longest configured retreat.** The seeded itinerary has ten separate feedback categories plus two open-text questions, after the story and before the anonymous note, photo permissions and final review. Each category is optional, but the long stack can still create abandonment. Offer an explicit skip for the section, group or prioritise categories, and base the time estimate on observed completion rather than the lightest path.
+
+### Decision to confirm before implementation
+
+- **“Verified guest” badge wording (Public visitor P2 above).** The existing recommendation proposes “Verified guest · Oct 2026.” The app establishes that the organiser invited an email address; that alone does not independently verify attendance. A badge such as “Invited by the organiser” is supportable from the current flow. Use “Verified guest” only if an attendance check is added and its meaning is explained. This is a substantive wording conflict with the existing recommendation, so keep it open for a product decision.
+
+### Review coverage
+
+I checked the running public home, organiser home, retreat showcase, sign-in, organiser dashboard, Overview, Invitations, Responses, response detail, Insights, Public site, Appearance and Share Kit at desktop size; the retreat showcase and Invitations at 390 px; and the guest flow from source. I did not use one-time guest/receipt links live, upload media, publish content, change settings or run a dedicated assistive-technology test. Findings about guest submission and unvisited states remain code-based until exercised with a safe test account.
+
