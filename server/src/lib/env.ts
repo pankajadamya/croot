@@ -23,6 +23,8 @@ const envSchema = z.object({
   S3_ENDPOINT: z.string().optional().default(''),
   S3_ACCESS_KEY_ID: z.string().optional().default(''),
   S3_SECRET_ACCESS_KEY: z.string().optional().default(''),
+  /** OVHcloud Object Storage uses virtual-hosted addressing (false); true only for providers that need path style. */
+  S3_FORCE_PATH_STYLE: z.stringbool().default(false),
   /** Keys HMACs for sign-in codes and signs the short-lived OAuth state cookie. 32+ random characters; required in production. */
   AUTH_SECRET: z.string().min(32).optional(),
   /** With ORG_SIGNUP_ENABLED, new organisations go live without platform approval when true. */
@@ -71,6 +73,25 @@ if (isProduction && !env.AUTH_SECRET) {
 if (isProduction && env.EMAIL_PROVIDER === 'console') {
   console.error('EMAIL_PROVIDER=console would print sign-in codes to the log; configure a real provider in production')
   process.exit(1)
+}
+if (env.STORAGE_BACKEND === 's3') {
+  const missing = (['S3_BUCKET', 'S3_REGION', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'] as const).filter((k) => !env[k])
+  if (missing.length) {
+    console.error(`STORAGE_BACKEND=s3 needs ${missing.join(', ')}`)
+    process.exit(1)
+  }
+  if (env.S3_ENDPOINT) {
+    const url = new URL(env.S3_ENDPOINT)
+    // The access key signs requests, but the images themselves would cross the network in the clear.
+    if (isProduction && url.protocol !== 'https:') {
+      console.error('S3_ENDPOINT must use https in production')
+      process.exit(1)
+    }
+    if (url.pathname !== '/' || url.search) {
+      console.error('S3_ENDPOINT must be just a scheme and host, e.g. https://s3.eu-west-par.io.cloud.ovh.net')
+      process.exit(1)
+    }
+  }
 }
 const EMAIL_REQUIRED = { ses: ['SES_REGION', 'SES_ACCESS_KEY_ID', 'SES_SECRET_ACCESS_KEY'], resend: ['RESEND_API_KEY'] } as const
 if (env.EMAIL_PROVIDER !== 'console') {

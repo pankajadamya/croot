@@ -57,8 +57,8 @@ One Node process serves the API and the built SPA (Dockerfile → Coolify on OVH
   Responses never reveal whether an address has an account. Google uses PKCE, state and nonce, and accepts only verified emails.
 - In development `EMAIL_PROVIDER=console` prints codes to the API log. Production uses Amazon SES (`EMAIL_PROVIDER=ses`, `SES_*`, the same names as Collab) and requires `AUTH_SECRET`.
 - **Where secrets live:** never in this repository. Deployment follows the snaprows-infra pattern used for MyAyurvedaTrip:
-  `snaprows-infra/apps/croot-uat/app.yml` describes the app; `apps/croot-uat/generate-secrets.sh` creates the gitignored
-  `secrets/CROOT/UAT/croot-uat.env`, which is saved to the Bitwarden folder `CROOT/UAT` and pushed to Coolify by
+  `snaprows-infra/apps/croot-prod/app.yml` describes the app; `apps/croot-prod/generate-secrets.sh` creates the gitignored
+  `secrets/CROOT/PROD/croot-prod.env`, which is saved to the Bitwarden folder `CROOT/PROD` and pushed to Coolify by
   `snaprows-ops app apply`. Locally, put them in your own `.env` (gitignored).
 
 ## Privacy boundaries (enforced server-side)
