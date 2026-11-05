@@ -174,7 +174,7 @@ function Detail({ orgSlug, r, refresh }: { orgSlug: string; r: ResponseDetailDat
 
         <PhotosSection orgSlug={orgSlug} r={r} refresh={refresh} />
 
-        <Section id="sec-consent" title="Consent" note={`Current choices. Wording version: ${r.consents.wordingVersion ?? 'not recorded'}.`}>
+        <Section id="sec-consent" title="Consent" note="The guest’s current choices.">
           <ul className="consent-list">
             <li>
               Publish written story <YesNo value={r.consents.publicText} />
@@ -237,6 +237,22 @@ function PhotosSection({ orgSlug, r, refresh }: { orgSlug: string; r: ResponseDe
     <Section id="sec-photos" title="Photos" note="Each photo needs the guest’s own permission and your approval before it can appear with their story.">
       {r.photos.length === 0 && <p className="muted">No photos.</p>}
       <MutationError error={moderate.error} />
+      {r.photos.some((p) => (p.publishConsent || p.albumConsent) && p.moderation !== 'approved') && (
+        <button
+          type="button"
+          className="btn secondary small"
+          disabled={moderate.isPending}
+          onClick={() => {
+            const ids = r.photos.filter((p) => (p.publishConsent || p.albumConsent) && p.moderation !== 'approved').map((p) => p.id)
+            void Promise.all(ids.map((id) => moderate.mutateAsync({ id, status: 'approved' }))).catch(() => {})
+          }}
+        >
+          Approve all photos the guest allowed
+        </button>
+      )}
+      <p className="small muted" style={{ margin: '0.5rem 0' }}>
+        Rejecting a photo hides it; you can approve it again later.
+      </p>
       {r.photos.length > 0 && (
         <ul className="media-grid" style={{ listStyle: 'none', padding: 0 }}>
           {r.photos.map((p) => (
@@ -304,11 +320,15 @@ function PublicationSection({ orgSlug, r, refresh }: { orgSlug: string; r: Respo
 
   const publish = useMutation({
     mutationFn: () => post<{ publicSlug: string; url: string }>(`${orgApi(orgSlug)}/responses/${r.id}/publish`, { excerpt, photoIds, reason: reason.trim() || undefined }),
-    onSuccess: (res) => {
+    onSuccess: async (res) => {
       setDone(`Published at ${res.url}.`)
       refresh()
+      // Offer the next story waiting, so publishing several isn't a round trip each time.
+      const next = await get<{ responses: Array<{ id: string }> }>(`${orgApi(orgSlug)}/retreats/${r.retreat.id}/responses?queue=ready&status=all&publication=all`).catch(() => null)
+      setNextId(next?.responses.find((x) => x.id !== r.id)?.id ?? null)
     },
   })
+  const [nextId, setNextId] = useState<string | null>(null)
   const unpublish = useMutation({
     mutationFn: () => post(`${orgApi(orgSlug)}/responses/${r.id}/unpublish`, { reason: unpublishReason }),
     onSuccess: () => {
@@ -322,7 +342,14 @@ function PublicationSection({ orgSlug, r, refresh }: { orgSlug: string; r: Respo
   })
 
   const blockers: string[] = []
-  if (r.status !== 'submitted') blockers.push(r.status === 'withdrawn' ? 'The guest withdrew this response.' : 'The guest is revising their response.')
+  if (r.status !== 'submitted')
+    blockers.push(
+      r.status === 'withdrawn'
+        ? 'The guest withdrew this response.'
+        : live
+          ? 'The guest is revising it. The version already live stays up until they send it again and you publish the update.'
+          : 'The guest is revising their response.',
+    )
   if (!r.publicStory.text.trim()) blockers.push('There is no public story.')
   if (!r.consents.publicText) blockers.push('The guest has not consented to publishing their story.')
   const excerptOk = isVerbatimExcerpt(r.publicStory.text, excerpt)
@@ -357,7 +384,7 @@ function PublicationSection({ orgSlug, r, refresh }: { orgSlug: string; r: Respo
           <Field
             id="pub-excerpt"
             label="Showcase excerpt"
-            hint="The quote shown in the story slideshow. It must be the guest’s exact words copied from their story — you can shorten it, but not reword it. The server rejects anything that isn’t found word for word."
+            hint="The quote shown in the story slideshow. Use the guest’s exact words: you can shorten it, but not reword it."
             error={fieldError(publish.error, 'excerpt')}
           >
             <textarea id="pub-excerpt" style={{ minHeight: '6rem' }} value={excerpt} onChange={(e) => setExcerpt(e.target.value)} aria-describedby="pub-excerpt-hint" />
@@ -401,6 +428,11 @@ function PublicationSection({ orgSlug, r, refresh }: { orgSlug: string; r: Respo
         </>
       )}
 
+      {nextId && (
+        <p className="notice ok small" role="status">
+          <Link to={`/admin/${orgSlug}/responses/${nextId}`}>Next story ready to publish →</Link>
+        </p>
+      )}
       {done && (
         <div className="notice ok" role="status" style={{ marginTop: '1rem' }}>
           {done}
@@ -421,7 +453,12 @@ function PublicationSection({ orgSlug, r, refresh }: { orgSlug: string; r: Respo
             <input id="unpub-reason" type="text" maxLength={500} value={unpublishReason} onChange={(e) => setUnpublishReason(e.target.value)} />
           </Field>
           <MutationError error={unpublish.error} shownFields={['reason']} />
-          <button type="button" className="btn danger" disabled={!unpublishReason.trim() || unpublish.isPending} onClick={() => unpublish.mutate()}>
+          <button
+            type="button"
+            className="btn danger"
+            disabled={!unpublishReason.trim() || unpublish.isPending}
+            onClick={() => window.confirm('Take this story off your public page now?') && unpublish.mutate()}
+          >
             {unpublish.isPending ? 'Unpublishing…' : 'Unpublish now'}
           </button>
         </div>

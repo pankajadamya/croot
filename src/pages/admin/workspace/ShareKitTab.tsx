@@ -217,30 +217,12 @@ export function ShareKitTab({ orgSlug, retreat }: { orgSlug: string; retreat: Re
         </p>
       </div>
 
-      <fieldset className="card tight">
-        <legend style={{ fontWeight: 700 }}>Croot logo on each image</legend>
-        <p className="small muted">Each image carries the croot logo. The colourway starts with this retreat’s published theme; you can choose another below.</p>
-        <label htmlFor="kit-brand-palette" style={{ fontWeight: 600 }}>Logo colourway</label>
-        <select id="kit-brand-palette" value={selectedBrandPalette} onChange={(e) => setBrandPalette(e.target.value as BrandPaletteKey)}>
-          {BRAND_PALETTE_KEYS.map((key) => <option key={key} value={key}>{BRAND_PALETTES[key].label}</option>)}
-        </select>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem', marginTop: '0.9rem' }}>
-          <a className="card tight" href={brandAsset('mark', selectedBrandPalette)} download style={{ background: BRAND_PALETTES[selectedBrandPalette].preview, textDecoration: 'none' }}>
-            <img src={brandAsset('mark', selectedBrandPalette)} alt="Croot symbol" style={{ width: 92, height: 92, margin: '0 auto 0.5rem' }} />
-            <span className="small" style={{ display: 'block', textAlign: 'center' }}>Download logo alone</span>
-          </a>
-          <a className="card tight" href={brandAsset('logo', selectedBrandPalette)} download style={{ background: BRAND_PALETTES[selectedBrandPalette].preview, textDecoration: 'none' }}>
-            <img src={brandAsset('logo', selectedBrandPalette)} alt="Croot logo with name" style={{ width: 150, height: 92, margin: '0 auto 0.5rem', objectFit: 'contain' }} />
-            <span className="small" style={{ display: 'block', textAlign: 'center' }}>Download logo with name</span>
-          </a>
-        </div>
-      </fieldset>
-
       {d.stories.length === 0 ? (
         <div className="card">
           <h3 style={{ marginTop: 0 }}>No stories can be used yet</h3>
           <p className="muted" style={{ marginBottom: 0 }}>
-            A story appears here once its guest has sent it and agreed to “reuse my story or photos in social media or advertising”.
+            A story appears here once its guest has sent it and agreed to “reuse my story or photos in social media or advertising”. Guests can
+            turn this on themselves when they edit their review. It’s fine to mention the option when you thank them, but it’s always their choice.
           </p>
         </div>
       ) : (
@@ -367,6 +349,24 @@ export function ShareKitTab({ orgSlug, retreat }: { orgSlug: string; retreat: Re
           </div>
         </div>
       )}
+      <details className="card tight">
+        <summary style={{ fontWeight: 700, cursor: 'pointer' }}>Logo colourway and downloads</summary>
+        <p className="small muted">Each image carries the croot logo. The colourway starts with this retreat’s published theme; you can choose another below.</p>
+        <label htmlFor="kit-brand-palette" style={{ fontWeight: 600 }}>Logo colourway</label>
+        <select id="kit-brand-palette" value={selectedBrandPalette} onChange={(e) => setBrandPalette(e.target.value as BrandPaletteKey)}>
+          {BRAND_PALETTE_KEYS.map((key) => <option key={key} value={key}>{BRAND_PALETTES[key].label}</option>)}
+        </select>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem', marginTop: '0.9rem' }}>
+          <a className="card tight" href={brandAsset('mark', selectedBrandPalette)} download style={{ background: BRAND_PALETTES[selectedBrandPalette].preview, textDecoration: 'none' }}>
+            <img src={brandAsset('mark', selectedBrandPalette)} alt="Croot symbol" style={{ width: 92, height: 92, margin: '0 auto 0.5rem' }} />
+            <span className="small" style={{ display: 'block', textAlign: 'center' }}>Download logo alone</span>
+          </a>
+          <a className="card tight" href={brandAsset('logo', selectedBrandPalette)} download style={{ background: BRAND_PALETTES[selectedBrandPalette].preview, textDecoration: 'none' }}>
+            <img src={brandAsset('logo', selectedBrandPalette)} alt="Croot logo with name" style={{ width: 150, height: 92, margin: '0 auto 0.5rem', objectFit: 'contain' }} />
+            <span className="small" style={{ display: 'block', textAlign: 'center' }}>Download logo with name</span>
+          </a>
+        </div>
+      </details>
     </div>
   )
 }

@@ -17,7 +17,7 @@ export const responsesRouter = Router({ mergeParams: true })
 const listQuery = z.object({
   status: z.enum(['submitted', 'changes_requested', 'withdrawn', 'all']).default('all'),
   publication: z.enum(['none', 'published', 'unpublished', 'withdrawn', 'all']).default('all'),
-  queue: z.enum(['ready', 'all']).default('all'),
+  queue: z.enum(['ready', 'requests', 'all']).default('all'),
   q: z.string().max(100).optional(),
 })
 
@@ -33,6 +33,7 @@ responsesRouter.get(
       retreatId: retreat.id,
       status: q.status === 'all' ? { not: 'draft' } : q.status,
       ...(q.publication !== 'all' ? { publicationStatus: q.publication } : {}),
+      ...(q.queue === 'requests' ? { changeRequests: { some: { status: 'open' } } } : {}),
       ...(q.queue === 'ready' ? { consentPublicText: true, storyText: { not: '' }, publicationStatus: { in: ['none', 'unpublished'] }, status: 'submitted' } : {}),
       ...(q.q ? { OR: [{ attendee: { name: { contains: q.q, mode: 'insensitive' } } }, { storyText: { contains: q.q, mode: 'insensitive' } }] } : {}),
     }
@@ -138,6 +139,7 @@ responsesRouter.get(
         caption: m.caption,
         publishConsent: m.publishConsent,
         moderation: m.moderation,
+        albumConsent: m.albumConsent,
         live: Boolean(live?.photoIds.includes(m.id)),
       })),
       publication: {

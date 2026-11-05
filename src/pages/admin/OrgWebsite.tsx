@@ -22,6 +22,14 @@ export function OrgWebsite({ orgSlug, canEdit }: { orgSlug: string; canEdit: boo
     },
   })
   if (!q.data) return null
+  if (!canEdit) {
+    return (
+      <p className="small muted" style={{ marginBottom: '1.5rem' }}>
+        Website: {q.data.websiteUrl ? <a href={q.data.websiteUrl} target="_blank" rel="noopener noreferrer">{q.data.websiteUrl}</a> : 'not set'} · the
+        organisation’s owner can change it.
+      </p>
+    )
+  }
   return (
     <div className="card tight" style={{ marginBottom: '1.5rem' }}>
       <Field

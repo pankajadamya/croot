@@ -23,6 +23,10 @@ export default function InterestedPage() {
   const [subject, setSubject] = useState('')
   const [message, setMessage] = useState('')
   const [result, setResult] = useState<string | null>(null)
+  const test = useMutation({
+    mutationFn: () => post<{ sent: number }>(`${orgApi(orgSlug)}/interest/notify`, { subject, message, test: true }),
+    onSuccess: () => setResult('Test sent to your own email address. Check how it looks, then send it to everyone.'),
+  })
   const send = useMutation({
     mutationFn: () => post<{ sent: number; failed: number }>(`${orgApi(orgSlug)}/interest/notify`, { subject, message }),
     onSuccess: (r) => {
@@ -66,13 +70,14 @@ export default function InterestedPage() {
           {q.data.people.length > 0 && (
             <form className="card" onSubmit={submit} noValidate>
               <h2 style={{ marginTop: 0 }}>Email everyone</h2>
+              <p className="small muted" style={{ marginTop: 0 }}>This goes to everyone on your organisation’s list, whichever retreat page they signed up from.</p>
               <Field id="int-subject" label="Subject">
                 <input id="int-subject" type="text" maxLength={150} value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Our next retreat is open for booking" />
               </Field>
               <Field id="int-message" label="Message" hint="Plain text. Links are clickable. An unsubscribe line is added at the end.">
                 <textarea id="int-message" value={message} maxLength={5000} onChange={(e) => setMessage(e.target.value)} style={{ minHeight: '10rem' }} />
               </Field>
-              <MutationError error={send.error} />
+              <MutationError error={send.error || test.error} />
               {result && (
                 <p className="notice ok" role="status">
                   {result}
@@ -80,6 +85,14 @@ export default function InterestedPage() {
               )}
               <button className="btn" type="submit" disabled={send.isPending || subject.trim().length < 3 || message.trim().length < 10}>
                 {send.isPending ? 'Sending…' : `Send to ${q.data.people.length}`}
+              </button>{' '}
+              <button
+                type="button"
+                className="btn secondary"
+                disabled={test.isPending || subject.trim().length < 3 || message.trim().length < 10}
+                onClick={() => test.mutate()}
+              >
+                {test.isPending ? 'Sending…' : 'Send a test to me'}
               </button>
             </form>
           )}

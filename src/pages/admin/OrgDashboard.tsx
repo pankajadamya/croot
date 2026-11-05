@@ -41,9 +41,18 @@ export default function OrgDashboard() {
           {summary.data.openChangeRequests > 0 && (
             <div className="notice warn" role="status">
               {summary.data.openChangeRequests === 1
-                ? '1 guest has asked for a change to their response.'
-                : `${summary.data.openChangeRequests} guests have asked for changes to their responses.`}{' '}
-              Open a programme’s Responses tab to review them.
+                ? '1 guest has asked for a change to their response:'
+                : `${summary.data.openChangeRequests} guests have asked for changes to their responses:`}{' '}
+              {summary.data.retreats
+                .filter((r) => (r.stats.openRequests ?? 0) > 0)
+                .map((r, i) => (
+                  <span key={r.id}>
+                    {i > 0 && ', '}
+                    <Link to={`/admin/${orgSlug}/retreats/${r.id}/responses?queue=requests`}>
+                      {r.title} ({r.stats.openRequests})
+                    </Link>
+                  </span>
+                ))}
             </div>
           )}
 

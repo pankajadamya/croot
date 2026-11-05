@@ -40,13 +40,13 @@ adminRouter.get(
       prisma.response.groupBy({ by: ['retreatId', 'status'], where: { organisationId: t.org.id }, _count: true }),
       prisma.response.groupBy({ by: ['retreatId'], where: { organisationId: t.org.id, publicationStatus: 'published' }, _count: true }),
       prisma.anonymousNote.groupBy({ by: ['retreatId'], where: { organisationId: t.org.id }, _count: true }),
-      prisma.changeRequest.count({ where: { organisationId: t.org.id, status: 'open' } }),
+      prisma.changeRequest.findMany({ where: { organisationId: t.org.id, status: 'open' }, select: { response: { select: { retreatId: true } } } }),
     ])
     const count = <T extends { retreatId: string; _count: number }>(rows: T[], id: string, pred: (r: T) => boolean = () => true) =>
       rows.filter((r) => r.retreatId === id && pred(r)).reduce((n, r) => n + r._count, 0)
     res.json({
       org: { ...t.org, role: t.role },
-      openChangeRequests: openRequests,
+      openChangeRequests: openRequests.length,
       retreats: retreats.map((r) => ({
         id: r.id,
         slug: r.slug,
@@ -62,6 +62,7 @@ adminRouter.get(
           submitted: count(byStatus, r.id, (x) => x.status === 'submitted' || x.status === 'changes_requested'),
           published: count(published, r.id),
           anonymousNotes: count(notes, r.id),
+          openRequests: openRequests.filter((o) => o.response.retreatId === r.id).length,
         },
       })),
     })

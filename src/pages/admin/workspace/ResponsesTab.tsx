@@ -1,17 +1,23 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { get, orgApi } from '../../../lib/api'
 import { formatDate } from '../../../lib/format'
 import { ErrorNotice, Loading } from '../../../components/States'
 import { PublicationBadge, ResponseStatusBadge } from '../adminUi'
 import type { ResponseListItem, Retreat } from '../types'
 
-type Filters = { status: string; publication: string; queue: 'all' | 'ready'; q: string }
+type Filters = { status: string; publication: string; queue: 'all' | 'ready' | 'requests'; q: string }
 
 export function ResponsesTab({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat }) {
-  const [filters, setFilters] = useState<Filters>({ status: 'all', publication: 'all', queue: 'all', q: '' })
+  const [urlParams] = useSearchParams()
+  const [filters, setFilters] = useState<Filters>({ status: 'all', publication: 'all', queue: urlParams.get('queue') === 'requests' ? 'requests' : 'all', q: '' })
   const [search, setSearch] = useState('')
+  // Search as you type, like the other filters (no button needed).
+  useEffect(() => {
+    const t = window.setTimeout(() => setFilters((f) => (f.q === search.trim() ? f : { ...f, q: search.trim() })), 300)
+    return () => window.clearTimeout(t)
+  }, [search])
   const params = new URLSearchParams({ status: filters.status, publication: filters.publication, queue: filters.queue })
   if (filters.q) params.set('q', filters.q)
 
@@ -39,6 +45,14 @@ export function ResponsesTab({ orgSlug, retreat }: { orgSlug: string; retreat: R
           onClick={() => setFilters((f) => ({ ...f, queue: 'ready' }))}
         >
           Ready to publish
+        </button>
+        <button
+          type="button"
+          className={`btn small ${filters.queue === 'requests' ? '' : 'secondary'}`}
+          aria-pressed={filters.queue === 'requests'}
+          onClick={() => setFilters((f) => ({ ...f, queue: 'requests' }))}
+        >
+          Change requests
         </button>
       </div>
       <p className="small muted" style={{ margin: 0 }}>

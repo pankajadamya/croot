@@ -78,7 +78,7 @@ export default function Privacy() {
         ) : (
           <>
             {q.data!.settings.dpaVersion ? `version ${q.data!.settings.dpaVersion} accepted; a newer version is available.` : 'not yet accepted.'} Please
-            read the <Link to="/legal/terms" target="_blank">processing terms</Link>.{' '}
+            read the <Link to="/legal/terms" target="_blank">processing terms</Link>. Nothing is paused while you do.{' '}
             {isOwner && (
               <button className="btn small" onClick={() => save.mutate({ acceptTerms: true })} disabled={save.isPending}>
                 Accept version {q.data!.currentTermsVersion}

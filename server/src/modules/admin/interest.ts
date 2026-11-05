@@ -61,7 +61,19 @@ interestRouter.post(
   '/interest/notify',
   route(async (req, res) => {
     const t = tenantOf(req)
-    const body = parseBody(z.object({ subject: text(150).refine((s) => s.length >= 3, 'Add a subject'), message: text(5000).refine((s) => s.length >= 10, 'Write a little more') }), req.body)
+    const body = parseBody(
+      z.object({
+        subject: text(150).refine((s) => s.length >= 3, 'Add a subject'),
+        message: text(5000).refine((s) => s.length >= 10, 'Write a little more'),
+        test: z.boolean().optional(),
+      }),
+      req.body,
+    )
+    // A test goes only to the signed-in organiser, with a dummy unsubscribe link.
+    if (body.test) {
+      await sendMail(announcementMail(req.auth!.user.email, t.org.name, 'test-only-link', `[Test] ${body.subject}`, body.message))
+      return res.json({ sent: 1, failed: 0, test: true })
+    }
     const last = await prisma.auditEvent.findFirst({ where: { organisationId: t.org.id, action: 'interest.emailed' }, orderBy: { createdAt: 'desc' } })
     if (last && Date.now() - last.createdAt.getTime() < NOTIFY_GAP_MS) throw new HttpError(429, 'You emailed everyone a few minutes ago. Please wait a little before sending again.')
     const people = await prisma.interestSignup.findMany({ where: { organisationId: t.org.id, confirmedAt: { not: null } } })

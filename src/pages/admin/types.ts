@@ -48,6 +48,7 @@ export interface RetreatStats {
   submitted: number
   published: number
   anonymousNotes: number
+  openRequests?: number
 }
 
 export interface RetreatSummary {
@@ -148,6 +149,7 @@ export interface ResponseDetailData {
     altText: string
     caption: string
     publishConsent: boolean
+    albumConsent?: boolean
     moderation: 'pending' | 'approved' | 'rejected'
     live: boolean
   }>

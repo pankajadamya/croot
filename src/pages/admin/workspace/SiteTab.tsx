@@ -291,6 +291,24 @@ function ImageLibrary({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
         use it. Alt text is optional but helps guests who use screen readers. Guest photos are managed from each response instead.
       </p>
       <SlideshowSettings orgSlug={orgSlug} retreat={retreat} media={media.data ?? []} />
+      {(media.data ?? []).some((m) => !m.rightsConfirmed) && (
+        <p className="row small" style={{ margin: '0 0 1rem' }}>
+          <span className="muted">{(media.data ?? []).filter((m) => !m.rightsConfirmed).length} image(s) still need your permission before they can show.</span>
+          <button
+            type="button"
+            className="btn secondary small"
+            onClick={() => {
+              const pending = (media.data ?? []).filter((m) => !m.rightsConfirmed)
+              if (!window.confirm(`Confirm you have permission to use all ${pending.length} of these images?`)) return
+              void Promise.all(pending.map((m) => patch(`${orgApi(orgSlug)}/media/${m.id}`, { rightsConfirmed: true }))).then(() =>
+                queryClient.invalidateQueries({ queryKey: key }),
+              )
+            }}
+          >
+            I have permission for all of them
+          </button>
+        </p>
+      )}
       <div
         className={`drop-zone ${dragging ? 'dragging' : ''}`}
         onDragOver={(e) => {

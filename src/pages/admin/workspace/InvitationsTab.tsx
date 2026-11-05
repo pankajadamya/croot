@@ -99,7 +99,7 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
             New invitation links
           </h2>
           <p className="small">
-            Copy these now and send each one privately to its guest. Links are stored only in scrambled form, so they <strong>cannot be shown again</strong> once you leave
+            Copy these now and send each one privately to its guest. For guests’ safety Croot keeps no readable copy, so they <strong>cannot be shown again</strong> once you leave
             this page — you can only reissue a new link, which cancels the old one.
           </p>
           <div className="table-wrap">
