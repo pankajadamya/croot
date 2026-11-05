@@ -7,14 +7,14 @@ import { AppHeader } from '../../components/AppHeader'
 import { Loading } from '../../components/States'
 
 /**
- * Frame for every organiser and super admin page. The top bar is the shared AppHeader, the same one
+ * Frame for every organiser and admin page. The top bar is the shared AppHeader, the same one
  * My reviews uses. Sends signed-out visitors to sign in, remembering where they were going.
  */
 export function AdminShell({ orgSlug, children }: { orgSlug?: string; children: ReactNode }) {
   const { session, loading } = useAuth()
   const location = useLocation()
   const isMember = Boolean(orgSlug && session?.memberships.some((m) => m.slug === orgSlug))
-  // Super admins visiting an organisation they don't belong to: fetch its name for the header.
+  // Admins visiting an organisation they don't belong to: fetch its name for the header.
   const orgName = useQuery({
     enabled: Boolean(orgSlug && session && !isMember),
     queryKey: ['admin', orgSlug, 'summary'],

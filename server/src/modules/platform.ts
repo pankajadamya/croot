@@ -151,7 +151,7 @@ platformRouter.post(
 
 // ---------------------------------------------------------------------------------------------
 // People: one sign-in for everyone; what a person sees depends on their account's permissions.
-//   super admin  → isPlatformAdmin (this console)
+//   admin  → isPlatformAdmin (this console)
 //   organiser    → a membership of an organisation (owner or organiser) → the organiser workspace
 //   everyone else → a guest, who sees My reviews
 
@@ -216,11 +216,11 @@ platformRouter.patch(
     const target = await prisma.user.findUnique({ where: { id } })
     if (!target) throw new HttpError(404, 'Person not found')
     if (id === me && (body.isPlatformAdmin === false || body.active === false)) {
-      throw new HttpError(409, 'You can’t remove your own super admin access or disable your own account')
+      throw new HttpError(409, 'You can’t remove your own admin access or disable your own account')
     }
     if (target.isPlatformAdmin && (body.isPlatformAdmin === false || body.active === false)) {
       const admins = await prisma.user.count({ where: { isPlatformAdmin: true, active: true } })
-      if (admins <= 1) throw new HttpError(409, 'There must always be at least one active super admin')
+      if (admins <= 1) throw new HttpError(409, 'There must always be at least one active admin')
     }
     await prisma.$transaction([
       prisma.user.update({ where: { id }, data: body }),

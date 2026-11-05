@@ -46,10 +46,10 @@ export default function PlatformConsole() {
   const { session } = useAuth()
   return (
     <AdminShell>
-      <h1>Platform console</h1>
+      <h1>Admin</h1>
       {session && !session.user.isPlatformAdmin ? (
         <div className="notice error" role="alert">
-          This area is for super admins only. <Link to="/admin">Go to your organisations</Link>.
+          This area is for admins only. <Link to="/admin">Go to your organisations</Link>.
         </div>
       ) : (
         <div className="stack">

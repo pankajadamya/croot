@@ -8,8 +8,8 @@ export function configuredAdminEmails(raw = env.PLATFORM_ADMIN_EMAILS): string[]
 }
 
 /**
- * Makes sure every configured address has an account with super-admin rights. This is how the first
- * super admin exists on a fresh deployment. It only ever grants: demoting happens in the console, so
+ * Makes sure every configured address has an account with admin rights. This is how the first
+ * admin exists on a fresh deployment. It only ever grants: demoting happens in the console, so
  * an old setting can't silently take access away, and nobody can lose access by a typo here.
  * The person then signs in with an email code or Google, which also verifies the address.
  */

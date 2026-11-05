@@ -69,7 +69,7 @@ function Landing() {
   // Signed in: the header leads to your own place instead of asking you to sign in again.
   const account = session
     ? session.user.isPlatformAdmin
-      ? { to: '/platform', label: 'Super admin' }
+      ? { to: '/platform', label: 'Admin' }
       : session.memberships.length
         ? { to: workspacePath(session), label: 'Organiser workspace' }
         : { to: '/my-reviews', label: 'My reviews' }

@@ -51,10 +51,10 @@ One Node process serves the API and the built SPA (Dockerfile → Coolify on OVH
   An edited review that was already published keeps its approved version live, flagged "Updated since published"
   for the organiser.
 - **One sign-in for everyone** at `/signin`. What a person sees depends on their account, not on how they signed in:
-  - **Super admin** (`isPlatformAdmin`): the *Super admin* console (`/platform`). The first ones come from
+  - **Admin** (`isPlatformAdmin`): the *Admin* console (`/platform`). The first ones come from
     `PLATFORM_ADMIN_EMAILS`, applied at start-up. That setting only grants access and never demotes anyone.
   - **Organiser**: has a role (owner or organiser) in an organisation, so sees the organiser workspace (`/admin`).
-    A super admin grants it in **Super admin → People**: find or add the person by email, then "Make organiser of"
+    An admin grants it in **Admin → People**: find or add the person by email, then "Make organiser of"
     an organisation, or create a new one with them as owner. Owners can also add organisers from their Team page.
   - **Guest**: anyone else, who sees *My reviews*.
 - Self-service organiser sign-up exists but is off (`ORG_SIGNUP_ENABLED=false`). When on, new organisations start as

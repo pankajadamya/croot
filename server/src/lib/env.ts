@@ -28,7 +28,7 @@ const envSchema = z.object({
   /** Keys HMACs for sign-in codes and signs the short-lived OAuth state cookie. 32+ random characters; required in production. */
   AUTH_SECRET: z.string().min(32).optional(),
   /**
-   * Comma-separated emails that are made super admins (platform admins) at start-up. Adds only:
+   * Comma-separated emails that are made admins (platform admins) at start-up. Adds only:
    * removing an address here never demotes anyone (do that in the platform console).
    */
   PLATFORM_ADMIN_EMAILS: z.string().optional().default(''),

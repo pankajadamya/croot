@@ -31,7 +31,7 @@ const PEOPLE_KEY = ['platform', 'people']
 
 /**
  * Everyone signs in the same way. What they see afterwards comes from their account:
- * super admin → this console; member of an organisation → the organiser workspace; otherwise a guest.
+ * admin → this console; member of an organisation → the organiser workspace; otherwise a guest.
  */
 export function People() {
   const qc = useQueryClient()
@@ -49,7 +49,7 @@ export function People() {
       <h2 id="pf-people">People</h2>
       <p className="muted small" style={{ maxWidth: '70ch' }}>
         Everyone signs in the same way: email code, Google or password. Give someone a role in an organisation to make them an <strong>organiser</strong>,
-        and they’ll see the organiser workspace next time they load the app. A <strong>super admin</strong> can do everything here. Anyone without a
+        and they’ll see the organiser workspace next time they load the app. An <strong>admin</strong> can do everything here. Anyone without a
         role is a guest and sees only their own reviews.
       </p>
       <AddPerson onDone={refresh} />
@@ -64,7 +64,7 @@ export function People() {
         <select id="people-filter" value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)} style={{ maxWidth: 200 }}>
           <option value="all">Everyone</option>
           <option value="organisers">Organisers</option>
-          <option value="admins">Super admins</option>
+          <option value="admins">Admins</option>
         </select>
       </div>
       {people.isLoading && <Loading />}
@@ -150,7 +150,7 @@ function PersonRow({ person: p, orgs, onChange }: { person: Person; orgs: Org[];
     onSuccess: done,
   })
 
-  const kind = p.isPlatformAdmin ? 'Super admin' : p.memberships.length ? 'Organiser' : 'Guest'
+  const kind = p.isPlatformAdmin ? 'Admin' : p.memberships.length ? 'Organiser' : 'Guest'
   return (
     <article className="card tight" aria-label={p.email}>
       <div className="spread">
@@ -173,11 +173,11 @@ function PersonRow({ person: p, orgs, onChange }: { person: Person; orgs: Org[];
             className="btn secondary small"
             disabled={update.isPending || (isMe && p.isPlatformAdmin)}
             onClick={() => {
-              if (!p.isPlatformAdmin && !window.confirm(`Make ${p.email} a super admin? They will be able to see and change every organisation.`)) return
+              if (!p.isPlatformAdmin && !window.confirm(`Make ${p.email} an admin? They will be able to see and change every organisation.`)) return
               update.mutate({ isPlatformAdmin: !p.isPlatformAdmin })
             }}
           >
-            {p.isPlatformAdmin ? 'Remove super admin' : 'Make super admin'}
+            {p.isPlatformAdmin ? 'Remove admin' : 'Make admin'}
           </button>
           {!isMe && (
             <button type="button" className="btn ghost small" disabled={update.isPending} onClick={() => update.mutate({ active: !p.active })}>

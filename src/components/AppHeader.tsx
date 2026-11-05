@@ -9,9 +9,9 @@ export function workspacePath(session: Session) {
 }
 
 /**
- * The one top bar for every signed-in screen (organiser workspace, super admin, My reviews), so the
+ * The one top bar for every signed-in screen (organiser workspace, admin, My reviews), so the
  * same links sit in the same places everywhere:
- *   logo → home page · [org name] · Super admin · Organiser workspace · My reviews · name · Sign out
+ *   logo → home page · [org name] · Admin · Organiser workspace · My reviews · name · Sign out
  * Links appear only when the account has that access. Organisation screens add their own row below.
  */
 export function AppHeader({ session, orgSlug, orgName }: { session: Session; orgSlug?: string; orgName?: string }) {
@@ -41,7 +41,7 @@ export function AppHeader({ session, orgSlug, orgName }: { session: Session; org
           )}
         </div>
         <nav aria-label="Account" className="admin-nav">
-          {session.user.isPlatformAdmin && <NavLink to="/platform">Super admin</NavLink>}
+          {session.user.isPlatformAdmin && <NavLink to="/platform">Admin</NavLink>}
           {/* Not `end`: stays highlighted on every page inside the workspace. */}
           {isOrganiser && <NavLink to={workspacePath(session)}>Organiser workspace</NavLink>}
           <NavLink to="/my-reviews">My reviews</NavLink>
