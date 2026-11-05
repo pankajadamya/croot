@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router'
 import { del, get, orgApi, post } from '../../../lib/api'
@@ -59,10 +59,37 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
     mutationFn: (a: AttendeeRowView) => del(`${orgApi(orgSlug)}/attendees/${a.id}`),
     onSuccess: refresh,
   })
+  // Croot emails the links itself; copying them is the fallback.
+  const [sentNote, setSentNote] = useState<string | null>(null)
+  const emailAll = useMutation({
+    mutationFn: () => post<{ sent: number; failed: string[] }>(`${base}/invites/email-all`),
+    onSuccess: (r) => {
+      setSentNote(`Emailed ${r.sent} invitation${r.sent === 1 ? '' : 's'}.${r.failed.length ? ` Couldn’t email: ${r.failed.join(', ')}.` : ''}`)
+      refresh()
+    },
+  })
+  const emailOne = useMutation({
+    mutationFn: (a: AttendeeRowView) => post(`${orgApi(orgSlug)}/attendees/${a.id}/email-invite`).then(() => a),
+    onSuccess: (a) => {
+      setSentNote(`Invitation emailed to ${a.name}.`)
+      refresh()
+    },
+  })
+  const collecting = retreat.status === 'collecting'
+  const toEmail =
+    attendees.data?.filter((a) => !(a.invitation?.emailedAt && !a.invitation.revoked) && !['submitted', 'consented', 'published', 'withdrawn'].includes(a.state)).length ?? 0
+
+  // Copied-but-not-sent links can't be shown again, so warn before leaving with them on screen.
+  useEffect(() => {
+    if (!issued.length) return
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault()
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [issued.length])
 
   const withoutLink = attendees.data?.filter((a) => !a.invitation).length ?? 0
   const allLinksText = issued.map((l) => `${l.name}\t${l.email}\t${l.url}`).join('\n')
-  const rowError = issue.error || revoke.error || remove.error
+  const rowError = issue.error || revoke.error || remove.error || emailOne.error || emailAll.error
 
   return (
     <div className="stack">
@@ -121,12 +148,37 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
           <h2 id="att-title" style={{ margin: 0 }}>
             Guests and links
           </h2>
-          <button type="button" className="btn" disabled={withoutLink === 0 || generateMissing.isPending} onClick={() => generateMissing.mutate()}>
-            {generateMissing.isPending ? 'Generating…' : `Generate links for everyone without one${withoutLink ? ` (${withoutLink})` : ''}`}
-          </button>
+          <div className="row">
+            <button
+              type="button"
+              className="btn"
+              disabled={!collecting || toEmail === 0 || emailAll.isPending}
+              onClick={() => {
+                if (window.confirm(`Email an invitation to ${toEmail} guest${toEmail === 1 ? '' : 's'}? Each gets their own private link.`)) emailAll.mutate()
+              }}
+            >
+              {emailAll.isPending ? 'Sending…' : `Email invitations${toEmail ? ` (${toEmail})` : ''}`}
+            </button>
+            <button type="button" className="btn ghost" disabled={!collecting || withoutLink === 0 || generateMissing.isPending} onClick={() => generateMissing.mutate()}>
+              {generateMissing.isPending ? 'Making links…' : 'Copy links to send yourself'}
+            </button>
+          </div>
         </div>
+        {!collecting && (
+          <p className="notice warn small" role="status">
+            {retreat.status === 'draft'
+              ? 'This programme is a draft, so invitation links won’t open yet. Use “Start collecting reviews” at the top of the page first.'
+              : 'Reviews aren’t being collected for this programme, so new invitations are paused.'}
+          </p>
+        )}
+        {sentNote && (
+          <p className="notice ok small" role="status">
+            {sentNote}
+          </p>
+        )}
         <p className="small muted">
-          Each guest gets a private link with no name or email in it. Links expire after {retreat.inviteTtlDays} days. Reissuing cancels the old link but keeps any draft.
+          Croot emails each guest their own private link (no name or email in it). Links expire after {retreat.inviteTtlDays} days. Sending again makes
+          a fresh link and cancels the old one, but keeps any draft.
         </p>
         <MutationError error={generateMissing.error} />
         <MutationError error={rowError} />
@@ -135,7 +187,7 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
         {attendees.data && attendees.data.length === 0 && <p className="muted">No guests yet. Import a list or add someone below.</p>}
         {attendees.data && attendees.data.length > 0 && (
           <div className="table-wrap">
-            <table className="data">
+            <table className="data stack-mobile">
               <thead>
                 <tr>
                   <th scope="col">Guest</th>
@@ -158,13 +210,14 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
                         {a.stayEnd ? ` to ${formatDate(a.stayEnd)}` : ''}
                       </td>
                     )}
-                    <td>
+                    <td data-label="Status">
                       <InviteStateBadge state={a.state} />
                     </td>
-                    <td className="small muted">
+                    <td className="small muted" data-label="Link">
                       {a.invitation ? (
                         <>
-                          Ends …{a.invitation.hint}
+                          {a.invitation.emailedAt ? <div>Emailed {formatDateTime(a.invitation.emailedAt)}</div> : <div>Not emailed</div>}
+                          Link ending …{a.invitation.hint}
                           <div>Issued {formatDateTime(a.invitation.issuedAt)}</div>
                           {a.invitation.openedAt && <div>Opened {formatDateTime(a.invitation.openedAt)}</div>}
                           {!a.invitation.revoked && <div>Expires {formatDate(a.invitation.expiresAt)}</div>}
@@ -173,10 +226,13 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
                         'None'
                       )}
                     </td>
-                    <td>
+                    <td data-label="Actions">
                       <div className="row" style={{ gap: '0.4rem' }}>
-                        <button type="button" className="btn secondary small" disabled={issue.isPending} onClick={() => issue.mutate(a)}>
-                          {a.invitation ? 'Reissue link' : 'Issue link'}
+                        <button type="button" className="btn secondary small" disabled={!collecting || emailOne.isPending} onClick={() => emailOne.mutate(a)}>
+                          {a.invitation?.emailedAt ? 'Email again' : 'Email invitation'}
+                        </button>
+                        <button type="button" className="btn ghost small" disabled={issue.isPending} onClick={() => issue.mutate(a)}>
+                          Copy a link
                         </button>
                         {a.invitation && !a.invitation.revoked && (
                           <button

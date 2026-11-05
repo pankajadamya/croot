@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { prisma, closeDatabase } from '../src/lib/prisma.js'
 import { redactPath } from '../src/lib/logger.js'
 import { resetHeartCaps } from '../src/lib/hearts.js'
+import { testOutbox } from '../src/lib/mailer.js'
 import { app, invite, login, makeTenant, resetDatabase } from './helpers.js'
 
 beforeEach(resetDatabase)
@@ -324,5 +325,32 @@ describe('logging', () => {
   it('redacts tokens from logged paths', () => {
     expect(redactPath('/api/invites/abcDEF123_-xyz/draft?x=1')).toBe('/api/invites/[redacted]/draft')
     expect(redactPath('/response/secret')).toBe('/response/[redacted]')
+  })
+})
+
+describe('emailed invitations', () => {
+  it('emails each guest their own link once, refuses while a draft, and the link works', async () => {
+    testOutbox.length = 0
+    const { org, user, retreat } = await makeTenant('alpha')
+    const { agent, csrf } = await login(user.email)
+    for (const [name, email] of [['Ana Guest', 'ana@example.test'], ['Ben Guest', 'ben@example.test']]) {
+      await prisma.attendee.create({ data: { organisationId: org.id, retreatId: retreat.id, name, email } })
+    }
+    // Drafts can't send: the links wouldn't open.
+    await prisma.retreat.update({ where: { id: retreat.id }, data: { status: 'draft' } })
+    expect((await agent.post(`/api/admin/orgs/alpha/retreats/${retreat.id}/invites/email-all`).set('X-CSRF-Token', csrf).send({})).status).toBe(409)
+    await prisma.retreat.update({ where: { id: retreat.id }, data: { status: 'collecting' } })
+
+    const sent = await agent.post(`/api/admin/orgs/alpha/retreats/${retreat.id}/invites/email-all`).set('X-CSRF-Token', csrf).send({})
+    expect(sent.body).toEqual({ sent: 2, failed: [] })
+    const mail = testOutbox.find((m) => m.to === 'ana@example.test')!
+    expect(mail).toMatchObject({ category: 'invitation', subject: expect.stringContaining(retreat.title) })
+    const token = mail.text.match(/\/invite\/([\w-]+)/)![1]
+    expect((await request(app).get(`/api/invites/${token}`)).status).toBe(200)
+
+    // Already emailed: nobody is emailed twice by "Email invitations".
+    expect((await agent.post(`/api/admin/orgs/alpha/retreats/${retreat.id}/invites/email-all`).set('X-CSRF-Token', csrf).send({})).body.sent).toBe(0)
+    const list = await agent.get(`/api/admin/orgs/alpha/retreats/${retreat.id}/attendees`)
+    expect(list.body.attendees.every((a: { invitation: { emailedAt: string | null } }) => a.invitation.emailedAt)).toBe(true)
   })
 })

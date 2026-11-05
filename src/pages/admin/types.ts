@@ -88,7 +88,7 @@ export interface AttendeeRowView {
   stayStart?: string | null
   stayEnd?: string | null
   responseId: string | null
-  invitation: { hint: string; issuedAt: string; expiresAt: string; openedAt: string | null; lastUsedAt: string | null; revoked: boolean } | null
+  invitation: { hint: string; issuedAt: string; expiresAt: string; openedAt: string | null; lastUsedAt: string | null; revoked: boolean; emailedAt?: string | null } | null
 }
 
 export interface CsvPreviewRow {

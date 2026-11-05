@@ -3703,3 +3703,34 @@ a.review-date:hover {
   height: 64px;
   background: linear-gradient(135deg, var(--forest), color-mix(in srgb, var(--forest) 70%, #b47b62));
 }
+
+/* Tables that become stacked rows on phones, so actions stay visible. */
+@media (max-width: 640px) {
+  table.stack-mobile thead {
+    display: none;
+  }
+  table.stack-mobile,
+  table.stack-mobile tbody,
+  table.stack-mobile tr,
+  table.stack-mobile td {
+    display: block;
+    width: 100%;
+  }
+  table.stack-mobile tr {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  table.stack-mobile td {
+    border: 0;
+    padding: 0.25rem 0;
+  }
+  table.stack-mobile td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+}

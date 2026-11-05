@@ -5,6 +5,8 @@ import { parseAttendeeCsv } from '../../lib/csv.js'
 import { env } from '../../lib/env.js'
 import { HttpError, parseBody, route, text, uuidParam } from '../../lib/http.js'
 import { issueInvitation } from '../../lib/invites.js'
+import { invitationEmail, sendMail } from '../../lib/mailer.js'
+import { firstName } from '../../../../shared/slug.js'
 import { prisma } from '../../lib/prisma.js'
 import { tenantAttendee, tenantRetreat } from '../../lib/tenant.js'
 import { tenantOf } from '../../middleware/auth.js'
@@ -54,7 +56,9 @@ attendeesRouter.get(
           stayEnd: a.stayEnd,
           state,
           responseId: r && r.status !== 'draft' ? r.id : null,
-          invitation: inv ? { hint: inv.tokenHint, issuedAt: inv.issuedAt, expiresAt: inv.expiresAt, openedAt: inv.openedAt, lastUsedAt: inv.lastUsedAt, revoked: Boolean(inv.revokedAt) } : null,
+          invitation: inv
+            ? { hint: inv.tokenHint, issuedAt: inv.issuedAt, expiresAt: inv.expiresAt, openedAt: inv.openedAt, lastUsedAt: inv.lastUsedAt, revoked: Boolean(inv.revokedAt), emailedAt: inv.emailedAt }
+            : null,
         }
       }),
     })
@@ -142,6 +146,71 @@ attendeesRouter.post(
     const { token } = await prisma.$transaction((tx) => issueInvitation(tx, { organisationId: t.org.id, attendeeId: attendee.id, ttlDays: attendee.retreat.inviteTtlDays }))
     await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'invitation.issued', entityType: 'attendee', entityId: attendee.id })
     res.json({ url: `${await siteOrigin(t.org.id)}/invite/${token}` })
+  }),
+)
+
+// ---------------------------------------------------------------------------------------------
+// Email invitations from Croot. Each send issues a fresh link (only its hash is stored, so the old one
+// can't be re-sent), which cancels any earlier link but keeps the guest's draft.
+
+type RetreatForMail = { id: string; title: string; kind: 'itinerary' | 'property'; status: string; organiserName: string; inviteTtlDays: number }
+
+async function emailInvite(orgId: string, orgName: string, retreat: RetreatForMail, attendee: { id: string; name: string; email: string }) {
+  if (retreat.status !== 'collecting') throw new HttpError(409, 'Start collecting reviews first, so the links work.')
+  const { token, invitation } = await prisma.$transaction((tx) => issueInvitation(tx, { organisationId: orgId, attendeeId: attendee.id, ttlDays: retreat.inviteTtlDays }))
+  await sendMail(
+    invitationEmail({
+      to: attendee.email,
+      firstName: firstName(attendee.name),
+      retreatTitle: retreat.title,
+      from: retreat.organiserName || orgName,
+      url: `${await siteOrigin(orgId)}/invite/${token}`,
+      expiresAt: invitation.expiresAt,
+      kind: retreat.kind,
+    }),
+  )
+  await prisma.invitation.update({ where: { id: invitation.id }, data: { emailedAt: new Date() } })
+}
+
+attendeesRouter.post(
+  '/attendees/:attendeeId/email-invite',
+  route(async (req, res) => {
+    const t = tenantOf(req)
+    const attendee = await tenantAttendee(t.org.id, uuidParam(req, 'attendeeId'))
+    await emailInvite(t.org.id, t.org.name, attendee.retreat, attendee)
+    await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'invitation.emailed', entityType: 'attendee', entityId: attendee.id })
+    res.json({ ok: true })
+  }),
+)
+
+/** Emails everyone who hasn't been emailed a link yet and hasn't sent a review. */
+attendeesRouter.post(
+  '/retreats/:retreatId/invites/email-all',
+  route(async (req, res) => {
+    const t = tenantOf(req)
+    const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
+    if (retreat.status !== 'collecting') throw new HttpError(409, 'Start collecting reviews first, so the links work.')
+    const attendees = await prisma.attendee.findMany({
+      where: {
+        organisationId: t.org.id,
+        retreatId: retreat.id,
+        invitations: { none: { emailedAt: { not: null }, revokedAt: null } },
+        OR: [{ response: null }, { response: { submittedAt: null } }],
+      },
+      orderBy: { name: 'asc' },
+    })
+    let sent = 0
+    const failed: string[] = []
+    for (const a of attendees) {
+      try {
+        await emailInvite(t.org.id, t.org.name, retreat, a)
+        sent++
+      } catch {
+        failed.push(a.email)
+      }
+    }
+    await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'invitation.bulk_emailed', entityType: 'retreat', entityId: retreat.id, metadata: { sent, failed: failed.length } })
+    res.json({ sent, failed })
   }),
 )
 

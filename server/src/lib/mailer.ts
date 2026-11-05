@@ -7,7 +7,7 @@ export interface Mail {
   text: string
   html: string
   /** Becomes an SES message tag, so delivery events can be broken down by kind of mail. */
-  category: 'login_code' | 'organiser' | 'interest'
+  category: 'login_code' | 'organiser' | 'interest' | 'invitation'
 }
 
 let ses: SESv2Client | undefined
@@ -66,6 +66,37 @@ export async function sendMail(mail: Mail): Promise<void> {
 }
 
 const escape = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
+
+/** A guest's invitation to review, with their private link. */
+export function invitationEmail(opts: {
+  to: string
+  firstName: string
+  retreatTitle: string
+  from: string
+  url: string
+  expiresAt: Date
+  kind: 'itinerary' | 'property'
+}): Mail {
+  const visit = opts.kind === 'property' ? 'stay' : 'retreat'
+  const until = opts.expiresAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+  const text = [
+    `Hello ${opts.firstName},`,
+    '',
+    `Thank you for joining ${opts.retreatTitle}. ${opts.from} would love to hear how your ${visit} was.`,
+    '',
+    `Share your thoughts here (it’s your own private link, so please don’t forward it): ${opts.url}`,
+    '',
+    'Every question is optional, your answers save as you go, and nothing is published unless you choose to share it.',
+    `The link works until ${until}.`,
+  ].join('\n')
+  const html = `<div style="font-family:system-ui,sans-serif;color:#183D3B;max-width:540px;line-height:1.55">
+<p>Hello ${escape(opts.firstName)},</p>
+<p>Thank you for joining <strong>${escape(opts.retreatTitle)}</strong>. ${escape(opts.from)} would love to hear how your ${visit} was.</p>
+<p><a href="${opts.url}" style="display:inline-block;background:#183D3B;color:#F8F5EF;padding:12px 22px;border-radius:999px;text-decoration:none;font-weight:600">Share how it went</a></p>
+<p style="color:#4A5F5A;font-size:14px">Every question is optional, your answers save as you go, and nothing is published unless you choose to share it. This is your own private link, so please don’t forward it. It works until ${escape(until)}.</p>
+</div>`
+  return { to: opts.to, subject: `How was ${opts.retreatTitle}?`, text, html, category: 'invitation' }
+}
 
 export function loginCodeEmail(to: string, code: string, purpose: 'signin' | 'signup', minutes: number): Mail {
   const action = purpose === 'signup' ? 'finish creating your Croot account' : 'sign in to Croot'
