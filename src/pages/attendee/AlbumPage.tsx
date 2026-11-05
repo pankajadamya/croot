@@ -85,7 +85,7 @@ function AlbumView({ base, backTo, backLabel }: { base: string; backTo: string; 
           ← {backLabel}
         </Link>
         <Link to="/" className="brand" aria-label="Croot home page">
-          <img className="brand-logo" src="/croot-logo.svg" alt="Croot" />
+          <img className="brand-logo" src="/croot-logo-light.svg" alt="Croot" />
         </Link>
       </header>
 
