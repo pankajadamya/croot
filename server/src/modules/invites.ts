@@ -159,6 +159,7 @@ async function draftView(r: Review, req: Request) {
       opening: await publishedContent(r.retreat.id).then((c) => c && { headline: c.headline, introParagraphs: c.introParagraphs }),
       // Itinerary retreats: the thank-you photo album, teased before sending and unlocked after.
       album: await albumSummary(r.retreat, r.response, req.baseUrl),
+      albumSharingAvailable: r.retreat.kind === 'itinerary' && r.retreat.rewardAlbumEnabled,
     },
     // Property stays: the guest's own dates, prefilled by the organiser when known, editable by the guest.
     stay: r.retreat.kind === 'property' ? { start: r.attendee.stayStart, end: r.attendee.stayEnd } : null,
@@ -309,9 +310,13 @@ reviewRoutes.post(
         width: image.width,
         height: image.height,
         displayOrder: count,
+        publishConsent: true,
       },
     })
-    res.status(201).json({ id: asset.id, altText: '', caption: '', publishConsent: false, width: asset.width, height: asset.height })
+    const shared = r.retreat.kind === 'itinerary' && r.retreat.rewardAlbumEnabled
+      ? await setAlbumSharing(response, asset.id, true)
+      : asset
+    res.status(201).json({ id: shared.id, altText: '', caption: '', publishConsent: shared.publishConsent, albumConsent: shared.albumConsent, width: shared.width, height: shared.height })
   }),
 )
 

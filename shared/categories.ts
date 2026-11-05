@@ -79,7 +79,8 @@ export function storyPromptsFor(kind: ReviewKind): string[] {
 // v2: group-album photo sharing now reaches anyone with the album's share link, not only fellow reviewers.
 // v3: publishing the story includes its title and the guest's overall star rating.
 // v6: album photos appear once the organiser approves them; the album is linked from the public retreat page.
-export const CONSENT_WORDING_VERSION = '2026-11-v6'
+// v7: adding a photo on the review form explicitly shares it with the story and available retreat album.
+export const CONSENT_WORDING_VERSION = '2026-11-v7'
 
 export const CONSENT_WORDING = {
   publicText: 'You may publish my written story, with its title and my overall star rating, on the retreat review site.',

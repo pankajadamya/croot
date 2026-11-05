@@ -53,6 +53,7 @@ interface InviteView {
     slideshow: Array<{ url: string; alt: string; caption: string }>
     opening: { headline: string; introParagraphs: string[] } | null
     album: AlbumSummary | null
+    albumSharingAvailable: boolean
   }
   stay: { start: string | null; end: string | null } | null
   response: {
@@ -146,6 +147,8 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
   const [loadError, setLoadError] = useState<string | null>(null)
   const [draft, setDraft] = useState<Draft | null>(null)
   const [photos, setPhotos] = useState<Photo[]>([])
+  const [bulkSharing, setBulkSharing] = useState(false)
+  const [bulkSharingError, setBulkSharingError] = useState<string | null>(null)
   const [step, setStep] = useState(0)
   const [selectedStoryPill, setSelectedStoryPill] = useState<string | null>(null)
   // The furthest step reached, so the step bar can jump back to any of them.
@@ -442,6 +445,28 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
   const isProperty = view.retreat.kind === 'property'
   const visit = isProperty ? 'stay' : 'retreat'
   const dates = formatRange(view.retreat.startDate, view.retreat.endDate)
+  const storyAvailable = Boolean(draft.storyText.trim())
+  const allPublicSharing = storyAvailable && c.publicText && c.firstName && c.marketing && photos.every((photo) =>
+    photo.publishConsent && (!view.retreat.albumSharingAvailable || photo.albumConsent),
+  )
+
+  async function setAllPublicSharing(allow: boolean) {
+    if (bulkSharing || (allow && !storyAvailable)) return
+    setBulkSharing(true)
+    setBulkSharingError(null)
+    update({ consents: { ...c, publicText: allow, firstName: allow, marketing: allow } })
+    try {
+      for (const photo of photos) {
+        const changes = { publishConsent: allow, ...(view.retreat.albumSharingAvailable ? { albumConsent: allow } : {}) }
+        const saved = await patch<Photo>(`${base}/photos/${photo.id}`, changes)
+        setPhotos((current) => current.map((item) => item.id === photo.id ? { ...item, ...saved } : item))
+      }
+    } catch (error) {
+      setBulkSharingError(`Some photo choices could not be saved. Please check each photo and try again. ${(error as Error).message}`)
+    } finally {
+      setBulkSharing(false)
+    }
+  }
   const saveLabel: Record<SaveState, ReactNode> = {
     idle: dirty.current ? 'Unsaved changes' : savedAt ? `Saved ${savedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '',
     saving: 'Saving…',
@@ -525,11 +550,6 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                 </button>
               ))}
             </nav>
-          )}
-          {step > 0 && (
-            <p className="small muted" style={{ marginTop: 0 }}>
-              Step {step} of {STEPS.length - 1}: {STEPS[step]}
-            </p>
           )}
           {view.response?.status === 'changes_requested' && view.response.organiserMessage && (
             <div className="notice warn" style={{ marginBottom: '1.5rem' }}>
@@ -730,51 +750,86 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
           )}
 
           {step === 4 && (
-            <section aria-labelledby="step-heading">
+            <section className="permissions-step" aria-labelledby="step-heading">
               <h1 id="step-heading" ref={headingRef} tabIndex={-1}>
-                Photos and permissions
+                Photos &amp; permissions
               </h1>
-              <p className="muted">
-                Everything starts switched off. Each choice is separate, declining any of them never affects your private feedback, and you can withdraw
-                any of them later from your private response page.{' '}
+              <p className="permissions-intro muted">
+                Choose where your story and photos can appear. You can change your choices later.{' '}
                 <a href={view.retreat.privacyNoticePath} target="_blank" rel="noopener noreferrer">
                   How your information is used
                 </a>
               </p>
-              <h2 style={{ fontSize: '1.3rem', marginTop: '1.5rem' }}>Your words</h2>
-              <Switch
-                checked={c.publicText}
-                disabled={!draft.storyText.trim()}
-                onChange={(v) => update({ consents: { ...c, publicText: v, firstName: v ? c.firstName : false } })}
-                label="Publish my story on the retreat review site"
-                description={draft.storyText.trim() ? CONSENT_WORDING.publicText : 'You haven’t written a story, so there’s nothing to publish.'}
-              />
-              <Switch
-                checked={c.firstName}
-                disabled={!c.publicText}
-                onChange={(v) => update({ consents: { ...c, firstName: v } })}
-                label={`Show my first name (“${view.firstName}”) with it`}
-                description={CONSENT_WORDING.firstName}
-              />
-              <Switch
-                checked={c.marketing}
-                onChange={(v) => update({ consents: { ...c, marketing: v } })}
-                label="Allow reuse in social media or advertising"
-                description="Separate from the website. Off unless you choose it."
-              />
-              <h2 style={{ fontSize: '1.3rem', marginTop: '2rem' }}>Photos (optional)</h2>
-              <p className="small muted">
-                If others appear in a photo, please only share it if they’re happy for it to be seen. The organiser checks every photo before it
-                appears anywhere, and location and camera details are removed. Up to 8 photos, each up to {MAX_UPLOAD_MB} MB.
-              </p>
-              <PhotoManager
-                base={base}
-                photos={photos}
-                setPhotos={setPhotos}
-                albumAvailable={Boolean(view.retreat.album)}
-                storyShared={c.publicText && Boolean(draft.storyText.trim())}
-              />
-              <Actions step={step} goTo={goTo} saveLabel={saveLabel[saveState]} nextLabel="Review" />
+              <div className="permissions-all">
+                <Switch
+                  checked={allPublicSharing}
+                  disabled={bulkSharing || !storyAvailable}
+                  onChange={(allow) => void setAllPublicSharing(allow)}
+                  label="Allow all public sharing"
+                  description={storyAvailable
+                    ? `Story, first name and social media${photos.length ? `, plus ${photos.length} photo${photos.length === 1 ? '' : 's'}` : ''}.`
+                    : 'Write a story first. Individual choices are below.'}
+                />
+              </div>
+              {bulkSharing && <p className="small muted" role="status">Saving your sharing choices…</p>}
+              {bulkSharingError && <div className="notice error" role="alert">{bulkSharingError}</div>}
+              <div className="permissions-card permissions-words">
+                <h2>Your story</h2>
+                <div className="permissions-choice">
+                  <Switch
+                    checked={c.publicText}
+                    disabled={!storyAvailable || bulkSharing}
+                    onChange={(v) => update({ consents: { ...c, publicText: v, firstName: v ? c.firstName : false } })}
+                    label="Publish my story on the retreat review site"
+                    description={storyAvailable ? 'Includes its title and overall rating, after organiser approval.' : 'No story written yet.'}
+                  />
+                  {!storyAvailable && <button type="button" className="link-button permissions-edit" onClick={() => void goTo(1)}>Edit story</button>}
+                </div>
+                <div className="permissions-choice">
+                  <Switch
+                    checked={c.firstName}
+                    disabled={!c.publicText || bulkSharing}
+                    onChange={(v) => update({ consents: { ...c, firstName: v } })}
+                    label={`Show my first name (“${view.firstName}”) with it`}
+                    description={c.publicText ? undefined : 'Available when you share your story.'}
+                  />
+                </div>
+                <div className="permissions-choice">
+                  <Switch
+                    checked={c.marketing}
+                    disabled={bulkSharing}
+                    onChange={(v) => update({ consents: { ...c, marketing: v } })}
+                    label="Allow reuse in social media or advertising"
+                    description="A separate choice from the review site."
+                  />
+                </div>
+                <details className="permissions-details">
+                  <summary>Read story sharing details</summary>
+                  <p>{CONSENT_WORDING.publicText}</p>
+                  <p>{CONSENT_WORDING.firstName}</p>
+                  <p>{CONSENT_WORDING.marketing}</p>
+                  <p>Your private feedback is unaffected by these choices.</p>
+                </details>
+              </div>
+              <div className="permissions-card permissions-photos">
+                <h2>Your photos <span className="permissions-count">· {photos.length} of 8</span></h2>
+                <p className="permissions-upload-consent">
+                  By adding photos here, you agree they may appear with your story{view.retreat.albumSharingAvailable ? ' and in the public retreat album' : ''} after organiser approval. {view.retreat.albumSharingAvailable && 'The organiser can remove a photo from the album without removing it from your story. '}You can withdraw permission later.
+                </p>
+                <details className="permissions-details">
+                  <summary>Read photo sharing details</summary>
+                  <p>{CONSENT_WORDING.photo}</p>
+                  {view.retreat.albumSharingAvailable && <p>{CONSENT_WORDING.albumPhoto}</p>}
+                  <p>If others appear, share only with their agreement. Camera and location details are removed. You can withdraw permission later.</p>
+                </details>
+                <PhotoManager
+                  base={base}
+                  photos={photos}
+                  setPhotos={setPhotos}
+                  albumAvailable={view.retreat.albumSharingAvailable}
+                />
+              </div>
+              <Actions step={step} goTo={goTo} saveLabel={saveLabel[saveState]} nextLabel="Review" nextDisabled={bulkSharing} />
             </section>
           )}
 
@@ -812,8 +867,8 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                 <li>{c.marketing ? 'May be reused in social media or advertising' : 'Not reused in social media or advertising'}</li>
                 {photos.length > 0 && (
                   <li>
-                    {photos.filter((ph) => ph.publishConsent).length} of {photos.length} photo{photos.length === 1 ? '' : 's'} may be published with your story
-                    {view.retreat.album ? `; ${photos.filter((ph) => ph.albumConsent).length} shared in the photo album once approved` : ''}
+                    {photos.filter((ph) => ph.publishConsent).length} of {photos.length} photo{photos.length === 1 ? '' : 's'} may appear with your story if you publish it and the organiser approves it
+                    {view.retreat.albumSharingAvailable ? `; ${photos.filter((ph) => ph.albumConsent).length} may appear in the retreat album once approved` : ''}
                   </li>
                 )}
               </ul>
@@ -866,7 +921,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
   )
 }
 
-function Actions({ step, goTo, saveLabel, nextLabel = 'Continue' }: { step: number; goTo: (n: number) => void; saveLabel: ReactNode; nextLabel?: string }) {
+function Actions({ step, goTo, saveLabel, nextLabel = 'Continue', nextDisabled = false }: { step: number; goTo: (n: number) => void; saveLabel: ReactNode; nextLabel?: string; nextDisabled?: boolean }) {
   return (
     <div className="flow-actions">
       <button className="btn secondary" onClick={() => goTo(step - 1)}>
@@ -875,7 +930,7 @@ function Actions({ step, goTo, saveLabel, nextLabel = 'Continue' }: { step: numb
       <span className="save-state" aria-live="polite">
         {saveLabel}
       </span>
-      <button className="btn" onClick={() => goTo(step + 1)}>
+      <button className="btn" onClick={() => goTo(step + 1)} disabled={nextDisabled}>
         {nextLabel}
       </button>
     </div>
@@ -887,17 +942,34 @@ function PhotoManager({
   photos,
   setPhotos,
   albumAvailable,
-  storyShared,
 }: {
   base: string
   photos: Photo[]
   setPhotos: (p: Photo[]) => void
   albumAvailable: boolean
-  storyShared: boolean
 }) {
   const confirm = useConfirm()
   const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [sharingExisting, setSharingExisting] = useState(false)
+  const hasPrivatePhotos = photos.some((photo) => !photo.publishConsent || (albumAvailable && !photo.albumConsent))
+
+  async function sharePreviouslyAdded() {
+    setSharingExisting(true)
+    setError(null)
+    let next = photos
+    for (const photo of photos) {
+      if (photo.publishConsent && (!albumAvailable || photo.albumConsent)) continue
+      try {
+        const saved = await patch<Photo>(`${base}/photos/${photo.id}`, { publishConsent: true, ...(albumAvailable ? { albumConsent: true } : {}) })
+        next = next.map((item) => item.id === photo.id ? { ...item, ...saved } : item)
+        setPhotos(next)
+      } catch (e) {
+        setError(`Some previously added photos are still private: ${(e as Error).message}`)
+      }
+    }
+    setSharingExisting(false)
+  }
 
   async function onFiles(files: File[]) {
     if (!files.length) return
@@ -942,43 +1014,39 @@ function PhotoManager({
   }
 
   return (
-    <div className="stack">
+    <div className="guest-photo-manager">
       {error && <div className="notice error" role="alert">{error}</div>}
       <UploadZone
         id="photo-input"
         title={photos.length ? 'Add more photos' : 'Choose photos to upload'}
-        hint={`From your phone’s gallery or your computer, in full quality. JPG, PNG or HEIC · up to 8 photos${photos.length ? ` (${photos.length} added)` : ''}`}
+        hint={`JPG, PNG or HEIC · up to ${MAX_UPLOAD_MB} MB each · ${8 - photos.length} remaining`}
         accept={IMAGE_ACCEPT}
         busy={Boolean(uploading)}
         busyLabel={uploading ? `Uploading ${uploading.done + 1} of ${uploading.total}… please keep this page open` : undefined}
         disabled={photos.length >= 8}
         onFiles={(files) => void onFiles(files)}
       />
+      {hasPrivatePhotos && (
+        <div className="notice small guest-photo-legacy">
+          Some photos remain private. You can share them with your story{albumAvailable ? ' and the album' : ''} in one click.{' '}
+          <button type="button" className="btn secondary small" disabled={sharingExisting} onClick={() => void sharePreviouslyAdded()}>
+            {sharingExisting ? 'Sharing…' : 'Share previously added photos'}
+          </button>
+        </div>
+      )}
       {photos.length > 0 && (
-        <div className="photo-grid">
+        <div className="guest-photo-list" aria-label="Your uploaded photos">
           {photos.map((p, i) => (
-            <div key={p.id} className="card tight">
-              <img src={`${base}/photos/${p.id}/image`} alt={p.altText || `Your photo ${i + 1}`} />
-              <Field id={`alt-${p.id}`} label="Describe the photo (for screen readers)">
-                <input id={`alt-${p.id}`} type="text" defaultValue={p.altText} maxLength={300} onBlur={(e) => e.target.value !== p.altText && void change(p, { altText: e.target.value })} />
-              </Field>
-              <Switch
-                checked={p.publishConsent && storyShared}
-                disabled={!storyShared}
-                onChange={(v) => void change(p, { publishConsent: v })}
-                label="May be published with my story"
-                description={storyShared ? CONSENT_WORDING.photo : 'Only possible if you share your story above.'}
-              />
-              {albumAvailable && (
-                <Switch
-                  checked={Boolean(p.albumConsent)}
-                  onChange={(v) => void change(p, { albumConsent: v })}
-                  label="Also share in the retreat photo album"
-                  description={CONSENT_WORDING.albumPhoto}
-                />
-              )}
-              <button className="btn ghost small" onClick={() => void remove(p)}>
-                Remove photo
+            <div key={p.id} className="guest-photo-row">
+              <img className="guest-photo-thumb" src={`${base}/photos/${p.id}/image`} alt={p.altText || `Your photo ${i + 1}`} />
+              <div className="guest-photo-description">
+                <Field id={`alt-${p.id}`} label={`Photo ${i + 1} description (for screen readers)`}>
+                  <input id={`alt-${p.id}`} type="text" defaultValue={p.altText} maxLength={300} placeholder="What is in this photo?" onBlur={(e) => e.target.value !== p.altText && void change(p, { altText: e.target.value })} />
+                </Field>
+              </div>
+              <span className="guest-photo-share-state small muted">{p.publishConsent && (!albumAvailable || p.albumConsent) ? 'Sharing allowed' : 'Private'}</span>
+              <button type="button" className="link-button guest-photo-remove" onClick={() => void remove(p)}>
+                Remove
               </button>
             </div>
           ))}
