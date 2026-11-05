@@ -3818,3 +3818,43 @@ a.review-date:hover {
     padding-right: 2rem;
   }
 }
+
+/* In-app confirmation (replaces the browser's own confirm box). */
+.confirm-dialog {
+  width: min(480px, calc(100vw - 2rem));
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+}
+.confirm-dialog::backdrop {
+  background: rgba(10, 26, 25, 0.55);
+  backdrop-filter: blur(3px);
+}
+.confirm-dialog-body {
+  padding: clamp(1.4rem, 4vw, 2rem);
+}
+.confirm-dialog-body h2 {
+  margin: 0 0 0.5rem;
+  font-size: clamp(1.25rem, 3vw, 1.5rem);
+}
+.confirm-dialog-message {
+  color: var(--muted);
+}
+.confirm-dialog-message p {
+  margin: 0 0 0.5rem;
+}
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1.4rem;
+}
+@media (max-width: 480px) {
+  .confirm-dialog-actions > .btn {
+    flex: 1 1 auto;
+  }
+}

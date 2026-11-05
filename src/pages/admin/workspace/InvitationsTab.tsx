@@ -5,6 +5,7 @@ import { del, get, orgApi, post } from '../../../lib/api'
 import { formatDate, formatDateTime } from '../../../lib/format'
 import { Field } from '../../../components/Controls'
 import { ErrorNotice, Loading } from '../../../components/States'
+import { useConfirm } from '../../../components/ConfirmDialog'
 import { CopyButton, fieldError, InviteStateBadge, MutationError, orgKey } from '../adminUi'
 import type { AttendeeRowView, CsvPreviewRow, Retreat } from '../types'
 
@@ -54,9 +55,25 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
   // "Copy a link": makes a fresh link and puts it straight on the clipboard. The clipboard write starts
   // inside the click (as Safari requires) with the link arriving a moment later from the server.
   const [copyNote, setCopyNote] = useState<{ id: string; text: string; url?: string } | null>(null)
+  const confirm = useConfirm()
   function copyLink(a: AttendeeRowView) {
-    const live = a.invitation && !a.invitation.revoked
-    if (live && !window.confirm(`Make a new link for ${a.name}? Their current link (ending …${a.invitation!.hint}) will stop working. Their draft is kept.`)) return
+    if (!a.invitation || a.invitation.revoked) return makeAndCopy(a)
+    // The copy runs inside the dialog's own button click, so the browser still allows it.
+    void confirm({
+      title: `Make a new link for ${a.name}?`,
+      message: (
+        <>
+          <p>
+            Their current link (ending …{a.invitation.hint}) will stop working, so they’ll need the new one. Anything they’ve already written is kept.
+          </p>
+          <p>The new link is copied for you to paste into a message.</p>
+        </>
+      ),
+      confirmLabel: 'Make and copy new link',
+      onConfirm: () => makeAndCopy(a),
+    })
+  }
+  function makeAndCopy(a: AttendeeRowView) {
     setCopyNote(null)
     const link = issue.mutateAsync(a)
     const url = link.then((l) => l.url)
