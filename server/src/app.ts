@@ -19,6 +19,7 @@ import { platformRouter } from './modules/platform.js'
 import { mediaRouter, publicRouter } from './modules/public.js'
 import { sharedAlbumsRouter } from './modules/sharedAlbums.js'
 import { receiptsRouter } from './modules/receipts.js'
+import { attentionRouter } from './modules/attention.js'
 
 export function createApp() {
   const app = express()
@@ -76,6 +77,7 @@ export function createApp() {
   api.use('/responses', receiptsRouter)
   api.use('/auth', authRouter)
   api.use('/account', accountRouter)
+  api.use('/attention', attentionRouter)
   api.use('/organiser-invites', organiserInvitesRouter)
   api.use('/platform', platformRouter)
   api.use('/admin/orgs/:orgSlug', adminRouter)

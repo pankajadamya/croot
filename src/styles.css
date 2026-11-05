@@ -1325,6 +1325,110 @@ table.data th {
   background: var(--sage);
 }
 /* Large upload area: the whole box opens the picker (the photo gallery on phones). */
+/* Notifications bell (organiser and admin top bar). */
+.bell {
+  position: relative;
+}
+.bell-button {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+.bell-button:hover,
+.bell-button[aria-expanded='true'] {
+  background: color-mix(in srgb, var(--ink) 6%, var(--surface));
+}
+.bell-button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.bell-count {
+  position: absolute;
+  top: -0.3rem;
+  right: -0.35rem;
+  min-width: 1.2rem;
+  height: 1.2rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.2rem;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.bell-count.urgent {
+  background: #b42318;
+}
+.bell-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.5rem);
+  z-index: 50;
+  width: min(24rem, calc(100vw - 2rem));
+  max-height: min(32rem, 70vh);
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.14);
+  text-align: left;
+}
+.bell-panel-head {
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.bell-empty {
+  padding: 1rem;
+  margin: 0;
+}
+.bell-scope {
+  margin: 0;
+  padding: 0.6rem 1rem 0.2rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted, #5b6b66);
+}
+.bell-group ul {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0.4rem;
+}
+.bell-item {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.65rem 1rem;
+  color: inherit;
+  text-decoration: none;
+  border-left: 3px solid transparent;
+}
+.bell-item:hover,
+.bell-item:focus-visible {
+  background: color-mix(in srgb, var(--ink) 5%, var(--surface));
+  outline: none;
+}
+.bell-item.urgent {
+  border-left-color: #b42318;
+}
+.bell-item-title {
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+.bell-item-detail {
+  font-size: 0.82rem;
+  color: var(--muted, #5b6b66);
+}
+
 /* An explicit question with two equal answers and nothing pre-selected. */
 .choice-question {
   border: 1px solid var(--border);

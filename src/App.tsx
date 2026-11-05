@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { Route, Routes } from 'react-router'
 import { Home } from './pages/public/Home'
 import { NotFound } from './components/States'
+import { ScrollToHash } from './components/ScrollToHash'
 
 // Code-split by audience: guests never download the organiser workspace.
 const OrgHome = lazy(() => import('./pages/public/OrgHome'))
@@ -37,6 +38,7 @@ const PlatformConsole = lazy(() => import('./pages/platform/PlatformConsole'))
 export function App() {
   return (
     <Suspense fallback={<div className="container muted" style={{ padding: '3rem 0' }}>Loading…</div>}>
+      <ScrollToHash />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/o/:orgSlug" element={<OrgHome />} />

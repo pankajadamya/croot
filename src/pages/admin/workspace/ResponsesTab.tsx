@@ -11,7 +11,7 @@ type Filters = { status: string; publication: string; queue: 'all' | 'ready' | '
 
 export function ResponsesTab({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat }) {
   const [urlParams] = useSearchParams()
-  const [filters, setFilters] = useState<Filters>({ status: 'all', publication: 'all', queue: urlParams.get('queue') === 'requests' ? 'requests' : 'all', q: '' })
+  const [filters, setFilters] = useState<Filters>({ status: 'all', publication: 'all', queue: urlParams.get('queue') === 'requests' ? 'requests' : urlParams.get('queue') === 'ready' ? 'ready' : 'all', q: '' })
   const [search, setSearch] = useState('')
   // Search as you type, like the other filters (no button needed).
   useEffect(() => {

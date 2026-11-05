@@ -180,6 +180,8 @@ model Membership {
   userId         String       @db.Uuid
   organisationId String       @db.Uuid
   role           MemberRole   @default(organiser)
+  /// How many anonymous notes this person has seen per programme ({ retreatId: count }), so the bell can say "new".
+  seenNoteCounts Json         @default("{}")
   createdAt      DateTime     @default(now())
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)

@@ -275,6 +275,13 @@ responsesRouter.get(
     res.set('Cache-Control', 'no-store')
     // Held back until a few have arrived, so a new note can't be matched to the review sent just before it.
     const held = notes.length < MIN_ANONYMOUS_NOTES
+    if (!held) {
+      const m = await prisma.membership.findUnique({ where: { userId_organisationId: { userId: t.userId, organisationId: t.org.id } }, select: { id: true, seenNoteCounts: true } })
+      if (m) {
+        const seen = { ...((m.seenNoteCounts ?? {}) as Record<string, number>), [retreat.id]: notes.length }
+        await prisma.membership.update({ where: { id: m.id }, data: { seenNoteCounts: seen } })
+      }
+    }
     res.json({ notes: held ? [] : notes, held: held ? notes.length : 0, minimum: MIN_ANONYMOUS_NOTES })
   }),
 )
