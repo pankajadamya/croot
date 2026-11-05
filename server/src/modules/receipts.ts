@@ -4,7 +4,7 @@ import { CONSENT_WORDING_VERSION } from '../../../shared/categories.js'
 import { audit } from '../lib/audit.js'
 import { HttpError, parseBody, route, text, uuidParam } from '../lib/http.js'
 import multer from 'multer'
-import { addContribution, albumListing, albumPagePath, albumSummary, sendAlbumPhoto, setAlbumSharing } from '../lib/album.js'
+import { addContribution, albumListing, albumSummary, sendAlbumPhoto, setAlbumSharing } from '../lib/album.js'
 import { env } from '../lib/env.js'
 import { eraseAttendee, exportGuestData } from '../lib/gdpr.js'
 import { prisma } from '../lib/prisma.js'
@@ -42,6 +42,7 @@ async function resolveReceipt(token: unknown) {
           rewardAlbumUrl: true,
           rewardAlbumNote: true,
           rewardAlbumCoverId: true,
+          albumShareToken: true,
           status: true,
           organisation: { select: { name: true, slug: true, privacyEmail: true } },
         },
@@ -120,7 +121,8 @@ receiptsRouter.get(
     res.set('Cache-Control', 'no-store')
     res.json(
       await albumListing(response.retreat, response, `${req.baseUrl}/${req.params.token}`, {
-        pagePath: albumPagePath(response.retreat.organisation.slug, response.retreat.slug),
+        orgName: response.retreat.organisation.name,
+        retreatPath: `/o/${response.retreat.organisation.slug}/r/${response.retreat.slug}`,
       }),
     )
   }),

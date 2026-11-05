@@ -17,6 +17,7 @@ import { authRouter } from './modules/auth.js'
 import { invitesRouter, myReviewsRouter } from './modules/invites.js'
 import { platformRouter } from './modules/platform.js'
 import { mediaRouter, publicRouter } from './modules/public.js'
+import { sharedAlbumsRouter } from './modules/sharedAlbums.js'
 import { receiptsRouter } from './modules/receipts.js'
 
 export function createApp() {
@@ -64,6 +65,8 @@ export function createApp() {
   api.use(express.json({ limit: '600kb' }))
   // Anonymous notes are mounted before cookies/sessions are parsed, so that path never reads one.
   api.use('/public', publicRouter)
+  // The photo album's unguessable link: anyone with it can view, no sign-in, so it never reads a session.
+  api.use('/albums', sharedAlbumsRouter)
   api.use(cookieParser(), loadSession)
   // Guests: by unique link, or signed in. Editing a sent review needs a verified sign-in (see invites.ts).
   api.use('/invites', invitesRouter)
@@ -85,7 +88,7 @@ export function createApp() {
   if (existsSync(dist)) {
     app.use(express.static(dist, { index: false, maxAge: '1h' }))
     app.get(/^(?!\/api\/|\/media\/|\/health\/).*/, (req: Request, res: Response) => {
-      if (/^\/(invite|response|admin|platform|interest)/.test(req.path)) {
+      if (/^\/(invite|response|admin|platform|interest|album)/.test(req.path)) {
         res.set('X-Robots-Tag', 'noindex, nofollow')
       }
       res.set('Cache-Control', 'no-cache')

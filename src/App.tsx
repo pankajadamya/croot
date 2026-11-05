@@ -16,7 +16,7 @@ const InviteAlbumPage = lazy(() => import('./pages/attendee/AlbumPage'))
 const ReceiptAlbumPage = lazy(() => import('./pages/attendee/AlbumPage').then((m) => ({ default: m.ReceiptAlbumPage })))
 const SignedInAlbumPage = lazy(() => import('./pages/attendee/AlbumPage').then((m) => ({ default: m.SignedInAlbumPage })))
 const InterestLink = lazy(() => import('./pages/public/InterestLink'))
-const PublicAlbumPage = lazy(() => import('./pages/attendee/AlbumPage').then((m) => ({ default: m.PublicAlbumPage })))
+const SharedAlbumPage = lazy(() => import('./pages/attendee/AlbumPage').then((m) => ({ default: m.SharedAlbumPage })))
 
 const SignIn = lazy(() => import('./pages/SignIn'))
 const MyReviews = lazy(() => import('./pages/attendee/MyReviews'))
@@ -41,7 +41,7 @@ export function App() {
         <Route path="/" element={<Home />} />
         <Route path="/o/:orgSlug" element={<OrgHome />} />
         <Route path="/o/:orgSlug/r/:retreatSlug" element={<RetreatLanding />} />
-        <Route path="/o/:orgSlug/r/:retreatSlug/album" element={<PublicAlbumPage />} />
+        <Route path="/album/:token" element={<SharedAlbumPage />} />
         <Route path="/interest/:token" element={<InterestLink action="confirm" />} />
         <Route path="/interest/:token/unsubscribe" element={<InterestLink action="unsubscribe" />} />
         <Route path="/stories/:slug" element={<StoryPage />} />

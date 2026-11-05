@@ -79,7 +79,7 @@ describe('thank-you photo album (itinerary retreats)', () => {
     expect((await request(app).get(`/api/invites/${token}/album/${earlierId}`)).status).toBe(404)
   })
 
-  it('includes photos guests choose to share, only once they have sent their review', async () => {
+  it('includes photos guests choose to share once they have sent their review and the organiser approves them', async () => {
     const { agent, csrf, retreat, token: reviewerToken } = await albumSetup()
     const { org } = { org: await prisma.organisation.findFirstOrThrow() }
     const sharer = await invite(org.id, retreat.id, 'Sharer', 'sharer@example.test')
@@ -101,6 +101,12 @@ describe('thank-you photo album (itinerary retreats)', () => {
     const d2 = await request(app).put(`/api/invites/${sharer.token}/draft`).send({ revision: rev, keepText: 'y' })
     expect(d2.status).toBe(200)
     const sent = await request(app).post(`/api/invites/${sharer.token}/submit`).send({ revision: d2.body.revision })
+    // Shared and sent, but not yet approved: not in the album.
+    expect(await ids()).not.toContain(shared)
+    const manage = await agent.get(`/api/admin/orgs/alpha/retreats/${retreat.id}/album`)
+    expect(manage.body.media.find((m: { id: string }) => m.id === shared)).toMatchObject({ sharedByGuest: true, approved: false })
+    // Approving publishes it straight away (album-only sharing can be approved too).
+    expect((await agent.post(`/api/admin/orgs/alpha/media/${shared}/moderate`).set('X-CSRF-Token', csrf).send({ status: 'approved' })).status).toBe(200)
     expect(await ids()).toContain(shared)
     expect(await ids()).not.toContain(unsharedUp.body.id)
     const mine = (await request(app).get(`/api/invites/${sharer.token}/album`)).body.photos.find((p: { id: string }) => p.id === shared)
@@ -109,6 +115,8 @@ describe('thank-you photo album (itinerary retreats)', () => {
     // Contributing straight from the album page, then withdrawing from the private page.
     const added = await request(app).post(`/api/invites/${sharer.token}/album/photos`).attach('photo', await png(), 'more.png')
     expect(added.status).toBe(201)
+    expect(await ids()).not.toContain(added.body.id) // waits for approval
+    await agent.post(`/api/admin/orgs/alpha/media/${added.body.id}/moderate`).set('X-CSRF-Token', csrf).send({ status: 'approved' })
     expect(await ids()).toContain(added.body.id)
     await request(app).post(`/api/responses/${sent.body.receiptToken}/withdraw`).send({ scope: 'album_photo', photoId: added.body.id })
     expect(await ids()).not.toContain(added.body.id)
@@ -120,37 +128,42 @@ describe('thank-you photo album (itinerary retreats)', () => {
     expect((await request(app).get(`/media/${shared}`)).status).toBe(404)
   })
 
-  it('is a public page of the retreat: anyone can view it without signing in, linked from the retreat page', async () => {
+  it('is reached by an unguessable link that anyone can open, not from the public pages, and can be replaced', async () => {
     const { agent, csrf, retreat, token, photoId } = await albumSetup()
-    const pageUrl = `/o/alpha/r/${retreat.slug}/album`
-    expect((await agent.get(`/api/admin/orgs/alpha/retreats/${retreat.id}/album`)).body.pageUrl).toBe(pageUrl)
+    const pageUrl = (await agent.get(`/api/admin/orgs/alpha/retreats/${retreat.id}/album`)).body.pageUrl as string
+    expect(pageUrl).toMatch(/^\/album\/[\w-]{24,}$/)
+    const api = `/api${pageUrl.replace('/album/', '/albums/')}`
 
-    // The retreat page links to it, with its title photo.
-    const page = () => request(app).get(`/api/public/orgs/alpha/retreats/${retreat.slug}`)
-    const link = (await page()).body.album
-    expect(link).toMatchObject({ url: pageUrl, count: 1 })
-    expect((await request(app).get(link.cover)).status).toBe(200)
+    // The public retreat page doesn't mention it, and the old predictable address is gone.
+    expect((await request(app).get(`/api/public/orgs/alpha/retreats/${retreat.slug}`)).body.album).toBeUndefined()
+    expect((await request(app).get(`/api/public/orgs/alpha/retreats/${retreat.slug}/album`)).status).toBe(404)
 
-    // No cookies, no review: the album page and its photos are open; adding photos is not.
-    const album = await request(app).get(`/api/public/orgs/alpha/retreats/${retreat.slug}/album`)
+    // No cookies, no review: the link opens the album and its photos; adding photos needs a sent review.
+    const album = await request(app).get(api)
     expect(album.status).toBe(200)
-    expect(album.body).toMatchObject({ canContribute: false, pageUrl })
+    expect(album.body).toMatchObject({ canContribute: false, pageUrl, heartsApi: api, orgName: expect.any(String) })
     expect(album.body.photos.map((p: { id: string }) => p.id)).toEqual([photoId])
     expect((await request(app).get(album.body.photos[0].url)).status).toBe(200)
-    expect((await request(app).post(`/api/public/orgs/alpha/retreats/${retreat.slug}/album/photos`).attach('photo', await png(), 'x.png')).status).toBe(404)
-    // Contributing still needs a sent review.
     expect((await request(app).post(`/api/invites/${token}/album/photos`).attach('photo', await png(), 'x.png')).status).toBe(403)
+    // Guests get the same link.
+    const draft = await request(app).put(`/api/invites/${token}/draft`).send({ revision: 0, keepText: 'x' })
+    await request(app).post(`/api/invites/${token}/submit`).send({ revision: draft.body.revision })
+    expect((await request(app).get(`/api/invites/${token}/album`)).body.pageUrl).toBe(pageUrl)
 
-    // Switching the album off takes the page and the link down.
+    // A new link stops the old one.
+    const fresh = await agent.post(`/api/admin/orgs/alpha/retreats/${retreat.id}/album/share-link`).set('X-CSRF-Token', csrf).send({})
+    expect(fresh.body.pageUrl).not.toBe(pageUrl)
+    expect((await request(app).get(api)).status).toBe(404)
+    // Switching the album off closes it.
     await agent.patch(`/api/admin/orgs/alpha/retreats/${retreat.id}`).set('X-CSRF-Token', csrf).send({ rewardAlbumEnabled: false })
-    expect((await page()).body.album).toBeNull()
-    expect((await request(app).get(`/api/public/orgs/alpha/retreats/${retreat.slug}/album`)).status).toBe(404)
+    expect((await request(app).get(`/api${fresh.body.pageUrl.replace('/album/', '/albums/')}`)).status).toBe(404)
   })
 
   it('lets anyone heart a photo once, takes it back on a second tap, and caps repeat hearts from one place', async () => {
     resetHeartCaps()
-    const { retreat, photoId } = await albumSetup()
-    const base = `/api/public/orgs/alpha/retreats/${retreat.slug}/album`
+    const { agent, retreat, photoId } = await albumSetup()
+    const pageUrl = (await agent.get(`/api/admin/orgs/alpha/retreats/${retreat.id}/album`)).body.pageUrl as string
+    const base = `/api${pageUrl.replace('/album/', '/albums/')}`
     const voter = (n: number) => `visitor-${n}-abcdefghijklmnopqrstuvwxyz`
     const heart = (v: string, on: boolean) => request(app).post(`${base}/${photoId}/heart`).send({ voter: v, on })
 
@@ -203,7 +216,8 @@ describe('album videos (organisers)', () => {
     expect(up.status).toBe(201)
     expect(up.body.media).toMatchObject({ isVideo: true, durationSec: 12.5 })
 
-    const album = await request(app).get(`/api/public/orgs/alpha/retreats/${retreat.slug}/album`)
+    const link = (await agent.get(`/api/admin/orgs/alpha/retreats/${retreat.id}/album`)).body.pageUrl as string
+    const album = await request(app).get(`/api${link.replace('/album/', '/albums/')}`)
     const video = album.body.photos.find((p: { id: string }) => p.id === up.body.media.id)
     expect(video).toMatchObject({ width: 1920, height: 1080, duration: 12.5, video: expect.stringContaining('/video') })
     expect((await request(app).get(video.url)).headers['content-type']).toBe('image/webp') // its poster

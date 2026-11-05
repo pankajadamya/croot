@@ -118,7 +118,7 @@ export default function PrivacyNotice() {
               </tr>
               <tr>
                 <td>Photos you choose to share in the group photo album</td>
-                <td>To share retreat memories publicly in the retreat’s photo album, which is linked from the public retreat page</td>
+                <td>To share retreat memories in the retreat’s photo album, once the organiser approves them. Anyone with the album link can see it</td>
                 <td>Your consent, per photo, which you can withdraw at any time</td>
               </tr>
               <tr>

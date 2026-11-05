@@ -23,6 +23,9 @@ interface AlbumPhoto {
 }
 interface AlbumListing {
   pageUrl: string
+  heartsApi: string
+  orgName: string | null
+  retreatPath: string | null
   title: string
   note: string | null
   url: string | null
@@ -46,7 +49,7 @@ function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { ba
   const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [shared, setShared] = useState<string | null>(null)
-  const hearts = useHearts(q.data?.pageUrl ?? '', q.data?.photos ?? [])
+  const hearts = useHearts('', q.data?.photos ?? [], q.data?.heartsApi)
 
   useEffect(() => {
     if (q.data) document.title = `Photo album · ${q.data.title}`
@@ -96,6 +99,8 @@ function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { ba
     }
     setUploading(null)
     if (failed.length) setError(failed.join(' · '))
+    const added = images.length - failed.length
+    if (added > 0) setShared(`Thanks! ${added === 1 ? 'Your photo' : `Your ${added} photos`} will appear in the album once the organiser approves ${added === 1 ? 'it' : 'them'}.`)
   }
 
   async function share() {
@@ -107,7 +112,7 @@ function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { ba
         return
       }
       await navigator.clipboard.writeText(url)
-      setShared('Link copied. Anyone with it can view the album, no sign-in needed.')
+      setShared('Link copied. Anyone you send it to can view the album, no sign-in needed.')
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return
       window.prompt('Copy this link to share the album:', url)
@@ -128,6 +133,10 @@ function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { ba
           <Link to={backTo} className="album-back">
             ← {backLabel}
           </Link>
+        ) : album.retreatPath ? (
+          <Link to={album.retreatPath} className="album-back">
+            {album.orgName ? `${album.orgName}: retreat page` : 'Retreat page'}
+          </Link>
         ) : (
           <span />
         )}
@@ -139,7 +148,10 @@ function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { ba
       <section className="album-hero" aria-label={album.title}>
         {cover && <img className="album-hero-img" src={cover.url} alt={cover.alt} />}
         <div className="album-hero-text">
-          <p className="album-hero-eyebrow">Photo album · {photos.length} photo{photos.length === 1 ? '' : 's'}</p>
+          <p className="album-hero-eyebrow">
+            Photo album · {photos.length} photo{photos.length === 1 ? '' : 's'}
+            {album.orgName ? ` · ${album.orgName}` : ''}
+          </p>
           <h1>{album.title}</h1>
           {album.note && <p className="album-hero-note">{album.note}</p>}
           <div className="row" style={{ marginTop: '1.25rem' }}>
@@ -170,7 +182,7 @@ function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { ba
           <div className="album-contribute">
             <div>
               <h2>Add your photos</h2>
-              <p>Share your own moments. Photos you add here are public: anyone can see them in this album, which is linked from the retreat’s public page. Only add photos the people in them would be happy to share publicly.</p>
+              <p>Share your own moments. Photos you add appear here once the organiser approves them, for anyone with the album link to see. Only add photos the people in them would be happy to share.</p>
             </div>
             <label className="album-btn" htmlFor="album-add">
               {uploading ? `Adding ${Math.min(uploading.done + 1, uploading.total)} of ${uploading.total}…` : 'Add photos'}
@@ -193,6 +205,11 @@ function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { ba
         {error && (
           <p className="album-error" role="alert">
             {error}
+          </p>
+        )}
+        {shared?.startsWith('Thanks') && (
+          <p className="album-pending" role="status">
+            {shared}
           </p>
         )}
         {photos.length === 0 ? (
@@ -344,11 +361,19 @@ export function SignedInAlbumPage() {
 }
 
 /** /album/:token: the album's share link. Anyone with it can view, no sign-in. */
-/** /o/:orgSlug/r/:retreatSlug/album: the album's public page. Anyone can view it, no sign-in. */
-export function PublicAlbumPage() {
-  const { orgSlug = '', retreatSlug = '' } = useParams()
-  const api = `/api/public/orgs/${orgSlug}/retreats/${retreatSlug}/album`
-  return <AlbumView base={api} listPath={api} backTo={`/o/${orgSlug}/r/${retreatSlug}`} backLabel="Back to the retreat" />
+/** /album/:token: the album's unguessable link. Anyone with it can view, no sign-in. */
+export function SharedAlbumPage() {
+  const { token = '' } = useParams()
+  useEffect(() => {
+    // Shared by link, not for search engines.
+    const meta = document.createElement('meta')
+    meta.name = 'robots'
+    meta.content = 'noindex, nofollow'
+    document.head.appendChild(meta)
+    return () => meta.remove()
+  }, [])
+  const api = `/api/albums/${token}`
+  return <AlbumView base={api} listPath={api} />
 }
 
 export default InviteAlbumPage

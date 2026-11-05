@@ -10,13 +10,12 @@ import { Stars } from '../../components/Stars'
 import { HelpfulButton, useHelpful } from '../../components/Helpful'
 import { StoryViewer, type ViewerSlide } from '../../components/StoryViewer'
 import { ThemeScope } from '../../components/ThemeScope'
-import { AlbumPromo, SiteFooter, SiteHeader, type PublicAlbum } from './RetreatLanding'
+import { SiteFooter, SiteHeader } from './RetreatLanding'
 
 interface StoryPublic {
   org: { slug: string; name: string; websiteUrl?: string | null }
   retreat: RetreatFacts
   theme: ThemeTokens
-  album?: PublicAlbum | null
   retreatPhotos: Array<{ url: string; alt: string; caption: string; credit: string; focalX: number; focalY: number }>
   more: Array<{ slug: string; title: string | null; excerpt: string; displayName: string | null; postedAt: string; overallRating: number | null; image: string | null }>
   story: {
@@ -64,7 +63,7 @@ export default function StoryPage() {
       </main>
     )
   }
-  const { org, retreat, theme, story, retreatPhotos, more, album } = q.data!
+  const { org, retreat, theme, story, retreatPhotos, more } = q.data!
   const paragraphs = story.text.split(/\n{2,}|\r\n\r\n/).filter((p) => p.trim())
   const retreatPath = `/o/${org.slug}/r/${retreat.slug}`
   const name = story.displayName ?? 'A retreat guest'
@@ -136,12 +135,6 @@ export default function StoryPage() {
             </article>
           </div>
         </div>
-
-        {album && (
-          <section className="container" style={{ marginTop: 'clamp(2rem, 5vw, 3rem)' }} aria-label="Photo album">
-            <AlbumPromo album={album} title={`More photos from ${retreat.title}`} />
-          </section>
-        )}
 
         {more.length > 0 && (
           <section className="container story-more" aria-labelledby="more-title">

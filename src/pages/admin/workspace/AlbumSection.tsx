@@ -38,6 +38,13 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
   })
 
   const pageLink = photos.data?.pageUrl ? new URL(photos.data.pageUrl, window.location.origin).toString() : null
+  const newLink = useMutation({
+    mutationFn: () => post<{ pageUrl: string }>(`${orgApi(orgSlug)}/retreats/${retreat.id}/album/share-link`),
+    onSuccess: () => {
+      setCopied(false)
+      void queryClient.invalidateQueries({ queryKey: key })
+    },
+  })
   const [copied, setCopied] = useState(false)
 
   // Several photos at once, one after another, as in "Your images".
@@ -87,11 +94,12 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
 
   return (
     <section className="card" aria-labelledby="album-title" style={{ marginTop: '1.5rem' }}>
-      <h2 id="album-title">Photo album for guests who review</h2>
+      <h2 id="album-title">Photo album</h2>
       <p className="small muted" style={{ maxWidth: '70ch' }}>
-        A thank-you that encourages reviews. Guests see a blurred preview when they open their review link, and the album unlocks as soon as they
-        send their review, <strong>whatever they choose to share or rate</strong>. The album is also public on your retreat page, so anyone can
-        view it without signing in.
+        A thank-you that encourages reviews. Guests see a blurred preview when they open their review link, and get the album link as soon as
+        they send their review, <strong>whatever they choose to share or rate</strong>. They can add their own photos, which appear once you
+        approve them. Anyone with the link can view the album, so guests can share it with friends and family. It isn’t linked from your public
+        page.
       </p>
 
       <div className="panel-sage" style={{ margin: '1rem 0' }}>
@@ -99,7 +107,7 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
           checked={retreat.rewardAlbumEnabled}
           disabled={settings.isPending}
           onChange={(v) => settings.mutate({ rewardAlbumEnabled: v })}
-          label="Unlock a photo album for guests who send their review"
+          label="Give guests the album link when they send their review"
           description={
             retreat.rewardAlbumEnabled
               ? live
@@ -113,9 +121,9 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
       {retreat.rewardAlbumEnabled && pageLink && (
         <div className="stack" style={{ gap: '0.4rem', marginBottom: '1rem' }}>
           <label htmlFor="album-page-link" style={{ fontWeight: 600 }}>
-            Album page
+            Album link
           </label>
-          <span className="hint">Public, like the rest of your retreat page: anyone can view it without signing in. It’s linked from your retreat page and guest stories.</span>
+          <span className="hint">Anyone with this link can view the album, no sign-in needed. It can’t be guessed and isn’t on your public page. If it spreads further than you’d like, make a new one.</span>
           <div className="row" style={{ flexWrap: 'wrap' }}>
             <input id="album-page-link" readOnly value={pageLink} onFocus={(e) => e.target.select()} style={{ flex: '1 1 22rem' }} />
             <button
@@ -133,7 +141,16 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
             <a className="btn ghost small" href={pageLink} target="_blank" rel="noopener noreferrer">
               Open
             </a>
+            <button
+              type="button"
+              className="btn ghost small"
+              disabled={newLink.isPending}
+              onClick={() => window.confirm('Make a new album link? The current one will stop working for everyone who has it, including guests.') && newLink.mutate()}
+            >
+              Make a new link
+            </button>
           </div>
+          <MutationError error={newLink.error} />
         </div>
       )}
 
@@ -186,7 +203,7 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
           Add album photos and videos
         </label>
         <span className="hint" id="album-upload-hint">
-          Choose several at once, or drag them here. Videos: MP4, MOV or WebM, up to {MAX_VIDEO_MB} MB each. Album photos are public: anyone with the link, or visiting your public page, can see them. If others appear
+          Choose several at once, or drag them here. Videos: MP4, MOV or WebM, up to {MAX_VIDEO_MB} MB each. Anyone with the album link can see them. If others appear
           in a photo, include it only if they’re happy for it to be shared.
         </span>
         <input

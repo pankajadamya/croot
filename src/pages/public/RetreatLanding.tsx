@@ -131,8 +131,7 @@ export default function RetreatLanding() {
       <main id="main">
         {/* Contact and practical details first, so they're easy to find. */}
         {/* The photo album leads, with the retreat's details in a narrow card beside it. */}
-        <section className={`container landing-top ${d.album ? 'with-album' : ''}`}>
-          {d.album && <AlbumPromo album={d.album} title={`Photos from ${d.retreat.title}`} />}
+        <section className="container landing-top">
           <RetreatDetails retreat={d.retreat} organiser={{ name: d.org.name, websiteUrl: d.org.websiteUrl ?? null, retreatsPath: `/o/${d.org.slug}`, onGetUpdates: () => setUpdatesOpen(true) }} />
           <InterestDialog open={updatesOpen} onClose={() => setUpdatesOpen(false)} orgSlug={d.org.slug} orgName={d.org.name} retreatSlug={d.retreat.slug} />
         </section>

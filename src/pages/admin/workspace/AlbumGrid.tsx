@@ -53,6 +53,11 @@ export function AlbumGrid({
     onSuccess: onChanged,
   })
   const remove = useMutation({ mutationFn: (id: string) => del(`${orgApi(orgSlug)}/media/${id}`), onSuccess: onChanged })
+  // Approving a guest's photo publishes it straight away: in the album, and with their story if they allowed that.
+  const moderate = useMutation({
+    mutationFn: (v: { id: string; status: 'approved' | 'rejected' }) => post(`${orgApi(orgSlug)}/media/${v.id}/moderate`, { status: v.status }),
+    onSuccess: onChanged,
+  })
 
   const byId = new Map(media.map((m) => [m.id, m]))
   const ordered = order.map((id) => byId.get(id)).filter((m): m is OrganiserMedia => Boolean(m))
@@ -119,6 +124,16 @@ export function AlbumGrid({
                     )}
                   </div>
                   <span className="small muted">{fromGuest ? 'Shared by a guest' : fromImages ? 'From your images' : 'Album upload'}</span>
+                  {/* A guest's photo appears in the album once approved. */}
+                  {fromGuest && !m.approved && (
+                    <div className="album-tile-approve">
+                      <span className="badge warn">Waiting for your approval</span>
+                      <button type="button" className="btn small" disabled={moderate.isPending} onClick={() => moderate.mutate({ id: m.id, status: 'approved' })}>
+                        Approve
+                      </button>
+                    </div>
+                  )}
+                  {fromGuest && m.approved && <span className="badge ok">In the album</span>}
                   <div className="album-tile-actions">
                     {!isCover ? (
                       <button type="button" className="btn ghost small" disabled={setCover.isPending} onClick={() => setCover.mutate(m.id)}>
@@ -178,7 +193,7 @@ export function AlbumGrid({
           </ul>
         </details>
       )}
-      <MutationError error={saveOrder.error || setCover.error || include.error || remove.error} />
+      <MutationError error={saveOrder.error || setCover.error || include.error || remove.error || moderate.error} />
     </div>
   )
 }

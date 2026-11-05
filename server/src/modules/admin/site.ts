@@ -6,7 +6,7 @@ import multer from 'multer'
 import { z } from 'zod'
 import type { Prisma } from '@prisma/client'
 import { DEFAULT_THEME, THEME_PRESETS, validateTheme } from '../../../../shared/themes.js'
-import { albumPagePath } from '../../lib/album.js'
+import { ensureShareToken, resetShareToken, sharePath } from '../../lib/album.js'
 import { audit } from '../../lib/audit.js'
 import { env } from '../../lib/env.js'
 import { HttpError, parseBody, route, text, uuidParam } from '../../lib/http.js'
@@ -393,9 +393,21 @@ siteRouter.get(
     })
     res.json({
       coverId: retreat.rewardAlbumCoverId,
-      pageUrl: retreat.kind === 'itinerary' ? albumPagePath(t.org.slug, retreat.slug) : null,
+      pageUrl: retreat.kind === 'itinerary' ? sharePath(await ensureShareToken(retreat)) : null,
       media: media.map((m) => organiserMediaView(t.org.slug, m)),
     })
+  }),
+)
+
+/** A new album link; the old one stops working. */
+siteRouter.post(
+  '/retreats/:retreatId/album/share-link',
+  route(async (req, res) => {
+    const t = tenantOf(req)
+    const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
+    const token = await resetShareToken(retreat.id)
+    await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'album.share_link_reset', entityType: 'retreat', entityId: retreat.id })
+    res.json({ pageUrl: sharePath(token) })
   }),
 )
 

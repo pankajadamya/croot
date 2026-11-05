@@ -10,7 +10,6 @@ import { activeOrgBySlug, publicRetreat, publishedContent, publishedTheme, retre
 import { storage } from '../lib/storage.js'
 import { anonymousLimiter, heartLimiter, publicFormLimiter } from '../middleware/rateLimits.js'
 import { confirmInterest, interestWording, registerInterest, unsubscribeInterest } from '../lib/interest.js'
-import { albumListing, albumPagePath, publicAlbumLink, sendAlbumPhoto, sendAlbumVideo } from '../lib/album.js'
 import { heartCounts, heartedBy, setHeart, voterSchema } from '../lib/hearts.js'
 import { helpfulBy, helpfulCounts, setHelpful } from '../lib/helpful.js'
 
@@ -121,7 +120,6 @@ publicRouter.get(
     res.json({
       org: { slug: org.slug, name: org.name, websiteUrl: org.websiteUrl },
       retreat: retreatFacts(retreat),
-      album: await publicAlbumLink(retreat, org.slug),
       rating,
       theme,
       content,
@@ -145,17 +143,6 @@ publicRouter.get(
           .map((m) => ({ id: m.id, url: `/media/${m.id}`, alt: altFor(m, 'Photo shared by the guest'), caption: m.caption, hearts: reviewHearts.get(m.id) ?? 0 })),
       })),
     })
-  }),
-)
-
-// The retreat's photo album: public, view only (adding photos is for guests who reviewed).
-publicRouter.get(
-  '/orgs/:orgSlug/retreats/:retreatSlug/album',
-  route(async (req, res) => {
-    const org = await activeOrgBySlug(param(req, 'orgSlug'))
-    const retreat = await publicRetreat(org.id, param(req, 'retreatSlug'))
-    res.set('Cache-Control', 'public, max-age=30')
-    res.json(await albumListing(retreat, null, req.baseUrl + req.path, { pagePath: albumPagePath(org.slug, retreat.slug), publicView: true }))
   }),
 )
 
@@ -245,12 +232,9 @@ publicRouter.post(
   }),
 )
 
-/** Photos visitors can heart: the album's, and those on the retreat's published reviews. */
+/** Photos visitors can heart from the retreat page: those on its published reviews. (Album photos are hearted through the album link.) */
 async function heartableIds(retreat: Awaited<ReturnType<typeof publicRetreat>>) {
   const ids = new Set<string>()
-  if (retreat.kind === 'itinerary' && retreat.rewardAlbumEnabled) {
-    for (const p of (await albumListing(retreat, null, '', { pagePath: '', publicView: true })).photos) ids.add(p.id)
-  }
   if (retreat.publicReviewsEnabled) {
     const reviewPhotoIds = (await liveStories(retreat.id)).flatMap((s) => s.photoIds)
     const shown = await prisma.mediaAsset.findMany({
@@ -288,24 +272,6 @@ publicRouter.post(
     const count = await setHeart(photoId, voter, on, req.ip)
     res.set('Cache-Control', 'no-store')
     res.json({ hearts: count, hearted: on })
-  }),
-)
-
-publicRouter.get(
-  '/orgs/:orgSlug/retreats/:retreatSlug/album/:photoId/video',
-  route(async (req, res) => {
-    const org = await activeOrgBySlug(param(req, 'orgSlug'))
-    const retreat = await publicRetreat(org.id, param(req, 'retreatSlug'))
-    await sendAlbumVideo(req, res, retreat, uuidParam(req, 'photoId'))
-  }),
-)
-
-publicRouter.get(
-  '/orgs/:orgSlug/retreats/:retreatSlug/album/:photoId',
-  route(async (req, res) => {
-    const org = await activeOrgBySlug(param(req, 'orgSlug'))
-    const retreat = await publicRetreat(org.id, param(req, 'retreatSlug'))
-    await sendAlbumPhoto(res, retreat, null, uuidParam(req, 'photoId'), true)
   }),
 )
 
@@ -367,7 +333,6 @@ publicRouter.get(
       theme: await publishedTheme(retreat.id),
       retreatPhotos,
       more,
-      album: await publicAlbumLink(retreat, retreat.organisation.slug),
       story: {
         slug,
         postedAt: submitted?.submittedAt ?? live.createdAt,

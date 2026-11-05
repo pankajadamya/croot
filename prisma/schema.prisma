@@ -290,6 +290,9 @@ model Retreat {
   rewardAlbumNote          String  @default("")
   /// The album's title photo: shown first and largest, and leading the welcome-screen preview.
   rewardAlbumCoverId       String?  @db.Uuid
+  /// The album's unguessable link (/album/<token>): anyone with it can view, no sign-in. Made on first
+  /// use; the organiser can replace it, which stops the old link working.
+  albumShareToken          String?  @unique
   /// [{ key, label }] — private feedback categories for this retreat.
   feedbackCategories Json     @default("[]")
   /// Below this many submitted responses, aggregate scores are hidden to protect identities.

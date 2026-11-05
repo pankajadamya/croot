@@ -226,7 +226,8 @@ responsesRouter.post(
     const t = tenantOf(req)
     const media = await tenantMedia(t.org.id, uuidParam(req, 'mediaId'))
     const body = parseBody(z.object({ status: z.enum(['approved', 'rejected', 'pending']), note: text(300).optional() }), req.body)
-    if (media.kind === 'guest' && body.status === 'approved' && !media.publishConsent) {
+    // A guest photo can be approved when the guest allowed it with their story or in the album.
+    if (media.kind === 'guest' && body.status === 'approved' && !media.publishConsent && !media.albumConsent) {
       throw new HttpError(409, 'The guest has not consented to publishing this photo')
     }
     await prisma.mediaAsset.update({ where: { id: media.id }, data: { moderation: body.status } })

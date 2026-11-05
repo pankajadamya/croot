@@ -3628,3 +3628,18 @@ label:has(+ input.sr-only:focus-visible),
   border-radius: 8px;
   flex: none;
 }
+
+.album-tile-approve {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.album-pending {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  background: rgba(219, 232, 214, 0.15);
+  color: #dbe8d6;
+}

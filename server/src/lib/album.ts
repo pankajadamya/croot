@@ -7,17 +7,17 @@ import { env } from './env.js'
 import { HttpError } from './http.js'
 import { heartCounts } from './hearts.js'
 import { processImage } from './images.js'
+import { newToken } from './tokens.js'
 import { streamVideo } from './video.js'
 import { prisma } from './prisma.js'
 import { storage } from './storage.js'
 
 /**
- * The group photo album (itinerary retreats). Unlocked by sending a review, any review, whatever the
- * guest chooses to share or rate. It is never tied to publication consent or a rating. It holds the
- * organiser's album uploads and images, plus photos guests chose to share with the group (opt-in,
- * per photo, knowing it's public). It is part of the retreat's public site: anyone can view it at
- * /o/<organisation>/r/<retreat>/album without signing in, and it's linked from the retreat and story pages.
- * Guests who sent a review can also add photos to it.
+ * The retreat's photo album (itinerary retreats). It holds the organiser's album uploads and images, plus
+ * photos guests chose to share in it (opt-in, per photo), which appear once the organiser approves them.
+ * Anyone with the album's unguessable link (/album/<token>) can view it without signing in; it isn't
+ * linked from the public pages. Guests get the link when they send their review (any review, whatever
+ * they share or rate) and can add photos to it.
  */
 type RetreatLike = {
   id: string
@@ -27,6 +27,7 @@ type RetreatLike = {
   rewardAlbumUrl: string | null
   rewardAlbumNote: string
   rewardAlbumCoverId: string | null
+  albumShareToken?: string | null
   organisationId: string
 }
 type ResponseLike = { id: string; submittedAt: Date | null; status: string } | null | undefined
@@ -42,7 +43,8 @@ function albumWhere(retreatId: string): Prisma.MediaAssetWhereInput {
     OR: [
       { kind: 'album' },
       { kind: 'organiser', inAlbum: true },
-      { kind: 'guest', albumConsent: true, inAlbum: true, response: { submittedAt: { not: null }, status: { not: 'withdrawn' } } },
+      // Guests' photos: shared by them, approved by the organiser, from a review that was sent.
+      { kind: 'guest', albumConsent: true, inAlbum: true, moderation: 'approved', response: { submittedAt: { not: null }, status: { not: 'withdrawn' } } },
     ],
   }
 }
@@ -78,37 +80,57 @@ export async function albumSummary(retreat: RetreatLike, response: ResponseLike,
   }
 }
 
-/** The album's public page: part of the retreat's public site, open to anyone without signing in. */
-export const albumPagePath = (orgSlug: string, retreatSlug: string) => `/o/${orgSlug}/r/${retreatSlug}/album`
-const publicPhotoBase = (orgSlug: string, retreatSlug: string) => `/api/public/orgs/${orgSlug}/retreats/${retreatSlug}/album`
+/** The album's link token, created the first time anyone asks for it. */
+export async function ensureShareToken(retreat: { id: string; albumShareToken?: string | null }) {
+  if (retreat.albumShareToken) return retreat.albumShareToken
+  // Only set if still empty, so two first requests at once end up with the same link.
+  await prisma.retreat.updateMany({ where: { id: retreat.id, albumShareToken: null }, data: { albumShareToken: newToken(24) } })
+  return (await prisma.retreat.findUniqueOrThrow({ where: { id: retreat.id }, select: { albumShareToken: true } })).albumShareToken!
+}
 
-/** For the public retreat and story pages: a link to the album, led by its title photo. */
-export async function publicAlbumLink(retreat: RetreatLike & { slug: string }, orgSlug: string) {
-  if (!available(retreat)) return null
-  const photos = await albumPhotos(retreat.id, retreat.rewardAlbumCoverId)
-  if (!photos.length) return null
-  const base = publicPhotoBase(orgSlug, retreat.slug)
-  return {
-    url: albumPagePath(orgSlug, retreat.slug),
-    count: photos.length,
-    cover: `${base}/${photos[0].id}`,
-    preview: photos.slice(1, 4).map((p) => `${base}/${p.id}`),
+/** A new link; the old one stops working at once. */
+export async function resetShareToken(retreatId: string) {
+  const token = newToken(24)
+  await prisma.retreat.update({ where: { id: retreatId }, data: { albumShareToken: token } })
+  return token
+}
+
+export const sharePath = (token: string) => `/album/${token}`
+export const shareApi = (token: string) => `/api/albums/${token}`
+
+/** The retreat behind an album link, if the link is current and the album is on. */
+export async function sharedRetreat(token: string) {
+  const retreat =
+    token.length >= 16 && token.length <= 64
+      ? await prisma.retreat.findUnique({ where: { albumShareToken: token }, include: { organisation: { select: { name: true, slug: true, status: true } } } })
+      : null
+  if (!retreat || !available(retreat) || retreat.organisation.status !== 'active' || retreat.status === 'draft' || retreat.status === 'archived') {
+    throw new HttpError(404, 'This album link isn’t valid any more. Ask the person who shared it for a new one.')
   }
+  return retreat
 }
 
 /**
- * The full album, for its own page. Public visitors (no response) can view it; adding photos stays
- * with guests who sent a review. `pagePath` is the album's public address, for sharing.
+ * The full album, for its own page. Anyone with the link (no response) can view it; adding photos stays
+ * with guests who sent a review. Photos, videos and hearts always go through the album link.
  */
-export async function albumListing(retreat: RetreatLike, response: ResponseLike, base: string, opts: { pagePath: string; publicView?: boolean }) {
+export async function albumListing(
+  retreat: RetreatLike,
+  response: ResponseLike,
+  base: string,
+  opts: { publicView?: boolean; orgName?: string; retreatPath?: string | null } = {},
+) {
   if (!available(retreat)) throw new HttpError(404, 'There is no photo album for this retreat')
   if (!opts.publicView && !isUnlocked(response)) throw new HttpError(403, 'Send your review to unlock the photo album')
   const photos = await albumPhotos(retreat.id, retreat.rewardAlbumCoverId)
   const hearts = await heartCounts(photos.map((p) => p.id))
-  // Videos always stream from the album's public address ("/o/x/r/y/album" → "/api/public/orgs/x/retreats/y/album").
-  const videoBase = `/api/public${opts.pagePath.replace(/^\/o\//, '/orgs/').replace('/r/', '/retreats/')}`
+  const token = await ensureShareToken(retreat)
+  const api = shareApi(token)
   return {
-    pageUrl: opts.pagePath,
+    pageUrl: sharePath(token),
+    heartsApi: api,
+    orgName: opts.orgName ?? null,
+    retreatPath: opts.retreatPath ?? null,
     title: retreat.title,
     note: retreat.rewardAlbumNote || null,
     url: retreat.rewardAlbumUrl,
@@ -116,7 +138,7 @@ export async function albumListing(retreat: RetreatLike, response: ResponseLike,
     canContribute: !opts.publicView && isUnlocked(response),
     photos: photos.map((p) => ({
       id: p.id,
-      url: opts.publicView ? `${base}/${p.id}` : `${base}/album/${p.id}`,
+      url: opts.publicView ? `${api}/${p.id}` : `${base}/album/${p.id}`,
       alt: altFor(p, p.kind === 'guest' ? 'Photo shared by a guest' : 'Retreat photo'),
       caption: p.caption,
       width: p.width,
@@ -124,18 +146,18 @@ export async function albumListing(retreat: RetreatLike, response: ResponseLike,
       sharedByGuest: p.kind === 'guest',
       mine: Boolean(response && p.responseId === response.id),
       hearts: hearts.get(p.id) ?? 0,
-      video: p.videoKey ? `${videoBase}/${p.id}/video` : null,
+      video: p.videoKey ? `${api}/${p.id}/video` : null,
       duration: p.durationSec,
     })),
   }
 }
 
-/** An album video, streamed with Range support. Public, like the album. */
+/** An album video, streamed with Range support, for anyone with the album link. */
 export async function sendAlbumVideo(req: ExpressRequest, res: ExpressResponse, retreat: RetreatLike, id: string) {
   if (!available(retreat)) throw new HttpError(404, 'There is no photo album for this retreat')
   const item = await prisma.mediaAsset.findFirst({ where: { ...albumWhere(retreat.id), id, videoKey: { not: null } } })
   if (!item?.videoKey) throw new HttpError(404, 'Video not found')
-  await streamVideo(req, res, item.videoKey, item.mime, 'public, max-age=3600')
+  await streamVideo(req, res, item.videoKey, item.mime, 'private, max-age=3600')
 }
 
 async function photoOf(retreatId: string, photoId: string) {
