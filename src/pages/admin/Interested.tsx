@@ -7,6 +7,7 @@ import { Field } from '../../components/Controls'
 import { ErrorNotice, Loading } from '../../components/States'
 import { AdminShell } from './AdminShell'
 import { MutationError } from './adminUi'
+import { useConfirm } from '../../components/ConfirmDialog'
 
 interface Interested {
   people: Array<{ id: string; email: string; name: string; confirmedAt: string; from: string | null }>
@@ -16,6 +17,7 @@ interface Interested {
 
 /** People who asked to hear about the next retreat: who they are, and an email to all of them. */
 export default function InterestedPage() {
+  const confirm = useConfirm()
   const { orgSlug = '' } = useParams()
   const qc = useQueryClient()
   const key = ['admin', orgSlug, 'interest']
@@ -41,7 +43,11 @@ export default function InterestedPage() {
     e.preventDefault()
     setResult(null)
     const n = q.data?.people.length ?? 0
-    if (window.confirm(`Email ${n} ${n === 1 ? 'person' : 'people'} now?`)) send.mutate()
+    void confirm({
+      title: `Email ${n} ${n === 1 ? 'person' : 'people'} now?`,
+      message: 'Everyone on your list gets this message, with a link to unsubscribe.',
+      confirmLabel: 'Send email',
+    }).then((ok) => ok && send.mutate())
   }
 
   return (

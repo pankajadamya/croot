@@ -8,6 +8,7 @@ import { Field } from '../../components/Controls'
 import { ErrorNotice, Loading } from '../../components/States'
 import { MutationError } from '../admin/adminUi'
 import { orgLabel } from './orgLabel'
+import { useConfirm } from '../../components/ConfirmDialog'
 
 interface Person {
   id: string
@@ -124,6 +125,7 @@ function AddPerson({ onDone }: { onDone: () => void }) {
 }
 
 function PersonRow({ person: p, orgs, onChange }: { person: Person; orgs: Org[]; onChange: () => void }) {
+  const confirm = useConfirm()
   const { session, refresh: refreshSession } = useAuth()
   const isMe = session?.user.id === p.id
   const [orgId, setOrgId] = useState('')
@@ -174,8 +176,12 @@ function PersonRow({ person: p, orgs, onChange }: { person: Person; orgs: Org[];
             type="button"
             className="btn secondary small"
             disabled={update.isPending || (isMe && p.isPlatformAdmin)}
-            onClick={() => {
-              if (!p.isPlatformAdmin && !window.confirm(`Make ${p.email} an admin? They will be able to see and change every organisation.`)) return
+            onClick={async () => {
+              if (
+                !p.isPlatformAdmin &&
+                !(await confirm({ title: `Make ${p.email} an admin?`, message: 'They will be able to see and change every organisation.', confirmLabel: 'Make admin', danger: true }))
+              )
+                return
               update.mutate({ isPlatformAdmin: !p.isPlatformAdmin })
             }}
           >
@@ -186,8 +192,17 @@ function PersonRow({ person: p, orgs, onChange }: { person: Person; orgs: Org[];
               type="button"
               className="btn ghost small"
               disabled={update.isPending}
-              onClick={() => {
-                if (p.active && !window.confirm(`Disable ${p.email}? They’ll be signed out and can’t sign in until you enable the account again.`)) return
+              onClick={async () => {
+                if (
+                  p.active &&
+                  !(await confirm({
+                    title: `Disable ${p.email}?`,
+                    message: 'They’ll be signed out and can’t sign in until you enable the account again.',
+                    confirmLabel: 'Disable account',
+                    danger: true,
+                  }))
+                )
+                  return
                 update.mutate({ active: !p.active })
               }}
             >
@@ -208,7 +223,9 @@ function PersonRow({ person: p, orgs, onChange }: { person: Person; orgs: Org[];
                 className="btn ghost small"
                 disabled={revoke.isPending}
                 onClick={() => {
-                  if (window.confirm(`Remove ${p.email} from ${m.organisation.name}? They’ll lose access to its workspace.`)) revoke.mutate(m.id)
+                  void confirm({ title: `Remove ${p.email} from ${m.organisation.name}?`, message: 'They’ll lose access to its workspace.', confirmLabel: 'Remove', danger: true }).then(
+                    (ok) => ok && revoke.mutate(m.id),
+                  )
                 }}
               >
                 Remove

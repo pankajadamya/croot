@@ -4,6 +4,7 @@ import { del, orgApi, patch, post, put } from '../../../lib/api'
 import { MutationError } from '../adminUi'
 import type { OrganiserMedia } from '../types'
 import { formatDuration } from '../../../lib/format'
+import { useConfirm } from '../../../components/ConfirmDialog'
 
 /**
  * The album's photos in the order guests see them: drag to reorder, or Move earlier/later (keyboard
@@ -24,6 +25,7 @@ export function AlbumGrid({
   media: OrganiserMedia[]
   onChanged: () => void
 }) {
+  const confirm = useConfirm()
   const included = media.filter((m) => m.inAlbum)
   const excluded = media.filter((m) => !m.inAlbum)
   const [order, setOrder] = useState(() => included.map((m) => m.id))
@@ -161,7 +163,13 @@ export function AlbumGrid({
                       className="btn ghost small"
                       onClick={() => {
                         if (keep) include.mutate({ id: m.id, inAlbum: false })
-                        else if (window.confirm('Delete this photo from the album?')) remove.mutate(m.id)
+                        else
+                          void confirm({
+                            title: `Delete this ${m.isVideo ? 'video' : 'photo'} from the album?`,
+                            message: 'It’s deleted for good.',
+                            confirmLabel: 'Delete',
+                            danger: true,
+                          }).then((ok) => ok && remove.mutate(m.id))
                       }}
                     >
                       {keep ? 'Take out of album' : 'Delete'}

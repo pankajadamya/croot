@@ -5,6 +5,7 @@ import { Field, Switch } from '../../../components/Controls'
 import { fieldError, MutationError } from '../adminUi'
 import type { OrganiserMedia } from '../types'
 import { imageStatus } from './SlideshowSettings'
+import { useConfirm } from '../../../components/ConfirmDialog'
 
 type Fields = {
   altText: string
@@ -24,6 +25,7 @@ const TYPING_PAUSE_MS = 800
  * stops (or when the field loses focus). Saves never overlap, and the latest values always win.
  */
 export function MediaEditor({ orgSlug, media, onChanged }: { orgSlug: string; media: OrganiserMedia; onChanged: () => void }) {
+  const confirm = useConfirm()
   const id = media.id
   const [f, setF] = useState<Fields>({
     altText: media.altText,
@@ -138,7 +140,7 @@ export function MediaEditor({ orgSlug, media, onChanged }: { orgSlug: string; me
           className="btn ghost small"
           disabled={remove.isPending}
           onClick={() => {
-            if (window.confirm('Delete this image? It will be removed from any slideshow.')) remove.mutate()
+            void confirm({ title: 'Delete this image?', message: 'It’s also removed from any slideshow.', confirmLabel: 'Delete image', danger: true }).then((ok) => ok && remove.mutate())
           }}
         >
           Delete

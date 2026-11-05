@@ -12,6 +12,7 @@ import { ErrorNotice, Loading } from '../../components/States'
 import { AdminShell } from './AdminShell'
 import { fieldError, MutationError, orgKey, programmeDates, PublicationBadge, ResponseStatusBadge, YesNo } from './adminUi'
 import type { ResponseDetailData } from './types'
+import { useConfirm } from '../../components/ConfirmDialog'
 
 const SCOPE_LABELS: Record<string, string> = {
   publicText: 'Publish written story',
@@ -299,6 +300,7 @@ function PhotosSection({ orgSlug, r, refresh }: { orgSlug: string; r: ResponseDe
 }
 
 function PublicationSection({ orgSlug, r, refresh }: { orgSlug: string; r: ResponseDetailData; refresh: () => void }) {
+  const confirm = useConfirm()
   const live = r.publication.live
   const [excerpt, setExcerpt] = useState(live?.excerpt ?? r.publicStory.suggestedExcerpt)
   const eligiblePhotos = r.photos.filter((p) => p.publishConsent && p.moderation === 'approved')
@@ -457,7 +459,11 @@ function PublicationSection({ orgSlug, r, refresh }: { orgSlug: string; r: Respo
             type="button"
             className="btn danger"
             disabled={!unpublishReason.trim() || unpublish.isPending}
-            onClick={() => window.confirm('Take this story off your public page now?') && unpublish.mutate()}
+            onClick={() =>
+              void confirm({ title: 'Take this story off your public page now?', message: 'It disappears from your public page straight away.', confirmLabel: 'Unpublish', danger: true }).then(
+                (ok) => ok && unpublish.mutate(),
+              )
+            }
           >
             {unpublish.isPending ? 'Unpublishing…' : 'Unpublish now'}
           </button>

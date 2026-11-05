@@ -8,6 +8,7 @@ import { Field } from '../../components/Controls'
 import { ErrorNotice, Loading } from '../../components/States'
 import { AdminShell } from './AdminShell'
 import { fieldError, MutationError, OneTimeLinkNotice, useOrgSummary } from './adminUi'
+import { useConfirm } from '../../components/ConfirmDialog'
 
 interface Member {
   id: string
@@ -20,6 +21,7 @@ interface Member {
 }
 
 export default function Team() {
+  const confirm = useConfirm()
   const { orgSlug = '' } = useParams()
   const { session } = useAuth()
   const queryClient = useQueryClient()
@@ -92,7 +94,7 @@ export default function Team() {
                           className="btn ghost small"
                           disabled={remove.isPending}
                           onClick={() => {
-                            if (window.confirm(`Remove ${m.name} from this organisation? They will lose access immediately.`)) remove.mutate(m.id)
+                            void confirm({ title: `Remove ${m.name} from this organisation?`, message: 'They lose access straight away.', confirmLabel: 'Remove', danger: true }).then((ok) => ok && remove.mutate(m.id))
                           }}
                         >
                           Remove

@@ -12,6 +12,8 @@ export interface ConfirmOptions {
    * browser only allows during a click, such as writing to the clipboard.
    */
   onConfirm?: () => void
+  /** For the most serious actions: the person must type this exact text before confirming. */
+  typeToConfirm?: string
 }
 
 type Ask = (options: ConfirmOptions) => Promise<boolean>
@@ -52,13 +54,15 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
 function ConfirmModal({ options, onDone }: { options: ConfirmOptions; onDone: (ok: boolean) => void }) {
   const ref = useRef<HTMLDialogElement>(null)
   const confirmRef = useRef<HTMLButtonElement>(null)
+  const [typed, setTyped] = useState('')
+  const blocked = Boolean(options.typeToConfirm) && typed.trim() !== options.typeToConfirm
   useEffect(() => {
     const d = ref.current
     if (d && !d.open) d.showModal()
     // Destructive actions start on Cancel; others on the main button.
-    if (!options.danger) confirmRef.current?.focus()
+    if (!options.danger && !options.typeToConfirm) confirmRef.current?.focus()
     return () => d?.close()
-  }, [options.danger])
+  }, [options.danger, options.typeToConfirm])
   return (
     <dialog
       ref={ref}
@@ -78,11 +82,28 @@ function ConfirmModal({ options, onDone }: { options: ConfirmOptions; onDone: (o
             {options.message}
           </div>
         )}
+        {options.typeToConfirm && (
+          <div className="field" style={{ marginTop: '1rem' }}>
+            <label htmlFor="confirm-typed">
+              Type <strong style={{ fontFamily: "ui-monospace, monospace" }}>{options.typeToConfirm}</strong> to confirm
+            </label>
+            <input
+              id="confirm-typed"
+              type="text"
+              autoFocus
+              autoComplete="off"
+              spellCheck={false}
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && !blocked && onDone(true)}
+            />
+          </div>
+        )}
         <div className="confirm-dialog-actions">
           <button type="button" className="btn secondary" onClick={() => onDone(false)}>
             {options.cancelLabel ?? 'Cancel'}
           </button>
-          <button ref={confirmRef} type="button" className={`btn ${options.danger ? 'danger' : ''}`} onClick={() => onDone(true)}>
+          <button ref={confirmRef} type="button" className={`btn ${options.danger ? 'danger' : ''}`} disabled={blocked} onClick={() => onDone(true)}>
             {options.confirmLabel ?? 'Continue'}
           </button>
         </div>

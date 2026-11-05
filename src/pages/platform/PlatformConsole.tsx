@@ -13,6 +13,7 @@ import { OrganiserInvites } from './OrganiserInvites'
 import { People } from './People'
 import { PlatformSettings } from './PlatformSettings'
 import { ownerText } from './orgLabel'
+import { useConfirm } from '../../components/ConfirmDialog'
 
 interface TenantRequest {
   id: string
@@ -265,6 +266,7 @@ function RequestCard({
 }
 
 function Tenants() {
+  const confirm = useConfirm()
   const queryClient = useQueryClient()
   const orgs = useQuery({ queryKey: ORGS_KEY, queryFn: () => get<{ orgs: Tenant[] }>('/api/platform/orgs').then((r) => r.orgs) })
   const refresh = () => queryClient.invalidateQueries({ queryKey: ORGS_KEY })
@@ -320,7 +322,11 @@ function Tenants() {
                         disabled={setStatus.isPending}
                         onClick={() => {
                           const next = o.status === 'active' ? 'suspended' : 'active'
-                          if (next === 'active' || window.confirm(`Suspend ${o.name}? Its team will lose access to the workspace.`)) setStatus.mutate({ id: o.id, status: next })
+                          if (next === 'active') setStatus.mutate({ id: o.id, status: next })
+                          else
+                            void confirm({ title: `Suspend ${o.name}?`, message: 'Its team will lose access to the workspace.', confirmLabel: 'Suspend', danger: true }).then(
+                              (ok) => ok && setStatus.mutate({ id: o.id, status: next }),
+                            )
                         }}
                       >
                         {o.status === 'active' ? 'Suspend' : o.status === 'pending' ? 'Approve' : 'Reactivate'}
@@ -330,10 +336,13 @@ function Tenants() {
                         className="btn ghost small"
                         disabled={erase.isPending}
                         onClick={() => {
-                          const typed = window.prompt(
-                            `Permanently delete ${o.name} and ALL of its guests' data and photos? Offer the owner their export first. This cannot be undone.\n\nType the slug "${o.slug}" to confirm:`,
-                          )
-                          if (typed !== null) erase.mutate({ id: o.id, confirmSlug: typed })
+                          void confirm({
+                            title: `Permanently delete ${o.name}?`,
+                            message: 'This deletes the organisation and ALL of its guests’ data and photos. Offer the owner their export first. This can’t be undone.',
+                            confirmLabel: 'Delete organisation',
+                            danger: true,
+                            typeToConfirm: o.slug,
+                          }).then((ok) => ok && erase.mutate({ id: o.id, confirmSlug: o.slug }))
                         }}
                       >
                         Delete organisation…
@@ -357,7 +366,9 @@ function Tenants() {
                             aria-label={`Remove ${d.hostname}`}
                             disabled={removeDomain.isPending}
                             onClick={() => {
-                              if (window.confirm(`Remove ${d.hostname}? Links on that domain will stop working.`)) removeDomain.mutate({ orgId: o.id, domainId: d.id })
+                              void confirm({ title: `Remove ${d.hostname}?`, message: 'Links on that domain will stop working.', confirmLabel: 'Remove domain', danger: true }).then(
+                                (ok) => ok && removeDomain.mutate({ orgId: o.id, domainId: d.id }),
+                              )
                             }}
                           >
                             Remove

@@ -199,7 +199,11 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
               className="btn"
               disabled={!collecting || toEmail === 0 || emailAll.isPending}
               onClick={() => {
-                if (window.confirm(`Email an invitation to ${toEmail} guest${toEmail === 1 ? '' : 's'}? Each gets their own private link.`)) emailAll.mutate()
+                void confirm({
+                  title: `Email an invitation to ${toEmail} guest${toEmail === 1 ? '' : 's'}?`,
+                  message: 'Each gets their own private link.',
+                  confirmLabel: 'Send invitations',
+                }).then((ok) => ok && emailAll.mutate())
               }}
             >
               {emailAll.isPending ? 'Sending…' : `Email invitations${toEmail ? ` (${toEmail})` : ''}`}
@@ -285,7 +289,9 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
                             className="btn ghost small"
                             disabled={revoke.isPending}
                             onClick={() => {
-                              if (window.confirm(`Revoke ${a.name}’s link? It will stop working immediately. Their draft is kept.`)) revoke.mutate(a)
+                              void confirm({ title: `Revoke ${a.name}’s link?`, message: 'It stops working straight away. Anything they’ve written is kept.', confirmLabel: 'Revoke link', danger: true }).then(
+                                (ok) => ok && revoke.mutate(a),
+                              )
                             }}
                           >
                             Revoke
@@ -297,7 +303,9 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
                             className="btn ghost small"
                             disabled={remove.isPending}
                             onClick={() => {
-                              if (window.confirm(`Remove ${a.name} from this programme? Any unsent draft is deleted.`)) remove.mutate(a)
+                              void confirm({ title: `Remove ${a.name} from this programme?`, message: 'Any unsent draft is deleted.', confirmLabel: 'Remove guest', danger: true }).then(
+                                (ok) => ok && remove.mutate(a),
+                              )
                             }}
                           >
                             Remove

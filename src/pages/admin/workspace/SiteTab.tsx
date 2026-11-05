@@ -13,6 +13,7 @@ import { MediaEditor } from './MediaEditor'
 import { SlideshowSettings } from './SlideshowSettings'
 import { UploadZone } from '../../../components/UploadZone'
 import { IMAGE_ACCEPT, isImageFile, MAX_UPLOAD_MB, prepareImage } from '../../../lib/prepareImage'
+import { useConfirm } from '../../../components/ConfirmDialog'
 
 interface ContentState {
   draft: ContentRevision | null
@@ -249,6 +250,7 @@ function VisitorSettings({ orgSlug, retreat }: { orgSlug: string; retreat: Retre
 }
 
 function ImageLibrary({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat }) {
+  const confirm = useConfirm()
   const queryClient = useQueryClient()
   const key = ['admin', orgSlug, 'media', retreat.id]
   const media = useQuery({ queryKey: key, queryFn: () => get<{ media: OrganiserMedia[] }>(`${orgApi(orgSlug)}/retreats/${retreat.id}/media`).then((r) => r.media) })
@@ -298,9 +300,14 @@ function ImageLibrary({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
           <button
             type="button"
             className="btn secondary small"
-            onClick={() => {
+            onClick={async () => {
               const pending = (media.data ?? []).filter((m) => !m.rightsConfirmed)
-              if (!window.confirm(`Confirm you have permission to use all ${pending.length} of these images?`)) return
+              const ok = await confirm({
+                title: `Do you have permission to use all ${pending.length} of these images?`,
+                message: 'For example, you took them, or the photographer and anyone pictured agreed. They can then appear on your public page.',
+                confirmLabel: 'Yes, I have permission',
+              })
+              if (!ok) return
               void Promise.all(pending.map((m) => patch(`${orgApi(orgSlug)}/media/${m.id}`, { rightsConfirmed: true }))).then(() =>
                 queryClient.invalidateQueries({ queryKey: key }),
               )

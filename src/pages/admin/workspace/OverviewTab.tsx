@@ -7,6 +7,7 @@ import { REVIEW_KINDS, type FeedbackCategory } from '../../../../shared/categori
 import { Field, Switch } from '../../../components/Controls'
 import { fieldError, fromLocalInput, MutationError, orgKey, retreatKey, RETREAT_STATUS_LABELS, toLocalInput, useOrgSummary } from '../adminUi'
 import type { Retreat, RetreatStats } from '../types'
+import { useConfirm } from '../../../components/ConfirmDialog'
 
 const STAT_LABELS: Array<[keyof RetreatStats, string]> = [
   ['attendees', 'Invited'],
@@ -49,6 +50,7 @@ export function OverviewTab({ orgSlug, retreat }: { orgSlug: string; retreat: Re
 type CategoryRow = FeedbackCategory & { isNew?: boolean }
 
 function SettingsForm({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat }) {
+  const confirm = useConfirm()
   const queryClient = useQueryClient()
   const isProperty = retreat.kind === 'property'
   const [f, setF] = useState(() => ({
@@ -137,10 +139,16 @@ function SettingsForm({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
       setSaved(true)
     },
   })
-  function commitSlug() {
+  async function commitSlug() {
     const next = f.slug.trim()
     if (!next || next === savedSlug) return
-    if (!window.confirm(`Change the web address to “${next}”? Links to the old address will stop working, including any you’ve already shared.`)) {
+    const ok = await confirm({
+      title: `Change the web address to “${next}”?`,
+      message: 'Links to the old address will stop working, including any you’ve already shared.',
+      confirmLabel: 'Change address',
+      danger: true,
+    })
+    if (!ok) {
       setF((x) => ({ ...x, slug: savedSlug }))
       return
     }
@@ -209,7 +217,7 @@ function SettingsForm({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
           <input id="rt-title" type="text" value={f.title} onChange={text('title')} />
         </Field>
         <Field id="rt-slug" label="Web address" hint="The last part of your public page’s address. Changing it breaks links you’ve already shared, so we’ll ask first." error={err('slug')}>
-          <input id="rt-slug" type="text" value={f.slug} onChange={text('slug')} onBlur={commitSlug} aria-describedby="rt-slug-hint" />
+          <input id="rt-slug" type="text" value={f.slug} onChange={text('slug')} onBlur={() => void commitSlug()} aria-describedby="rt-slug-hint" />
         </Field>
         {!isProperty && (
           <div className="grid-2">
@@ -364,8 +372,12 @@ function SettingsForm({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
                 <button
                   type="button"
                   className="btn ghost small"
-                  onClick={() => {
-                    if (!c.isNew && !window.confirm(`Remove “${c.label}”? Its existing ratings will be hidden from views and exports.`)) return
+                  onClick={async () => {
+                    if (
+                      !c.isNew &&
+                      !(await confirm({ title: `Remove “${c.label}”?`, message: 'Its existing ratings will be hidden from views and exports.', confirmLabel: 'Remove', danger: true }))
+                    )
+                      return
                     setSaved(false)
                     setDirty(true)
                     setCategories((all) => all.filter((x) => x.key !== c.key))

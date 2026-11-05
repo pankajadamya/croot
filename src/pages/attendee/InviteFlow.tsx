@@ -11,6 +11,7 @@ import { LinkUnavailable, Loading } from '../../components/States'
 import { PhotoPanel } from './PhotoPanel'
 import { AlbumLinkCard, AlbumTeaser, type AlbumSummary } from '../../components/AlbumGallery'
 import { RetreatPageLink } from '../../components/RetreatPageLink'
+import { useConfirm } from '../../components/ConfirmDialog'
 
 interface Rating {
   categoryKey: string
@@ -121,6 +122,7 @@ export default function InviteFlow() {
  * Drafts can be resumed either way; changing a review that was already sent needs a verified sign-in.
  */
 export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignIn?: boolean }) {
+  const confirm = useConfirm()
   const navigate = useNavigate()
   const [reopening, setReopening] = useState(false)
   const [view, setView] = useState<InviteView | null>(null)
@@ -441,7 +443,14 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
           type="button"
           className="btn ghost small"
           onClick={() => {
-            if (window.confirm('Load the version from your other device? Changes you made here since your last save will be replaced.')) void load()
+            void confirm({
+              title: 'Load the version from your other device?',
+              message: 'Changes you made here since your last save will be replaced.',
+              confirmLabel: 'Load it',
+              danger: true,
+            }).then((ok) => {
+              if (ok) void load()
+            })
           }}
         >
           Load latest
@@ -844,6 +853,7 @@ function PhotoManager({
   albumAvailable: boolean
   storyShared: boolean
 }) {
+  const confirm = useConfirm()
   const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -880,7 +890,7 @@ function PhotoManager({
   }
 
   async function remove(p: Photo) {
-    if (!window.confirm('Remove this photo? It will be deleted.')) return
+    if (!(await confirm({ title: 'Remove this photo?', message: 'It will be deleted.', confirmLabel: 'Remove photo', danger: true }))) return
     try {
       await del(`${base}/photos/${p.id}`)
       setPhotos(photos.filter((x) => x.id !== p.id))

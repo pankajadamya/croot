@@ -9,6 +9,7 @@ import { AlbumGrid } from './AlbumGrid'
 import { videoPoster } from '../../../lib/videoPoster'
 import { UploadZone } from '../../../components/UploadZone'
 import { IMAGE_ACCEPT, isImageFile, MAX_UPLOAD_MB, prepareImage } from '../../../lib/prepareImage'
+import { useConfirm } from '../../../components/ConfirmDialog'
 
 /** Matches the server's MAX_VIDEO_BYTES default. */
 const MAX_VIDEO_MB = 200
@@ -20,6 +21,7 @@ const MAX_VIDEO_MB = 200
  * The reward depends only on sending a review, never on its rating or on agreeing to publish anything.
  */
 export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat }) {
+  const confirm = useConfirm()
   const queryClient = useQueryClient()
   const key = ['admin', orgSlug, 'album', retreat.id]
   const photos = useQuery({
@@ -163,7 +165,14 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
               type="button"
               className="btn ghost small"
               disabled={newLink.isPending}
-              onClick={() => window.confirm('Make a new album link? The current one will stop working for everyone who has it, including guests.') && newLink.mutate()}
+              onClick={() =>
+                void confirm({
+                  title: 'Make a new album link?',
+                  message: 'The current link stops working for everyone who has it, including guests. Your retreat page switches to the new one automatically.',
+                  confirmLabel: 'Make new link',
+                  danger: true,
+                }).then((ok) => ok && newLink.mutate())
+              }
             >
               Make a new link
             </button>

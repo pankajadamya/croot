@@ -7,6 +7,7 @@ import { useAuth } from '../../lib/auth'
 import { LinkUnavailable, Loading } from '../../components/States'
 import { HeartButton, useHearts } from '../../components/Hearts'
 import { formatDuration } from '../../lib/format'
+import { useConfirm } from '../../components/ConfirmDialog'
 
 interface AlbumPhoto {
   id: string
@@ -41,6 +42,7 @@ interface AlbumListing {
  * `base` is the API base: /api/invites/:token, /api/responses/:token, /api/me/reviews/:id or /api/albums/:token.
  */
 function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { base: string; listPath?: string; backTo?: string; backLabel?: string }) {
+  const confirm = useConfirm()
   const qc = useQueryClient()
   const key = ['album-page', base]
   const q = useQuery({ queryKey: key, queryFn: () => get<AlbumListing>(listPath), retry: false })
@@ -121,7 +123,7 @@ function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { ba
   }
 
   async function stopSharing(p: AlbumPhoto) {
-    if (!window.confirm('Stop sharing this photo in the album? It stays in your review, private to you and the organiser.')) return
+    if (!(await confirm({ title: 'Stop sharing this photo in the album?', message: 'It stays in your review, private to you and the organiser.', confirmLabel: 'Stop sharing' }))) return
     await del(`${base}/album/photos/${p.id}`)
     setOpen(null)
     void qc.invalidateQueries({ queryKey: key })

@@ -8,6 +8,7 @@ import { LinkUnavailable, Loading } from '../../components/States'
 import { AlbumLinkCard, type AlbumSummary } from '../../components/AlbumGallery'
 import { GuestHeader } from '../../components/AppHeader'
 import { RetreatPageLink } from '../../components/RetreatPageLink'
+import { useConfirm } from '../../components/ConfirmDialog'
 
 interface ReceiptView {
   retreat: { title: string; organiserName: string; organisationName: string; contactEmail: string | null; privacyNoticePath: string; publicPagePath: string | null }
@@ -33,6 +34,7 @@ const PUBLICATION_LABEL: Record<ReceiptView['publication']['status'], string> = 
 
 /** The guest's private page. Bookmark-worthy; it never shows anything about anonymous notes. */
 export default function Receipt() {
+  const confirm = useConfirm()
   const { token = '' } = useParams()
   const location = useLocation()
   const justSubmitted = Boolean((location.state as { justSubmitted?: boolean } | null)?.justSubmitted)
@@ -46,7 +48,7 @@ export default function Receipt() {
   const [confirmText, setConfirmText] = useState('')
 
   async function withdraw(body: { scope: string; photoId?: string }, confirmText: string) {
-    if (!window.confirm(confirmText)) return
+    if (!(await confirm({ title: confirmText, confirmLabel: 'Yes, go ahead', danger: true }))) return
     setBusy(true)
     try {
       await post(`${base}/withdraw`, body)
