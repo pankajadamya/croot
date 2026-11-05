@@ -60,17 +60,17 @@ export function RetreatDetails({ retreat, organiser }: { retreat: RetreatFacts; 
           <div className="row">
             {retreat.retreatPageUrl && (
               <a className="btn" href={retreat.retreatPageUrl} rel="noopener noreferrer" target="_blank">
-                {retreat.kind === 'property' ? 'Visit the property website' : 'Visit the retreat website'} ↗
+                {retreat.kind === 'property' ? 'Visit the property website' : 'Visit the retreat website'}{' '}↗
               </a>
             )}
             {orgSite && (
               <a className={retreat.retreatPageUrl ? 'btn secondary' : 'btn'} href={orgSite} rel="noopener noreferrer" target="_blank">
-                Visit {organiser!.name}’s website ↗
+                Visit {organiser!.name}’s website{' '}↗
               </a>
             )}
             {retreat.itineraryUrl && retreat.itineraryUrl !== retreat.retreatPageUrl && (
               <a className="btn secondary" href={retreat.itineraryUrl} rel="noopener noreferrer" target="_blank">
-                {retreat.kind === 'property' ? 'Rooms and programmes' : 'Full itinerary'} ↗
+                {retreat.kind === 'property' ? 'Rooms and programmes' : 'Full itinerary'}{' '}↗
               </a>
             )}
           </div>
