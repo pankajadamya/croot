@@ -566,9 +566,20 @@ model MediaAsset {
 
   retreat  Retreat   @relation(fields: [retreatId], references: [id], onDelete: Cascade)
   response Response? @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  hearts   PhotoHeart[]
 
   @@index([organisationId, retreatId, kind])
   @@index([responseId])
+}
+
+/// A heart on an album photo. Visitors needn't sign in: `voterHash` is an HMAC of a random ID kept in
+/// their browser, never an IP address or account. One per photo per visitor.
+model PhotoHeart {
+  photoId   String     @db.Uuid
+  voterHash String
+  photo     MediaAsset @relation(fields: [photoId], references: [id], onDelete: Cascade)
+
+  @@id([photoId, voterHash])
 }
 
 // ---------------------------------------------------------------------------------------------

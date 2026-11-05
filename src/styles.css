@@ -2750,3 +2750,91 @@ ol.album-admin-grid {
     transform: none;
   }
 }
+
+/* Hearts on album photos. */
+.heart-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 40px;
+  min-width: 40px;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  border: 0;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+}
+.heart-btn svg {
+  width: 20px;
+  height: 20px;
+  transition: transform 0.15s ease;
+}
+.heart-btn path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+.heart-btn.on path {
+  fill: #ff4d6d;
+  stroke: #ff4d6d;
+}
+.heart-btn.on svg {
+  animation: heart-pop 0.3s ease;
+}
+.heart-btn:focus-visible {
+  outline: 3px solid #ffffff;
+  outline-offset: 2px;
+}
+.heart-btn.tile {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  z-index: 1;
+}
+.heart-btn.bar {
+  background: rgba(255, 255, 255, 0.12);
+}
+@keyframes heart-pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .heart-btn.on svg {
+    animation: none;
+  }
+}
+
+/* Retreat page top row: album card wide on the left, retreat details narrow on the right. */
+.landing-top.with-album {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  gap: 1.25rem;
+  align-items: stretch;
+}
+.landing-top.with-album .album-promo {
+  min-height: clamp(260px, 30vw, 380px);
+}
+.landing-top.with-album .details-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.landing-top.with-album .details-card .row {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.landing-top.with-album .album-promo-strip {
+  display: none;
+}
+@media (max-width: 860px) {
+  .landing-top.with-album {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -7,8 +7,9 @@ import { prisma } from '../lib/prisma.js'
 import { livePublication } from '../lib/publication.js'
 import { activeOrgBySlug, publicRetreat, publishedContent, publishedTheme, retreatFacts, tenantForHost } from '../lib/site.js'
 import { storage } from '../lib/storage.js'
-import { anonymousLimiter } from '../middleware/rateLimits.js'
-import { albumListing, albumPagePath, publicAlbumLink, sendAlbumPhoto } from '../lib/album.js'
+import { anonymousLimiter, heartLimiter } from '../middleware/rateLimits.js'
+import { albumListing, albumPagePath, assertAlbumPhoto, publicAlbumLink, sendAlbumPhoto } from '../lib/album.js'
+import { heartedBy, setHeart, voterSchema } from '../lib/hearts.js'
 
 /**
  * Public projections only. Every response here is built from PublicationRevision snapshots and
@@ -149,6 +150,35 @@ publicRouter.get(
     const retreat = await publicRetreat(org.id, param(req, 'retreatSlug'))
     res.set('Cache-Control', 'public, max-age=30')
     res.json(await albumListing(retreat, null, req.baseUrl + req.path, { pagePath: albumPagePath(org.slug, retreat.slug), publicView: true }))
+  }),
+)
+
+// Hearts. The visitor id travels in the body (never the URL); see lib/hearts.ts for the abuse controls.
+publicRouter.post(
+  '/orgs/:orgSlug/retreats/:retreatSlug/album/hearts/mine',
+  heartLimiter,
+  route(async (req, res) => {
+    const org = await activeOrgBySlug(param(req, 'orgSlug'))
+    const retreat = await publicRetreat(org.id, param(req, 'retreatSlug'))
+    const { voter, photoIds } = parseBody(z.object({ voter: voterSchema, photoIds: z.array(z.uuid()).max(500) }), req.body)
+    const albumIds = (await albumListing(retreat, null, '', { pagePath: '', publicView: true })).photos.map((p) => p.id)
+    res.set('Cache-Control', 'no-store')
+    res.json({ hearted: await heartedBy(voter, photoIds.filter((id) => albumIds.includes(id))) })
+  }),
+)
+
+publicRouter.post(
+  '/orgs/:orgSlug/retreats/:retreatSlug/album/:photoId/heart',
+  heartLimiter,
+  route(async (req, res) => {
+    const org = await activeOrgBySlug(param(req, 'orgSlug'))
+    const retreat = await publicRetreat(org.id, param(req, 'retreatSlug'))
+    const photoId = uuidParam(req, 'photoId')
+    const { voter, on } = parseBody(z.object({ voter: voterSchema, on: z.boolean() }), req.body)
+    await assertAlbumPhoto(retreat, photoId)
+    const count = await setHeart(photoId, voter, on, req.ip)
+    res.set('Cache-Control', 'no-store')
+    res.json({ hearts: count, hearted: on })
   }),
 )
 

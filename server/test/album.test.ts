@@ -2,6 +2,7 @@ import sharp from 'sharp'
 import request from 'supertest'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeDatabase, prisma } from '../src/lib/prisma.js'
+import { resetHeartCaps } from '../src/lib/hearts.js'
 import { app, invite, login, makeTenant, resetDatabase } from './helpers.js'
 
 beforeEach(resetDatabase)
@@ -144,6 +145,32 @@ describe('thank-you photo album (itinerary retreats)', () => {
     await agent.patch(`/api/admin/orgs/alpha/retreats/${retreat.id}`).set('X-CSRF-Token', csrf).send({ rewardAlbumEnabled: false })
     expect((await page()).body.album).toBeNull()
     expect((await request(app).get(`/api/public/orgs/alpha/retreats/${retreat.slug}/album`)).status).toBe(404)
+  })
+
+  it('lets anyone heart a photo once, takes it back on a second tap, and caps repeat hearts from one place', async () => {
+    resetHeartCaps()
+    const { retreat, photoId } = await albumSetup()
+    const base = `/api/public/orgs/alpha/retreats/${retreat.slug}/album`
+    const voter = (n: number) => `visitor-${n}-abcdefghijklmnopqrstuvwxyz`
+    const heart = (v: string, on: boolean) => request(app).post(`${base}/${photoId}/heart`).send({ voter: v, on })
+
+    expect((await heart(voter(1), true)).body).toEqual({ hearts: 1, hearted: true })
+    expect((await heart(voter(1), true)).body.hearts).toBe(1) // once per visitor
+    expect((await request(app).post(`${base}/hearts/mine`).send({ voter: voter(1), photoIds: [photoId] })).body.hearted).toEqual([photoId])
+    expect((await request(app).get(base)).body.photos[0].hearts).toBe(1)
+    expect((await heart(voter(1), false)).body.hearts).toBe(0) // taken back
+
+    // A few more from the same place are fine; then that photo is capped for the day.
+    for (let n = 2; n <= 5; n++) expect((await heart(voter(n), true)).status).toBe(200)
+    expect((await heart(voter(99), true)).status).toBe(429)
+
+    // Only album photos, and only well-formed visitor ids.
+    expect((await request(app).post(`${base}/${crypto.randomUUID()}/heart`).send({ voter: voter(7), on: true })).status).toBe(404)
+    expect((await heart('x', true)).status).toBe(400)
+    // Nothing identifying is stored: just the photo and a keyed hash.
+    const row = await prisma.photoHeart.findFirstOrThrow()
+    expect(Object.keys(row).sort()).toEqual(['photoId', 'voterHash'])
+    expect(row.voterHash).not.toContain('visitor')
   })
 
   it('does not let a guest who has not sent a review add photos', async () => {

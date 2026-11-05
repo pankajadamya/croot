@@ -129,6 +129,11 @@ function Cookies() {
         consent banner is needed. Strictly necessary cookies are exempt from consent under PECR and the ePrivacy Directive. If analytics are ever
         added, they will stay off guest pages and require consent first.
       </p>
+      <p>
+        When you heart a photo in an album, your browser keeps a random visitor ID in its local storage (<code>croot.visitor</code>) so you can
+        heart each photo once and take it back. It isn’t a cookie, isn’t linked to you, and is used for nothing else; we store only a scrambled
+        form of it with each heart. Clearing your browser’s site data removes it.
+      </p>
     </Shell>
   )
 }

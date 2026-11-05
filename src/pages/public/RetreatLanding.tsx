@@ -119,7 +119,9 @@ export default function RetreatLanding() {
       <SiteHeader org={d.org} />
       <main id="main">
         {/* Contact and practical details first, so they're easy to find. */}
-        <section className="container landing-top">
+        {/* The photo album leads, with the retreat's details in a narrow card beside it. */}
+        <section className={`container landing-top ${d.album ? 'with-album' : ''}`}>
+          {d.album && <AlbumPromo album={d.album} title={`Photos from ${d.retreat.title}`} />}
           <RetreatDetails retreat={d.retreat} organiser={{ name: d.org.name, websiteUrl: d.org.websiteUrl ?? null, retreatsPath: `/o/${d.org.slug}` }} />
         </section>
 
@@ -153,12 +155,6 @@ export default function RetreatLanding() {
             </div>
           </div>
         </section>
-
-        {d.album && (
-          <section className="container" style={{ marginTop: 'clamp(2rem, 5vw, 3rem)' }} aria-label="Photo album">
-            <AlbumPromo album={d.album} title={`Photos from ${d.retreat.title}`} />
-          </section>
-        )}
 
         {/* Guest reviews last, each with the photos that guest chose to publish. */}
         <section className="container landing-reviews" aria-labelledby="reviews-title">

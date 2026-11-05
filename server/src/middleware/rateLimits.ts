@@ -18,6 +18,8 @@ export const tokenLimiter = rateLimit({ ...base, windowMs: 5 * 60_000, limit: 30
 /** Uploads are one request per file; generous enough for an organiser adding a whole album at once. */
 export const uploadLimiter = rateLimit({ ...base, windowMs: 15 * 60_000, limit: 120 })
 /** Anonymous notes: abuse control without any identity, keyed only by IP in memory (never stored). */
+/** Hearts on album photos: generous for real use, keyed by IP in memory only. */
+export const heartLimiter = rateLimit({ ...base, windowMs: 15 * 60_000, limit: 150, message: { error: 'That’s a lot of hearts. Please slow down and try again shortly.' } })
 export const anonymousLimiter = rateLimit({ ...base, windowMs: 60 * 60_000, limit: 10 })
 export const publicFormLimiter = rateLimit({ ...base, windowMs: 60 * 60_000, limit: 10 })
 

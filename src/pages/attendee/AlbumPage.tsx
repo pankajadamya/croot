@@ -4,6 +4,7 @@ import { Link, Navigate, useLocation, useParams } from 'react-router'
 import { api, ApiError, del, get } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
 import { LinkUnavailable, Loading } from '../../components/States'
+import { HeartButton, useHearts } from '../../components/Hearts'
 
 interface AlbumPhoto {
   id: string
@@ -14,6 +15,7 @@ interface AlbumPhoto {
   height: number
   sharedByGuest: boolean
   mine: boolean
+  hearts: number
 }
 interface AlbumListing {
   pageUrl: string
@@ -38,6 +40,7 @@ function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { ba
   const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [shared, setShared] = useState<string | null>(null)
+  const hearts = useHearts(q.data?.pageUrl ?? '', q.data?.photos ?? [])
 
   useEffect(() => {
     if (q.data) document.title = `Photo album · ${q.data.title}`
@@ -182,14 +185,20 @@ function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { ba
                 {(p.sharedByGuest || p.caption) && (
                   <span className="album-tag">{p.mine ? 'Shared by you' : p.sharedByGuest ? 'Shared by a guest' : p.caption}</span>
                 )}
+                {hearts.enabled && <HeartButton on={hearts.hearted(p.id)} count={hearts.count(p)} onToggle={() => void hearts.toggle(p)} />}
               </li>
             ))}
           </ul>
         )}
+        {hearts.message && (
+          <p className="album-error" role="alert">
+            {hearts.message}
+          </p>
+        )}
       </main>
 
       {open !== null && photos[open] && (
-        <Lightbox photos={photos} index={open} onIndex={setOpen} onClose={() => setOpen(null)} onStopSharing={stopSharing} />
+        <Lightbox photos={photos} index={open} onIndex={setOpen} onClose={() => setOpen(null)} onStopSharing={stopSharing} hearts={hearts} />
       )}
     </div>
   )
@@ -202,12 +211,14 @@ function Lightbox({
   onIndex,
   onClose,
   onStopSharing,
+  hearts,
 }: {
   photos: AlbumPhoto[]
   index: number
   onIndex: (i: number) => void
   onClose: () => void
   onStopSharing: (p: AlbumPhoto) => void
+  hearts: ReturnType<typeof useHearts>
 }) {
   const p = photos[index]
   const startX = useRef<number | null>(null)
@@ -266,6 +277,7 @@ function Lightbox({
         <span className="lightbox-count">
           {index + 1} / {photos.length}
         </span>
+        {hearts.enabled && <HeartButton variant="bar" on={hearts.hearted(p.id)} count={hearts.count(p)} onToggle={() => void hearts.toggle(p)} />}
         {p.mine && (
           <button type="button" className="album-btn ghost small" onClick={() => onStopSharing(p)}>
             Stop sharing

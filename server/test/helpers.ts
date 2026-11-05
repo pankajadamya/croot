@@ -9,7 +9,7 @@ import { DEFAULT_FEEDBACK_CATEGORIES } from '../../shared/categories.js'
 export const app = createApp()
 
 const TABLES = [
-  'AuditEvent', 'AnonymousNote', 'PublicationRevision', 'ChangeRequest', 'ConsentEvent', 'FeedbackRating', 'MediaAsset', 'Response',
+  'PhotoHeart', 'AuditEvent', 'AnonymousNote', 'PublicationRevision', 'ChangeRequest', 'ConsentEvent', 'FeedbackRating', 'MediaAsset', 'Response',
   'Invitation', 'Attendee', 'ThemeRevision', 'ContentRevision', 'Retreat', 'SetupToken', 'Session', 'Membership', 'OrgDomain',
   'TenantRequest', 'LoginCode', 'OrganiserInvite', 'User', 'Organisation',
 ]
