@@ -52,6 +52,32 @@ describe('thank-you photo album (itinerary retreats)', () => {
     expect((await request(app).get(`/media/${photoId}`)).status).toBe(404)
   })
 
+  it('includes earlier images, follows the chosen order, puts the title photo first, and honours removal', async () => {
+    const { agent, csrf, retreat, token, photoId } = await albumSetup()
+    // An image added earlier in "Your images" (organiser kind): in the album by default.
+    const earlier = await agent.post(`/api/admin/orgs/alpha/retreats/${retreat.id}/media`).set('X-CSRF-Token', csrf).attach('image', await png(), 'view.png')
+    const earlierId = earlier.body.media.id as string
+    const manage = await agent.get(`/api/admin/orgs/alpha/retreats/${retreat.id}/album`)
+    expect(manage.body.media.map((m: { id: string }) => m.id)).toEqual([photoId, earlierId])
+
+    // Reorder, then make the album upload the title photo.
+    await agent.put(`/api/admin/orgs/alpha/retreats/${retreat.id}/album/order`).set('X-CSRF-Token', csrf).send({ ids: [earlierId, photoId] })
+    const draft = await request(app).put(`/api/invites/${token}/draft`).send({ revision: 0, keepText: 'x' })
+    await request(app).post(`/api/invites/${token}/submit`).send({ revision: draft.body.revision })
+    let album = await request(app).get(`/api/invites/${token}/album`)
+    expect(album.body.photos.map((p: { id: string }) => p.id)).toEqual([earlierId, photoId])
+    await agent.post(`/api/admin/orgs/alpha/retreats/${retreat.id}/album/cover`).set('X-CSRF-Token', csrf).send({ mediaId: photoId })
+    album = await request(app).get(`/api/invites/${token}/album`)
+    expect(album.body.coverId).toBe(photoId)
+    expect(album.body.photos.map((p: { id: string }) => p.id)).toEqual([photoId, earlierId])
+
+    // Taking the earlier image out of the album hides it from guests (it stays in "Your images").
+    await agent.patch(`/api/admin/orgs/alpha/media/${earlierId}`).set('X-CSRF-Token', csrf).send({ inAlbum: false })
+    album = await request(app).get(`/api/invites/${token}/album`)
+    expect(album.body.photos.map((p: { id: string }) => p.id)).toEqual([photoId])
+    expect((await request(app).get(`/api/invites/${token}/album/${earlierId}`)).status).toBe(404)
+  })
+
   it('does not exist for properties or when switched off', async () => {
     const { org, retreat } = await makeTenant('lodge', { kind: 'property' })
     await prisma.retreat.update({ where: { id: retreat.id }, data: { rewardAlbumEnabled: true, rewardAlbumUrl: 'https://photos.example' } })

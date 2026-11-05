@@ -35,6 +35,7 @@ async function resolveReceipt(token: unknown) {
           rewardAlbumEnabled: true,
           rewardAlbumUrl: true,
           rewardAlbumNote: true,
+          rewardAlbumCoverId: true,
           organisation: { select: { name: true, slug: true, privacyEmail: true } },
         },
       },

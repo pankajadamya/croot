@@ -12,6 +12,7 @@ export interface AlbumSummary {
 interface AlbumListing {
   note: string | null
   url: string | null
+  coverId: string | null
   photos: Array<{ id: string; url: string; alt: string; caption: string; width: number; height: number }>
 }
 
@@ -47,7 +48,10 @@ export function AlbumTeaser({ album }: { album: AlbumSummary }) {
 export function AlbumGallery({ listingUrl }: { listingUrl: string }) {
   const q = useQuery({ queryKey: ['album', listingUrl], queryFn: () => get<AlbumListing>(listingUrl) })
   if (!q.data) return null
-  const { photos, note, url } = q.data
+  const { note, url, coverId } = q.data
+  // The title photo (when set) opens the album, shown large; the rest follow in the organiser's order.
+  const cover = coverId && q.data.photos[0]?.id === coverId ? q.data.photos[0] : null
+  const photos = cover ? q.data.photos.slice(1) : q.data.photos
   return (
     <section className="card album-gallery" aria-labelledby="album-title">
       <p className="eyebrow" style={{ margin: 0 }}>
@@ -57,6 +61,14 @@ export function AlbumGallery({ listingUrl }: { listingUrl: string }) {
         Your retreat photo album
       </h2>
       {note && <p style={{ whiteSpace: 'pre-line' }}>{note}</p>}
+      {cover && (
+        <figure className="album-cover">
+          <a href={cover.url} target="_blank" rel="noopener noreferrer">
+            <img src={cover.url} alt={cover.alt} width={cover.width} height={cover.height} />
+          </a>
+          {cover.caption && <figcaption className="small muted">{cover.caption}</figcaption>}
+        </figure>
+      )}
       {photos.length > 0 && (
         <ul className="album-grid">
           {photos.map((p) => (

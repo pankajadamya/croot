@@ -1571,3 +1571,76 @@ table.data th {
     align-items: flex-start;
   }
 }
+
+/* Album organiser tiles: order, title photo, drag. */
+.album-tile {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem;
+  background: var(--surface);
+  cursor: grab;
+}
+.album-tile.dragging {
+  opacity: 0.45;
+}
+.album-tile.is-cover {
+  border-color: var(--button);
+  box-shadow: 0 0 0 2px var(--button);
+}
+.album-tile.is-excluded {
+  cursor: default;
+  opacity: 0.85;
+}
+.album-tile-img {
+  position: relative;
+}
+.album-tile-pos {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 99px;
+  background: rgba(14, 38, 36, 0.8);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+.album-tile-cover {
+  position: absolute;
+  bottom: 6px;
+  left: 6px;
+  padding: 0.15rem 0.55rem;
+  border-radius: 99px;
+  background: var(--button);
+  color: var(--button-text);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.album-tile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.1rem;
+}
+.album-tile-actions .btn.small {
+  min-height: 30px;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.78rem;
+}
+ol.album-admin-grid {
+  list-style: none;
+}
+/* Guest's unlocked album: the title photo, large. */
+.album-cover {
+  margin: 1rem 0 0;
+}
+.album-cover img {
+  width: 100%;
+  max-height: 480px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  height: auto;
+}

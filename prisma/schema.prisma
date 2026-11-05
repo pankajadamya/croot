@@ -287,6 +287,8 @@ model Retreat {
   rewardAlbumUrl           String?
   /// Optional thank-you note shown with the album.
   rewardAlbumNote          String  @default("")
+  /// The album's title photo: shown first and largest, and leading the welcome-screen preview.
+  rewardAlbumCoverId       String?  @db.Uuid
   /// [{ key, label }] — private feedback categories for this retreat.
   feedbackCategories Json     @default("[]")
   /// Below this many submitted responses, aggregate scores are hidden to protect identities.
@@ -546,6 +548,10 @@ model MediaAsset {
   /// Organiser images: separate switches for the public hero and the writing-time slideshow.
   inHeroSlideshow    Boolean      @default(false)
   inWritingSlideshow Boolean      @default(false)
+  /// Organiser images: part of the thank-you album too (album photos always are). Off removes it from the album only.
+  inAlbum            Boolean      @default(true)
+  /// Position in the thank-you album (separate from the slideshow order).
+  albumOrder         Int          @default(0)
   removedAt      DateTime?
   /// When the private original was deleted under the retention policy (originalKey is then stale).
   originalPurgedAt DateTime?

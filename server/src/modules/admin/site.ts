@@ -174,6 +174,9 @@ function organiserMediaView(orgSlug: string, m: Awaited<ReturnType<typeof tenant
     focalY: m.focalY,
     inHeroSlideshow: m.inHeroSlideshow,
     inWritingSlideshow: m.inWritingSlideshow,
+    kind: m.kind,
+    inAlbum: m.kind === 'album' || m.inAlbum,
+    albumOrder: m.albumOrder,
   }
 }
 
@@ -220,6 +223,8 @@ siteRouter.post(
         width: image.width,
         height: image.height,
         displayOrder: count,
+        // New photos go to the end of the album.
+        albumOrder: (await prisma.mediaAsset.aggregate({ where: { retreatId: retreat.id, removedAt: null }, _max: { albumOrder: true } }))._max.albumOrder! + 1 || 0,
         // Slideshow images: included in both slideshows by default; shown once permission is confirmed.
         // Album photos: never in a slideshow, and ready at once (they are only for guests who reviewed).
         inHeroSlideshow: kind === 'organiser',
@@ -242,6 +247,8 @@ const mediaPatch = z.object({
   focalY: z.number().min(0).max(1).optional(),
   inHeroSlideshow: z.boolean().optional(),
   inWritingSlideshow: z.boolean().optional(),
+  /** Earlier images: part of the thank-you album (off takes it out of the album only). */
+  inAlbum: z.boolean().optional(),
 })
 
 siteRouter.patch(
@@ -269,6 +276,51 @@ siteRouter.patch(
     })
     await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'media.updated', entityType: 'media', entityId: media.id, metadata: { fields: Object.keys(body) } })
     res.json({ media: organiserMediaView(t.org.slug, updated) })
+  }),
+)
+
+// ---------------------------------------------------------------------------------------------
+// Thank-you album: everything that can be in it (album uploads and earlier images), its order and title photo.
+
+siteRouter.get(
+  '/retreats/:retreatId/album',
+  route(async (req, res) => {
+    const t = tenantOf(req)
+    const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
+    const media = await prisma.mediaAsset.findMany({
+      where: { organisationId: t.org.id, retreatId: retreat.id, removedAt: null, kind: { in: ['album', 'organiser'] } },
+      orderBy: [{ albumOrder: 'asc' }, { createdAt: 'asc' }],
+    })
+    res.json({ coverId: retreat.rewardAlbumCoverId, media: media.map((m) => organiserMediaView(t.org.slug, m)) })
+  }),
+)
+
+siteRouter.put(
+  '/retreats/:retreatId/album/order',
+  route(async (req, res) => {
+    const t = tenantOf(req)
+    const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
+    const { ids } = parseBody(z.object({ ids: z.array(z.uuid()).max(2000) }), req.body)
+    const owned = new Set(
+      (await prisma.mediaAsset.findMany({ where: { retreatId: retreat.id, id: { in: ids }, kind: { in: ['album', 'organiser'] } }, select: { id: true } })).map((m) => m.id),
+    )
+    await prisma.$transaction(ids.filter((id) => owned.has(id)).map((id, i) => prisma.mediaAsset.update({ where: { id }, data: { albumOrder: i } })))
+    res.json({ ok: true })
+  }),
+)
+
+siteRouter.post(
+  '/retreats/:retreatId/album/cover',
+  route(async (req, res) => {
+    const t = tenantOf(req)
+    const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
+    const { mediaId } = parseBody(z.object({ mediaId: z.uuid().nullable() }), req.body)
+    if (mediaId) {
+      const m = await prisma.mediaAsset.findFirst({ where: { id: mediaId, retreatId: retreat.id, removedAt: null, OR: [{ kind: 'album' }, { kind: 'organiser', inAlbum: true }] } })
+      if (!m) throw new HttpError(400, 'Choose a photo that is in the album')
+    }
+    await prisma.retreat.update({ where: { id: retreat.id }, data: { rewardAlbumCoverId: mediaId } })
+    res.json({ coverId: mediaId })
   }),
 )
 

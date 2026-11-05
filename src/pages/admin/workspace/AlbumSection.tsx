@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ApiError, del, get, orgApi, patch, post } from '../../../lib/api'
+import { ApiError, get, orgApi, patch, post } from '../../../lib/api'
 import { Field, Switch } from '../../../components/Controls'
 import { ErrorNotice, Loading } from '../../../components/States'
 import { MutationError, retreatKey } from '../adminUi'
 import type { OrganiserMedia, Retreat } from '../types'
+import { AlbumGrid } from './AlbumGrid'
 
 /**
  * Itinerary retreats: a thank-you photo album each guest unlocks by sending their review. It's
@@ -16,7 +17,8 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
   const key = ['admin', orgSlug, 'album', retreat.id]
   const photos = useQuery({
     queryKey: key,
-    queryFn: () => get<{ media: OrganiserMedia[] }>(`${orgApi(orgSlug)}/retreats/${retreat.id}/media?album=1`).then((r) => r.media),
+    // Everything that can be in the album: its uploads and the earlier images from "Your images".
+    queryFn: () => get<{ coverId: string | null; media: OrganiserMedia[] }>(`${orgApi(orgSlug)}/retreats/${retreat.id}/album`),
   })
   const [url, setUrl] = useState(retreat.rewardAlbumUrl ?? '')
   const [note, setNote] = useState(retreat.rewardAlbumNote ?? '')
@@ -55,7 +57,7 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
     setProgress(null)
   }
 
-  const count = photos.data?.length ?? 0
+  const count = photos.data?.media.filter((m) => m.inAlbum).length ?? 0
   const live = retreat.rewardAlbumEnabled && (count > 0 || Boolean(retreat.rewardAlbumUrl))
 
   return (
@@ -173,51 +175,15 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
 
       {photos.isLoading && <Loading />}
       {photos.error && <ErrorNotice error={photos.error} />}
-      {photos.data && photos.data.length > 0 && (
-        <ul className="album-admin-grid">
-          {photos.data.map((p) => (
-            <AlbumPhoto key={p.id} orgSlug={orgSlug} photo={p} onChanged={() => queryClient.invalidateQueries({ queryKey: key })} />
-          ))}
-        </ul>
+      {photos.data && (
+        <AlbumGrid
+          orgSlug={orgSlug}
+          retreatId={retreat.id}
+          coverId={photos.data.coverId}
+          media={photos.data.media}
+          onChanged={() => queryClient.invalidateQueries({ queryKey: key })}
+        />
       )}
     </section>
-  )
-}
-
-/** One album photo: a caption that saves on leaving the field, and delete. */
-function AlbumPhoto({ orgSlug, photo, onChanged }: { orgSlug: string; photo: OrganiserMedia; onChanged: () => void }) {
-  const [caption, setCaption] = useState(photo.caption)
-  const save = useMutation({ mutationFn: (c: string) => patch(`${orgApi(orgSlug)}/media/${photo.id}`, { caption: c }) })
-  const remove = useMutation({ mutationFn: () => del(`${orgApi(orgSlug)}/media/${photo.id}`), onSuccess: onChanged })
-  return (
-    <li>
-      <img src={photo.previewUrl} alt={photo.caption || 'Album photo'} loading="lazy" />
-      <label className="sr-only" htmlFor={`cap-${photo.id}`}>
-        Caption
-      </label>
-      <input
-        id={`cap-${photo.id}`}
-        type="text"
-        placeholder="Caption (optional)"
-        value={caption}
-        onChange={(e) => setCaption(e.target.value)}
-        onBlur={() => caption !== photo.caption && save.mutate(caption)}
-      />
-      <div className="spread small">
-        <span className="muted" aria-live="polite">
-          {save.isPending ? 'Saving…' : save.isSuccess ? 'Saved' : save.isError ? 'Couldn’t save' : ''}
-        </span>
-        <button
-          type="button"
-          className="btn ghost small"
-          disabled={remove.isPending}
-          onClick={() => {
-            if (window.confirm('Remove this photo from the album?')) remove.mutate()
-          }}
-        >
-          Remove
-        </button>
-      </div>
-    </li>
   )
 }

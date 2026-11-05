@@ -34,6 +34,7 @@ export interface Retreat {
   rewardAlbumEnabled: boolean
   rewardAlbumUrl: string | null
   rewardAlbumNote: string
+  rewardAlbumCoverId: string | null
   feedbackCategories: FeedbackCategory[]
   aggregateThreshold: number
   createdAt: string
@@ -193,4 +194,7 @@ export interface OrganiserMedia {
   focalY: number
   inHeroSlideshow: boolean
   inWritingSlideshow: boolean
+  kind?: 'organiser' | 'album'
+  inAlbum?: boolean
+  albumOrder?: number
 }
