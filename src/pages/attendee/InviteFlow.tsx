@@ -1044,7 +1044,9 @@ function PhotoManager({
                   <input id={`alt-${p.id}`} type="text" defaultValue={p.altText} maxLength={300} placeholder="What is in this photo?" onBlur={(e) => e.target.value !== p.altText && void change(p, { altText: e.target.value })} />
                 </Field>
               </div>
-              <span className="guest-photo-share-state small muted">{p.publishConsent && (!albumAvailable || p.albumConsent) ? 'Sharing allowed' : 'Private'}</span>
+              <span className={`guest-photo-share-state small ${p.publishConsent && (!albumAvailable || p.albumConsent) ? 'is-allowed' : 'is-private'}`}>
+                {p.publishConsent && (!albumAvailable || p.albumConsent) ? 'Sharing allowed' : 'Private'}
+              </span>
               <button type="button" className="link-button guest-photo-remove" onClick={() => void remove(p)}>
                 Remove
               </button>

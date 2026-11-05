@@ -3965,7 +3965,30 @@ details.advanced summary {
   width: 100%;
 }
 .guest-photo-share-state {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 0.45rem;
+  color: var(--text);
+  font-weight: 600;
+  line-height: 1.2;
   white-space: nowrap;
+}
+.guest-photo-share-state.is-allowed::before {
+  content: '✓';
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #d6f3b5;
+  color: var(--forest);
+  font-size: 1rem;
+  font-weight: 800;
+}
+.guest-photo-share-state.is-private {
+  color: var(--muted);
 }
 .guest-photo-legacy .btn {
   margin: 0.4rem 0 0 0.4rem;
@@ -4005,17 +4028,21 @@ details.advanced summary {
   .guest-photo-row {
     grid-template-columns: 84px minmax(0, 1fr);
     align-items: start;
+    position: relative;
   }
   .guest-photo-thumb {
     width: 84px;
     height: 84px;
   }
   .guest-photo-share-state {
-    align-self: end;
+    grid-column: 1 / -1;
+    padding-right: 4.5rem;
     white-space: normal;
   }
   .guest-photo-remove {
-    grid-column: 2;
+    position: absolute;
+    right: 0.65rem;
+    bottom: 0.85rem;
   }
 }
 /* File pickers styled as buttons show keyboard focus too. */
