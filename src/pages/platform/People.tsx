@@ -7,6 +7,7 @@ import { formatDate } from '../../lib/format'
 import { Field } from '../../components/Controls'
 import { ErrorNotice, Loading } from '../../components/States'
 import { MutationError } from '../admin/adminUi'
+import { orgLabel } from './orgLabel'
 
 interface Person {
   id: string
@@ -25,6 +26,7 @@ interface Org {
   id: string
   slug: string
   name: string
+  ownerEmails: string[]
 }
 
 const PEOPLE_KEY = ['platform', 'people']
@@ -217,7 +219,7 @@ function PersonRow({ person: p, orgs, onChange }: { person: Person; orgs: Org[];
             <option value="">Choose an organisation…</option>
             {orgs.map((o) => (
               <option key={o.id} value={o.id}>
-                {o.name}
+                {orgLabel(o)}
               </option>
             ))}
             <option value="__new">+ New organisation…</option>

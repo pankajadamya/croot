@@ -88,7 +88,8 @@ platformRouter.post(
   '/tenant-requests/:id/decline',
   route(async (req, res) => {
     const id = uuidParam(req, 'id')
-    const body = parseBody(z.object({ reason: text(500).optional(), notify: z.boolean().default(true) }), req.body ?? {})
+    // A reason is required: it goes into the email to the person.
+    const body = parseBody(z.object({ reason: text(500).refine((v) => v.length > 0, 'Give a reason for declining'), notify: z.boolean().default(true) }), req.body ?? {})
     const request = await prisma.tenantRequest.findUnique({ where: { id } })
     const updated = await prisma.tenantRequest.updateMany({
       where: { id, status: 'pending' },
@@ -111,7 +112,12 @@ platformRouter.get(
   route(async (_req, res) => {
     const invites = await prisma.organiserInvite.findMany({ orderBy: { createdAt: 'desc' }, take: 100 })
     const orgIds = [...new Set(invites.map((i) => i.organisationId).filter((x): x is string => Boolean(x)))]
-    const orgs = new Map((await prisma.organisation.findMany({ where: { id: { in: orgIds } }, select: { id: true, name: true } })).map((o) => [o.id, o.name]))
+    const orgRows = await prisma.organisation.findMany({
+      where: { id: { in: orgIds } },
+      select: { id: true, name: true, memberships: { where: { role: 'owner' }, select: { user: { select: { email: true } } } } },
+    })
+    // Shown with the owner's email: organisation names can repeat.
+    const orgs = new Map(orgRows.map((o) => [o.id, `${o.name} (owner: ${o.memberships[0]?.user.email ?? 'none'})`]))
     const now = new Date()
     res.json({
       invites: invites.map((i) => ({
@@ -174,7 +180,12 @@ platformRouter.get(
   route(async (_req, res) => {
     const orgs = await prisma.organisation.findMany({
       orderBy: { createdAt: 'desc' },
-      include: { domains: true, _count: { select: { retreats: true, memberships: true } } },
+      include: {
+        domains: true,
+        _count: { select: { retreats: true, memberships: true } },
+        // Names are not unique: owners' emails tell organisations apart wherever an admin picks one.
+        memberships: { where: { role: 'owner' }, select: { user: { select: { email: true } } }, orderBy: { createdAt: 'asc' } },
+      },
     })
     res.json({
       orgs: orgs.map((o) => ({
@@ -186,6 +197,7 @@ platformRouter.get(
         domains: o.domains.map((d) => ({ id: d.id, hostname: d.hostname })),
         retreatCount: o._count.retreats,
         memberCount: o._count.memberships,
+        ownerEmails: o.memberships.map((m) => m.user.email),
       })),
     })
   }),

@@ -11,6 +11,7 @@ import { AdminShell } from '../admin/AdminShell'
 import { fieldError, MutationError, OneTimeLinkNotice } from '../admin/adminUi'
 import { OrganiserInvites } from './OrganiserInvites'
 import { People } from './People'
+import { ownerText } from './orgLabel'
 
 interface TenantRequest {
   id: string
@@ -38,6 +39,7 @@ interface Tenant {
   domains: Array<{ id: string; hostname: string }>
   retreatCount: number
   memberCount: number
+  ownerEmails: string[]
 }
 
 interface Created {
@@ -86,111 +88,39 @@ function CreatedNotice({ created, onDismiss }: { created: Created; onDismiss: ()
 function Requests() {
   const queryClient = useQueryClient()
   const requests = useQuery({ queryKey: REQUESTS_KEY, queryFn: () => get<{ requests: TenantRequest[] }>('/api/platform/tenant-requests').then((r) => r.requests) })
-  const [slugs, setSlugs] = useState<Record<string, string>>({})
-  const [targets, setTargets] = useState<Record<string, string>>({})
   const orgs = useQuery({ queryKey: ORGS_KEY, queryFn: () => get<{ orgs: Tenant[] }>('/api/platform/orgs').then((r) => r.orgs) })
   const [created, setCreated] = useState<Created | null>(null)
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: REQUESTS_KEY })
     void queryClient.invalidateQueries({ queryKey: ORGS_KEY })
   }
-  const approve = useMutation({
-    mutationFn: (id: string) =>
-      post<Created>(
-        `/api/platform/tenant-requests/${id}/approve`,
-        targets[id] ? { organisationId: targets[id], role: 'organiser' } : slugs[id]?.trim() ? { slug: slugs[id].trim() } : {},
-      ),
-    onSuccess: (r) => {
-      setCreated(r)
-      refresh()
-    },
-  })
-  const decline = useMutation({
-    mutationFn: (v: { id: string; reason: string }) => post(`/api/platform/tenant-requests/${v.id}/decline`, { reason: v.reason || undefined }),
-    onSuccess: refresh,
-  })
   const pending = requests.data?.filter((r) => r.status === 'pending') ?? []
   const handled = requests.data?.filter((r) => r.status !== 'pending') ?? []
 
   return (
     <section className="card" aria-labelledby="pf-requests">
       <h2 id="pf-requests">Organiser requests</h2>
-      <p className="muted small">People who signed up and asked to become organisers. Approving creates their organisation (or adds them to one you choose) and emails them; declining emails them too.</p>
+      <p className="muted small">
+        People who signed up and asked to become organisers. <strong>Approve</strong> creates their organisation, makes them its owner and emails
+        them. <strong>Decline</strong> asks for a reason, which is included in the email to them.
+      </p>
       {created && <CreatedNotice created={created} onDismiss={() => setCreated(null)} />}
-      <MutationError error={approve.error || decline.error} />
       {requests.isLoading && <Loading />}
       {requests.error && <ErrorNotice error={requests.error} />}
       {requests.data && pending.length === 0 && <p className="muted">No pending requests.</p>}
       {pending.length > 0 && (
         <ul className="stack" style={{ listStyle: 'none', padding: 0 }}>
           {pending.map((r) => (
-            <li key={r.id} className="card tight">
-              <div className="spread" style={{ alignItems: 'flex-start' }}>
-                <div>
-                  <strong>{r.orgName}</strong>
-                  <div className="small muted">
-                    {r.contactName} · {r.email}
-                    {r.phone && <> · {r.phone}</>}
-                    {r.country && <> · {r.country}</>} · {formatDate(r.createdAt)}
-                  </div>
-                  {r.volume && <div className="small">Scale: {r.volume}</div>}
-                  {r.websiteUrl && (
-                    <div className="small">
-                      <a href={r.websiteUrl} target="_blank" rel="noreferrer noopener">
-                        {r.websiteUrl}
-                      </a>
-                    </div>
-                  )}
-                </div>
-                <div className="row">
-                  {(r.reviewKinds ?? []).map((k) => (
-                    <span key={k} className="badge neutral">
-                      {REVIEW_KINDS[k]?.label ?? k}
-                    </span>
-                  ))}
-                </div>
-              </div>
-              {r.message && <p className="small" style={{ whiteSpace: 'pre-wrap' }}>{r.message}</p>}
-              <div className="row" style={{ alignItems: 'flex-end' }}>
-                <div className="field" style={{ marginBottom: 0, flex: '1 1 220px' }}>
-                  <label htmlFor={`target-${r.id}`}>Approve as</label>
-                  <select id={`target-${r.id}`} value={targets[r.id] ?? ''} onChange={(e) => setTargets((t) => ({ ...t, [r.id]: e.target.value }))}>
-                    <option value="">Owner of a new organisation: {r.orgName}</option>
-                    {(orgs.data ?? []).map((o) => (
-                      <option key={o.id} value={o.id}>
-                        Organiser in {o.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {!targets[r.id] && (
-                <div className="field" style={{ marginBottom: 0, flex: '1 1 220px' }}>
-                  <label htmlFor={`slug-${r.id}`}>Web address slug (optional)</label>
-                  <input
-                    id={`slug-${r.id}`}
-                    type="text"
-                    placeholder="Generated from the name"
-                    value={slugs[r.id] ?? ''}
-                    onChange={(e) => setSlugs((s) => ({ ...s, [r.id]: e.target.value }))}
-                  />
-                </div>
-                )}
-                <button type="button" className="btn" disabled={approve.isPending} onClick={() => approve.mutate(r.id)}>
-                  Approve
-                </button>
-                <button
-                  type="button"
-                  className="btn secondary"
-                  disabled={decline.isPending}
-                  onClick={() => {
-                    const reason = window.prompt(`Decline the request from ${r.orgName}? They will be emailed. Optional note to include:`, '')
-                    if (reason !== null) decline.mutate({ id: r.id, reason })
-                  }}
-                >
-                  Decline
-                </button>
-              </div>
-            </li>
+            <RequestCard
+              key={r.id}
+              request={r}
+              sameNameOrgs={(orgs.data ?? []).filter((o) => o.name.trim().toLowerCase() === r.orgName.trim().toLowerCase())}
+              onApproved={(c) => {
+                setCreated(c)
+                refresh()
+              }}
+              onDeclined={refresh}
+            />
           ))}
         </ul>
       )}
@@ -218,8 +148,9 @@ function Requests() {
                     </td>
                     <td className="small">{formatDate(r.createdAt)}</td>
                     <td className="small">{r.source === 'invite' ? 'Invite link' : 'Request'}</td>
-                    <td title={r.declineReason ?? undefined}>
+                    <td>
                       <span className={`badge ${r.status === 'approved' ? 'ok' : 'neutral'}`}>{r.status === 'approved' ? 'Approved' : 'Declined'}</span>
+                      {r.declineReason && <div className="small muted">{r.declineReason}</div>}
                     </td>
                   </tr>
                 ))}
@@ -229,6 +160,96 @@ function Requests() {
         </details>
       )}
     </section>
+  )
+}
+
+/** One pending request: its details, then Approve, or Decline with a reason. */
+function RequestCard({
+  request: r,
+  sameNameOrgs,
+  onApproved,
+  onDeclined,
+}: {
+  request: TenantRequest
+  sameNameOrgs: Tenant[]
+  onApproved: (c: Created) => void
+  onDeclined: () => void
+}) {
+  const [declining, setDeclining] = useState(false)
+  const [reason, setReason] = useState('')
+  const approve = useMutation({ mutationFn: () => post<Created>(`/api/platform/tenant-requests/${r.id}/approve`, {}), onSuccess: onApproved })
+  const decline = useMutation({ mutationFn: () => post(`/api/platform/tenant-requests/${r.id}/decline`, { reason }), onSuccess: onDeclined })
+
+  return (
+    <li className="card tight">
+      <div className="spread" style={{ alignItems: 'flex-start' }}>
+        <div>
+          <strong>{r.orgName}</strong>
+          <div className="small muted">
+            {r.contactName} · {r.email}
+            {r.phone && <> · {r.phone}</>}
+            {r.country && <> · {r.country}</>} · {formatDate(r.createdAt)}
+          </div>
+          {r.websiteUrl && (
+            <div className="small">
+              <a href={r.websiteUrl} target="_blank" rel="noreferrer noopener">
+                {r.websiteUrl}
+              </a>
+            </div>
+          )}
+          {r.volume && <div className="small">Scale: {r.volume}</div>}
+        </div>
+        <div className="row">
+          {(r.reviewKinds ?? []).map((k) => (
+            <span key={k} className="badge neutral">
+              {REVIEW_KINDS[k]?.label ?? k}
+            </span>
+          ))}
+        </div>
+      </div>
+      {r.message && <p className="small" style={{ whiteSpace: 'pre-wrap' }}>{r.message}</p>}
+      {sameNameOrgs.length > 0 && (
+        <p className="notice small" style={{ margin: '0.75rem 0' }}>
+          {sameNameOrgs.length === 1 ? 'An organisation' : `${sameNameOrgs.length} organisations`} with this name already exist
+          {sameNameOrgs.length === 1 ? 's' : ''}: {sameNameOrgs.map((o) => `“${o.name}” (${ownerText(o)})`).join(', ')}. Names can repeat, so
+          approving creates a separate organisation owned by {r.email}. If {r.contactName} belongs to the existing one instead, decline with a
+          note and give them a role from <strong>People</strong> below.
+        </p>
+      )}
+
+      {!declining ? (
+        <div className="row" style={{ marginTop: '0.75rem' }}>
+          <button type="button" className="btn" disabled={approve.isPending} onClick={() => approve.mutate()}>
+            {approve.isPending ? 'Approving…' : 'Approve'}
+          </button>
+          <button type="button" className="btn secondary" onClick={() => setDeclining(true)}>
+            Decline
+          </button>
+        </div>
+      ) : (
+        <form
+          className="stack"
+          style={{ marginTop: '0.75rem' }}
+          onSubmit={(e) => {
+            e.preventDefault()
+            decline.mutate()
+          }}
+        >
+          <Field id={`reason-${r.id}`} label="Reason for declining" hint={`Included in the email to ${r.contactName}.`}>
+            <textarea id={`reason-${r.id}`} value={reason} onChange={(e) => setReason(e.target.value)} style={{ minHeight: '4.5rem' }} autoFocus />
+          </Field>
+          <div className="row">
+            <button className="btn danger" disabled={decline.isPending || !reason.trim()}>
+              {decline.isPending ? 'Sending…' : 'Send decline'}
+            </button>
+            <button type="button" className="btn secondary" onClick={() => setDeclining(false)}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+      <MutationError error={approve.error || decline.error} />
+    </li>
   )
 }
 
@@ -274,6 +295,7 @@ function Tenants() {
                     <Link to={`/admin/${o.slug}`} style={{ fontWeight: 600 }}>
                       {o.name}
                     </Link>
+                    <div className="small">{o.ownerEmails.length ? `Owner: ${o.ownerEmails.join(', ')}` : 'No owner'}</div>
                     <div className="small muted">
                       /{o.slug} · since {formatDate(o.createdAt)}
                     </div>

@@ -75,6 +75,8 @@ describe('requesting organiser access', () => {
     await person.agent.post('/api/account/organiser-request').set('X-CSRF-Token', person.csrf).send(details)
     const admin = await signIn('boss@example.test')
     const id = (await admin.agent.get('/api/platform/tenant-requests')).body.requests[0].id
+    const noReason = await admin.agent.post(`/api/platform/tenant-requests/${id}/decline`).set('X-CSRF-Token', admin.csrf).send({})
+    expect(noReason.status).toBe(400)
     await admin.agent.post(`/api/platform/tenant-requests/${id}/decline`).set('X-CSRF-Token', admin.csrf).send({ reason: 'Not a retreat business' })
     expect(testOutbox.find((m) => m.to === 'priya@example.test' && m.text.includes('Not a retreat business'))).toBeTruthy()
     expect((await person.agent.get('/api/account/organiser-request')).body.request).toMatchObject({ status: 'declined', declineReason: 'Not a retreat business' })

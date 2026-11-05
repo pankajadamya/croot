@@ -5,6 +5,7 @@ import { formatDate } from '../../lib/format'
 import { Field } from '../../components/Controls'
 import { ErrorNotice, Loading } from '../../components/States'
 import { MutationError, OneTimeLinkNotice } from '../admin/adminUi'
+import { orgLabel } from './orgLabel'
 
 interface Invite {
   id: string
@@ -31,7 +32,7 @@ const STATE_BADGE: Record<Invite['state'], [string, string]> = {
 export function OrganiserInvites() {
   const qc = useQueryClient()
   const invites = useQuery({ queryKey: INVITES_KEY, queryFn: () => get<{ invites: Invite[] }>('/api/platform/organiser-invites').then((r) => r.invites) })
-  const orgs = useQuery({ queryKey: ['platform', 'orgs'], queryFn: () => get<{ orgs: Array<{ id: string; name: string }> }>('/api/platform/orgs').then((r) => r.orgs) })
+  const orgs = useQuery({ queryKey: ['platform', 'orgs'], queryFn: () => get<{ orgs: Array<{ id: string; name: string; ownerEmails: string[] }> }>('/api/platform/orgs').then((r) => r.orgs) })
   const [email, setEmail] = useState('')
   const [organisationId, setOrganisationId] = useState('')
   const [role, setRole] = useState<'owner' | 'organiser'>('organiser')
@@ -81,7 +82,7 @@ export function OrganiserInvites() {
             <option value="">They create their own (as owner)</option>
             {(orgs.data ?? []).map((o) => (
               <option key={o.id} value={o.id}>
-                Join {o.name}
+                Join {orgLabel(o)}
               </option>
             ))}
           </select>
