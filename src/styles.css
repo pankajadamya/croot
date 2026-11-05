@@ -2960,3 +2960,40 @@ ol.album-admin-grid {
   max-height: calc(100vh - 8rem);
   background: #000000;
 }
+
+/* Album grid heart: just the icon and its count, bottom right over the photo (no box). The grid's general
+   button rules (full-width block, relative) must not apply to it. */
+.album-mosaic .heart-btn.tile {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  width: auto;
+  min-width: 44px;
+  min-height: 44px;
+  justify-content: flex-end;
+  padding: 0 4px;
+  background: none;
+  backdrop-filter: none;
+  border-radius: 0;
+  cursor: pointer;
+  color: #ffffff;
+  line-height: 1;
+}
+.album-mosaic .heart-btn.tile svg {
+  width: 24px;
+  height: 24px;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.7));
+}
+.album-mosaic .heart-btn.tile span {
+  font-size: 0.95rem;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+.album-mosaic .heart-btn.tile:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: -2px;
+  border-radius: 6px;
+}
