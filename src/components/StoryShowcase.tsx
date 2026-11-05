@@ -7,6 +7,7 @@ export interface ShowcaseStory {
   excerptIsFull: boolean
   displayName: string | null
   photo: { url: string } | null
+  photos?: Array<{ url: string; alt: string; caption: string }>
 }
 
 const FRAME_MS = 8000

@@ -79,6 +79,14 @@ publicRouter.get(
       retreat.heroSlideshowEnabled ? heroImages(retreat.id) : Promise.resolve([]),
       retreat.publicReviewsEnabled ? liveStories(retreat.id) : Promise.resolve([]),
     ])
+    const allPhotoIds = stories.flatMap((s) => s.photoIds)
+    const visible = new Map(
+      (
+        await prisma.mediaAsset.findMany({
+          where: { id: { in: allPhotoIds }, retreatId: retreat.id, publishConsent: true, moderation: 'approved', removedAt: null },
+        })
+      ).map((m) => [m.id, m]),
+    )
     res.set('Cache-Control', 'public, max-age=30')
     res.json({
       org: { slug: org.slug, name: org.name },
@@ -91,7 +99,13 @@ publicRouter.get(
         excerpt: s.excerpt,
         excerptIsFull: s.excerpt.length === s.storyText.length,
         displayName: s.displayName,
-        photo: s.photoIds[0] ? { url: `/media/${s.photoIds[0]}` } : null,
+        photo: s.photoIds[0] && visible.has(s.photoIds[0]) ? { url: `/media/${s.photoIds[0]}` } : null,
+        // The guest's own published photos, shown alongside their review.
+        photos: s.photoIds
+          .map((id) => visible.get(id))
+          .filter((m): m is NonNullable<typeof m> => Boolean(m))
+          .slice(0, 6)
+          .map((m) => ({ url: `/media/${m.id}`, alt: altFor(m, 'Photo shared by the guest'), caption: m.caption })),
       })),
     })
   }),

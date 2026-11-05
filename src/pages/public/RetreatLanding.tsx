@@ -6,7 +6,7 @@ import { get } from '../../lib/api'
 import { RetreatDetails, type RetreatFacts } from '../../components/RetreatDetails'
 import { HeroSlideshow } from '../../components/HeroSlideshow'
 import { ErrorNotice, Loading } from '../../components/States'
-import { StoryShowcase, type ShowcaseStory } from '../../components/StoryShowcase'
+import type { ShowcaseStory } from '../../components/StoryShowcase'
 import { ThemeScope } from '../../components/ThemeScope'
 
 export interface RetreatPublic {
@@ -68,51 +68,66 @@ export default function RetreatLanding() {
       </a>
       <SiteHeader org={d.org} />
       <main id="main">
-        <section className="container hero">
-          {/* Organiser-written opening, visually distinct from guest testimony. */}
-          <p className="eyebrow">From {d.retreat.organiserName || d.org.name}</p>
-          <h1>{d.content?.headline ?? d.retreat.title}</h1>
-          <div className="organiser-voice">
-            {d.content?.introParagraphs.map((p) => <p key={p}>{p}</p>)}
-            {d.content?.ctaLabel && d.content.ctaUrl && (
-              <a className="btn" href={d.content.ctaUrl} target="_blank" rel="noopener noreferrer">
-                {d.content.ctaLabel}
-              </a>
-            )}
-          </div>
-        </section>
-        {d.hero.length > 0 && (
-          <section className="container" aria-label="Retreat photos">
-            <HeroSlideshow slides={d.hero} />
-          </section>
-        )}
-        <section className="container" style={{ marginTop: '2.5rem' }}>
-          {d.stories.length > 0 ? (
-            <>
-              <h2 className="sr-only">Guest stories</h2>
-              <StoryShowcase stories={d.stories} />
-            </>
-          ) : null}
-        </section>
-        <section className="container" style={{ marginTop: '2rem' }}>
+        {/* Contact and practical details first, so they're easy to find. */}
+        <section className="container landing-top">
           <RetreatDetails retreat={d.retreat} />
         </section>
-        {d.stories.length > 1 && (
-          <section className="container" style={{ marginTop: '3rem' }}>
-            <h2>All stories</h2>
-            <div className="story-cards">
-              {d.stories.map((s) => (
-                <Link key={s.slug} to={`/stories/${s.slug}`} className="story-card">
-                  <blockquote>
-                    “{s.excerpt}
-                    {s.excerptIsFull ? '' : ' …'}”
-                  </blockquote>
-                  <span className="muted small">{s.displayName ?? 'A retreat guest'} · Read full story →</span>
-                </Link>
-              ))}
+
+        {/* Photos on the left, the organiser's own words on the right (stacked on small screens). */}
+        <section className={`container landing-hero ${d.hero.length ? '' : 'no-photos'}`}>
+          {d.hero.length > 0 && (
+            <div className="landing-photos" aria-label="Retreat photos">
+              <HeroSlideshow slides={d.hero} />
             </div>
-          </section>
-        )}
+          )}
+          <div className="landing-opening">
+            {/* Organiser-written opening, visually distinct from guest testimony. */}
+            <p className="eyebrow">From {d.retreat.organiserName || d.org.name}</p>
+            <h1>{d.content?.headline ?? d.retreat.title}</h1>
+            <div className="organiser-voice">
+              {d.content?.introParagraphs.map((p) => <p key={p}>{p}</p>)}
+              {d.content?.ctaLabel && d.content.ctaUrl && (
+                <a className="btn" href={d.content.ctaUrl} target="_blank" rel="noopener noreferrer">
+                  {d.content.ctaLabel}
+                </a>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* Guest reviews last, each with the photos that guest chose to publish. */}
+        <section className="container landing-reviews" aria-labelledby="reviews-title">
+          <h2 id="reviews-title">What guests are saying</h2>
+          {d.stories.length === 0 ? (
+            <p className="muted">No guest stories have been published yet.</p>
+          ) : (
+            <ul className="review-list">
+              {d.stories.map((s) => (
+                <li key={s.slug} className={`review-item ${s.photos?.length ? '' : 'no-photos'}`}>
+                  <div className="review-text">
+                    <blockquote>
+                      “{s.excerpt}
+                      {s.excerptIsFull ? '' : ' …'}”
+                    </blockquote>
+                    <p className="review-by">— {s.displayName ?? 'A retreat guest'}</p>
+                    {!s.excerptIsFull || (s.photos?.length ?? 0) > 0 ? (
+                      <Link to={`/stories/${s.slug}`}>
+                        Read full story<span className="sr-only">{s.displayName ? ` by ${s.displayName}` : ''}</span> →
+                      </Link>
+                    ) : null}
+                  </div>
+                  {s.photos && s.photos.length > 0 && (
+                    <div className={`review-photos count-${Math.min(s.photos.length, 4)}`}>
+                      {s.photos.slice(0, 4).map((p, i) => (
+                        <img key={p.url} src={p.url} alt={p.alt} loading="lazy" className={i === 0 ? 'first' : ''} />
+                      ))}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </main>
       <SiteFooter retreat={d.retreat} orgSlug={d.org.slug} />
     </ThemeScope>
