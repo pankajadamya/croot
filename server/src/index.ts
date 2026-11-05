@@ -2,10 +2,14 @@ import { createApp } from './app.js'
 import { env } from './lib/env.js'
 import { closeDatabase } from './lib/prisma.js'
 import { scheduleRetention } from './jobs/retention.js'
+import { ensurePlatformAdmins } from './lib/platformAdmins.js'
 
 const app = createApp()
 // Retention runs in-process every 6 hours (advisory-locked, so several instances are safe).
 if (env.NODE_ENV !== 'test') scheduleRetention()
+ensurePlatformAdmins()
+  .then((granted) => granted.length && console.log(`super admin access granted from PLATFORM_ADMIN_EMAILS to ${granted.length} account(s)`))
+  .catch((e) => console.error('could not apply PLATFORM_ADMIN_EMAILS:', (e as Error).message))
 const server = app.listen(env.PORT, () => {
   console.log(`croot API listening on :${env.PORT} (${env.NODE_ENV})`)
 })

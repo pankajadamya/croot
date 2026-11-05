@@ -27,6 +27,11 @@ const envSchema = z.object({
   S3_FORCE_PATH_STYLE: z.stringbool().default(false),
   /** Keys HMACs for sign-in codes and signs the short-lived OAuth state cookie. 32+ random characters; required in production. */
   AUTH_SECRET: z.string().min(32).optional(),
+  /**
+   * Comma-separated emails that are made super admins (platform admins) at start-up. Adds only:
+   * removing an address here never demotes anyone (do that in the platform console).
+   */
+  PLATFORM_ADMIN_EMAILS: z.string().optional().default(''),
   /** With ORG_SIGNUP_ENABLED, new organisations go live without platform approval when true. */
   SIGNUP_AUTO_APPROVE: z.stringbool().default(false),
   /** Organiser self-service sign-up. Off: organisers are onboarded with one-time links from the platform console. */

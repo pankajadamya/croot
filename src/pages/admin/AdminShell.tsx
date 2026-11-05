@@ -66,7 +66,8 @@ export function AdminShell({ orgSlug, children }: { orgSlug?: string; children: 
                 Organisations
               </NavLink>
             )}
-            {session.user.isPlatformAdmin && <NavLink to="/platform">Platform</NavLink>}
+            {session.user.isPlatformAdmin && <NavLink to="/platform">Super admin</NavLink>}
+            <NavLink to="/my-reviews">My reviews</NavLink>
           </nav>
           <div className="row">
             <span className="small muted">{session.user.name}</span>

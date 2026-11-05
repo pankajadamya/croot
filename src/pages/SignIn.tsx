@@ -106,8 +106,8 @@ export default function SignIn() {
         <div className="card" style={{ marginTop: '1.5rem' }}>
           <h1 style={{ fontSize: '1.8rem' }}>Sign in</h1>
           <p className="muted small">
-            Guests: use the email address your invitation was sent to. You can still open your review with your unique link at any time; signing in
-            is needed to change a review you’ve already sent.
+            One sign-in for everyone. We’ll take you to the right place: your reviews, or your organiser workspace if you’ve been given access.
+            Reviewing a retreat? Use the email address your invitation was sent to. Your unique link still works too.
           </p>
           {error && (
             <div className="notice error" role="alert" style={{ marginBottom: '1rem' }}>
@@ -199,7 +199,7 @@ export default function SignIn() {
               </button>
             ) : (
               <button type="button" className="btn ghost small" onClick={() => setMode('password')}>
-                Organisers: sign in with a password
+                Sign in with a password instead
               </button>
             )}
           </p>

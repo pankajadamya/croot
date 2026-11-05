@@ -50,9 +50,15 @@ One Node process serves the API and the built SPA (Dockerfile → Coolify on OVH
   verified email matches the invited guest. Withdrawing permissions or deleting data stays available from the receipt link.
   An edited review that was already published keeps its approved version live, flagged "Updated since published"
   for the organiser.
-- **Organisers** are onboarded with one-time setup links from `/platform` (*Create tenant*, or approving a request).
-  They sign in with an email code, Google or a password at `/signin`. Self-service organiser sign-up exists but is off
-  (`ORG_SIGNUP_ENABLED=false`). When on, new organisations start as *pending* until approved (`SIGNUP_AUTO_APPROVE`).
+- **One sign-in for everyone** at `/signin`. What a person sees depends on their account, not on how they signed in:
+  - **Super admin** (`isPlatformAdmin`): the *Super admin* console (`/platform`). The first ones come from
+    `PLATFORM_ADMIN_EMAILS`, applied at start-up. That setting only grants access and never demotes anyone.
+  - **Organiser**: has a role (owner or organiser) in an organisation, so sees the organiser workspace (`/admin`).
+    A super admin grants it in **Super admin → People**: find or add the person by email, then "Make organiser of"
+    an organisation, or create a new one with them as owner. Owners can also add organisers from their Team page.
+  - **Guest**: anyone else, who sees *My reviews*.
+- Self-service organiser sign-up exists but is off (`ORG_SIGNUP_ENABLED=false`). When on, new organisations start as
+  *pending* until approved (`SIGNUP_AUTO_APPROVE`).
 - Email codes are 6 digits, valid for 10 minutes and single use, and die after 5 wrong attempts. Only an HMAC (`AUTH_SECRET`) is stored.
   Responses never reveal whether an address has an account. Google uses PKCE, state and nonce, and accepts only verified emails.
 - In development `EMAIL_PROVIDER=console` prints codes to the API log. Production uses Amazon SES (`EMAIL_PROVIDER=ses`, `SES_*`, the same names as Collab) and requires `AUTH_SECRET`.

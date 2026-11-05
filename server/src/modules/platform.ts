@@ -149,6 +149,148 @@ platformRouter.post(
   }),
 )
 
+// ---------------------------------------------------------------------------------------------
+// People: one sign-in for everyone; what a person sees depends on their account's permissions.
+//   super admin  → isPlatformAdmin (this console)
+//   organiser    → a membership of an organisation (owner or organiser) → the organiser workspace
+//   everyone else → a guest, who sees My reviews
+
+async function personView(userId: string) {
+  const u = await prisma.user.findUniqueOrThrow({
+    where: { id: userId },
+    include: { memberships: { include: { organisation: { select: { id: true, slug: true, name: true } } }, orderBy: { createdAt: 'asc' } } },
+  })
+  return {
+    id: u.id,
+    email: u.email,
+    name: u.name,
+    isPlatformAdmin: u.isPlatformAdmin,
+    active: u.active,
+    emailVerified: Boolean(u.emailVerifiedAt),
+    signInMethods: { google: Boolean(u.googleSub), password: Boolean(u.passwordHash), emailCode: true },
+    lastLoginAt: u.lastLoginAt,
+    createdAt: u.createdAt,
+    memberships: u.memberships.map((m) => ({ id: m.id, role: m.role, organisation: m.organisation })),
+  }
+}
+
+platformRouter.get(
+  '/users',
+  route(async (req, res) => {
+    const q = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 100) : ''
+    const filter = typeof req.query.filter === 'string' ? req.query.filter : 'all'
+    const users = await prisma.user.findMany({
+      where: {
+        ...(q ? { OR: [{ email: { contains: q.toLowerCase() } }, { name: { contains: q, mode: 'insensitive' } }] } : {}),
+        ...(filter === 'organisers' ? { memberships: { some: {} } } : filter === 'admins' ? { isPlatformAdmin: true } : {}),
+      },
+      orderBy: [{ lastLoginAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
+      take: 100,
+      select: { id: true },
+    })
+    res.json({ users: await Promise.all(users.map((u) => personView(u.id))) })
+  }),
+)
+
+/** Adds an account by email so it can be given permissions before the person first signs in. */
+platformRouter.post(
+  '/users',
+  route(async (req, res) => {
+    const body = parseBody(z.object({ email: z.email().max(200), name: text(120).optional() }), req.body)
+    const email = body.email.toLowerCase()
+    const existing = await prisma.user.findUnique({ where: { email } })
+    const user = existing ?? (await prisma.user.create({ data: { email, name: body.name?.trim() || email.split('@')[0] } }))
+    if (!existing) {
+      await audit({ actorUserId: req.auth!.user.id, actorKind: 'platform', action: 'user.created', entityType: 'user', entityId: user.id })
+    }
+    res.status(existing ? 200 : 201).json({ user: await personView(user.id), existed: Boolean(existing) })
+  }),
+)
+
+platformRouter.patch(
+  '/users/:id',
+  route(async (req, res) => {
+    const id = uuidParam(req, 'id')
+    const body = parseBody(z.object({ isPlatformAdmin: z.boolean().optional(), active: z.boolean().optional(), name: text(120).optional() }), req.body)
+    const me = req.auth!.user.id
+    const target = await prisma.user.findUnique({ where: { id } })
+    if (!target) throw new HttpError(404, 'Person not found')
+    if (id === me && (body.isPlatformAdmin === false || body.active === false)) {
+      throw new HttpError(409, 'You can’t remove your own super admin access or disable your own account')
+    }
+    if (target.isPlatformAdmin && (body.isPlatformAdmin === false || body.active === false)) {
+      const admins = await prisma.user.count({ where: { isPlatformAdmin: true, active: true } })
+      if (admins <= 1) throw new HttpError(409, 'There must always be at least one active super admin')
+    }
+    await prisma.$transaction([
+      prisma.user.update({ where: { id }, data: body }),
+      // Disabling an account signs it out everywhere.
+      ...(body.active === false ? [prisma.session.deleteMany({ where: { userId: id } })] : []),
+    ])
+    for (const [field, value] of Object.entries(body)) {
+      if (field === 'name') continue
+      await audit({ actorUserId: me, actorKind: 'platform', action: `user.${field === 'isPlatformAdmin' ? 'platform_admin' : 'active'}.${value ? 'granted' : 'revoked'}`, entityType: 'user', entityId: id })
+    }
+    res.json({ user: await personView(id) })
+  }),
+)
+
+const grantSchema = z.union([
+  z.object({ organisationId: z.uuid(), role: z.enum(['owner', 'organiser']) }),
+  z.object({ newOrganisationName: text(120).refine((v) => v.length >= 2, 'Enter the organisation’s name'), role: z.literal('owner').default('owner') }),
+])
+
+/** Makes someone an organiser (or owner) of an organisation, existing or new. */
+platformRouter.post(
+  '/users/:id/memberships',
+  route(async (req, res) => {
+    const id = uuidParam(req, 'id')
+    const body = parseBody(grantSchema, req.body)
+    const user = await prisma.user.findUnique({ where: { id } })
+    if (!user) throw new HttpError(404, 'Person not found')
+    const actor = req.auth!.user.id
+    // Looked up before the transaction: it reads through the shared client, not the transaction's connection.
+    const newSlug = 'newOrganisationName' in body ? await availableSlug(body.newOrganisationName) : null
+    await prisma.$transaction(async (tx) => {
+      let organisationId: string
+      if ('organisationId' in body) {
+        const org = await tx.organisation.findUnique({ where: { id: body.organisationId } })
+        if (!org) throw new HttpError(404, 'Organisation not found')
+        organisationId = org.id
+      } else {
+        const org = await tx.organisation.create({ data: { slug: newSlug!, name: body.newOrganisationName, contactEmail: user.email } })
+        organisationId = org.id
+        await audit({ organisationId, actorUserId: actor, actorKind: 'platform', action: 'tenant.created', entityType: 'organisation', entityId: organisationId }, tx)
+      }
+      const existing = await tx.membership.findUnique({ where: { userId_organisationId: { userId: id, organisationId } } })
+      if (existing) {
+        await tx.membership.update({ where: { id: existing.id }, data: { role: body.role } })
+      } else {
+        await tx.membership.create({ data: { userId: id, organisationId, role: body.role } })
+      }
+      await audit({ organisationId, actorUserId: actor, actorKind: 'platform', action: `member.${existing ? 'role_changed' : 'added'}`, entityType: 'user', entityId: id, metadata: { role: body.role } }, tx)
+    })
+    res.status(201).json({ user: await personView(id) })
+  }),
+)
+
+platformRouter.delete(
+  '/users/:id/memberships/:membershipId',
+  route(async (req, res) => {
+    const id = uuidParam(req, 'id')
+    const membershipId = uuidParam(req, 'membershipId')
+    const m = await prisma.membership.findFirst({ where: { id: membershipId, userId: id } })
+    if (!m) throw new HttpError(404, 'Membership not found')
+    if (m.role === 'owner') {
+      const owners = await prisma.membership.count({ where: { organisationId: m.organisationId, role: 'owner' } })
+      if (owners <= 1) throw new HttpError(409, 'This is the organisation’s only owner. Make someone else an owner first.')
+    }
+    await prisma.membership.delete({ where: { id: membershipId } })
+    await audit({ organisationId: m.organisationId, actorUserId: req.auth!.user.id, actorKind: 'platform', action: 'member.removed', entityType: 'user', entityId: id })
+    res.json({ user: await personView(id) })
+  }),
+)
+
 const hostnameSchema = z.object({
   hostname: z
     .string()

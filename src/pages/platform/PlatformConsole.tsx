@@ -9,6 +9,7 @@ import { Field } from '../../components/Controls'
 import { ErrorNotice, Loading } from '../../components/States'
 import { AdminShell } from '../admin/AdminShell'
 import { fieldError, MutationError, OneTimeLinkNotice } from '../admin/adminUi'
+import { People } from './People'
 
 interface TenantRequest {
   id: string
@@ -48,10 +49,11 @@ export default function PlatformConsole() {
       <h1>Platform console</h1>
       {session && !session.user.isPlatformAdmin ? (
         <div className="notice error" role="alert">
-          This area is for platform administrators only. <Link to="/admin">Go to your organisations</Link>.
+          This area is for super admins only. <Link to="/admin">Go to your organisations</Link>.
         </div>
       ) : (
         <div className="stack">
+          <People />
           <Requests />
           <Tenants />
           <CreateTenant />
