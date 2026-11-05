@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { get, orgApi, post } from '../../../lib/api'
 import { ErrorNotice, Loading } from '../../../components/States'
+import { BRAND_PALETTES, BRAND_PALETTE_KEYS, brandAsset, isBrandPaletteKey, type BrandPaletteKey } from '../../../lib/brand'
 import { FORMAT_SIZE, renderSlide, type ShareFormat, type Slide } from '../../../lib/shareRender'
 import type { Retreat } from '../types'
 
@@ -21,6 +22,7 @@ interface KitStory {
 interface KitData {
   retreat: { title: string; organiserName: string; slug: string }
   orgName: string
+  brandThemeKey: string
   publicPath: string
   rating: { average: number; count: number } | null
   stories: KitStory[]
@@ -74,6 +76,7 @@ export function ShareKitTab({ orgSlug, retreat }: { orgSlug: string; retreat: Re
   const base = `${orgApi(orgSlug)}/retreats/${retreat.id}/share-kit`
   const q = useQuery({ queryKey: ['admin', orgSlug, 'share-kit', retreat.id], queryFn: () => get<KitData>(base) })
   const [format, setFormat] = useState<ShareFormat>('post')
+  const [brandPalette, setBrandPalette] = useState<BrandPaletteKey | null>(null)
   const [choices, setChoices] = useState<Record<string, Choice>>({})
   const [withCover, setWithCover] = useState(true)
   const [withClosing, setWithClosing] = useState(true)
@@ -85,6 +88,7 @@ export function ShareKitTab({ orgSlug, retreat }: { orgSlug: string; retreat: Re
   const renderRun = useRef(0)
 
   const d = q.data
+  const selectedBrandPalette = brandPalette ?? (d && isBrandPaletteKey(d.brandThemeKey) ? d.brandThemeKey : 'forest-linen')
   useEffect(() => {
     if (!d) return
     setChoices((prev) => {
@@ -134,7 +138,7 @@ export function ShareKitTab({ orgSlug, retreat }: { orgSlug: string; retreat: Re
     setRendering(true)
     const t = window.setTimeout(async () => {
       try {
-        const blobs = await Promise.all(slides.map((s) => renderSlide(s, format)))
+        const blobs = await Promise.all(slides.map((s) => renderSlide(s, format, selectedBrandPalette)))
         if (run !== renderRun.current) return
         setPreviews((old) => {
           old.forEach((p) => URL.revokeObjectURL(p.url))
@@ -148,7 +152,7 @@ export function ShareKitTab({ orgSlug, retreat }: { orgSlug: string; retreat: Re
     }, 250)
     return () => window.clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slides, format])
+  }, [slides, format, selectedBrandPalette])
 
   const suggestedCaption = useMemo(() => {
     if (!d) return ''
@@ -211,6 +215,25 @@ export function ShareKitTab({ orgSlug, retreat }: { orgSlug: string; retreat: Re
           doesn’t post anything: share from your phone or download the images.
         </p>
       </div>
+
+      <fieldset className="card tight">
+        <legend style={{ fontWeight: 700 }}>Croot logo on each image</legend>
+        <p className="small muted">Each exported slide includes the 09F symbol and croot name. The colourway starts with this retreat’s published theme; you can choose another below.</p>
+        <label htmlFor="kit-brand-palette" style={{ fontWeight: 600 }}>Logo colourway</label>
+        <select id="kit-brand-palette" value={selectedBrandPalette} onChange={(e) => setBrandPalette(e.target.value as BrandPaletteKey)}>
+          {BRAND_PALETTE_KEYS.map((key) => <option key={key} value={key}>{BRAND_PALETTES[key].label}</option>)}
+        </select>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem', marginTop: '0.9rem' }}>
+          <a className="card tight" href={brandAsset('mark', selectedBrandPalette)} download style={{ background: BRAND_PALETTES[selectedBrandPalette].preview, textDecoration: 'none' }}>
+            <img src={brandAsset('mark', selectedBrandPalette)} alt="Croot symbol" style={{ width: 92, height: 92, margin: '0 auto 0.5rem' }} />
+            <span className="small" style={{ display: 'block', textAlign: 'center' }}>Download logo alone</span>
+          </a>
+          <a className="card tight" href={brandAsset('logo', selectedBrandPalette)} download style={{ background: BRAND_PALETTES[selectedBrandPalette].preview, textDecoration: 'none' }}>
+            <img src={brandAsset('logo', selectedBrandPalette)} alt="Croot logo with name" style={{ width: 150, height: 92, margin: '0 auto 0.5rem', objectFit: 'contain' }} />
+            <span className="small" style={{ display: 'block', textAlign: 'center' }}>Download logo with name</span>
+          </a>
+        </div>
+      </fieldset>
 
       {d.stories.length === 0 ? (
         <div className="card">

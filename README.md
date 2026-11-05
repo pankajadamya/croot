@@ -127,3 +127,9 @@ stay dates, log redaction and theme contrast. Set `TEST_DATABASE_URL` to use a r
 Container build → Coolify, runtime-only secrets, `/health/ready` readiness check, migrations at start,
 separate database and bucket from Collab/MyAyurvedaTrip, encrypted backups with a tested restore.
 See "Decisions to confirm" in the design README before importing real attendee emails.
+
+## Croot brand assets
+
+The platform uses the 09F Woven Paths logo: the standalone symbol is `public/croot-mark.svg`, the lowercase wordmark lockup is `public/croot-logo.svg`, and the symbol is also the favicon. `public/croot-logo-light.svg` is the dark-background lockup used on the photo album. Both symbol-only and logo-with-name SVGs are available in `public/brand/` for Forest & Linen, Saffron Dusk, Mountain Mist, Midnight Gold and the original plum colourway.
+
+The organiser Share Kit previews and downloads both versions. Its generated social images always carry the symbol **and** `croot` name; the logo colourway starts from the retreat's published theme and can be changed before download. The visitor-facing retreat header still uses the organiser's own name.

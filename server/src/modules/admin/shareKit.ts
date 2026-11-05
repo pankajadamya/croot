@@ -60,11 +60,13 @@ shareKitRouter.get(
       select: { overallRating: true },
     })
     const ratings = published.map((r) => r.overallRating!).filter(Boolean)
+    const brandTheme = await prisma.themeRevision.findFirst({ where: { retreatId: retreat.id, status: 'published' }, orderBy: { createdAt: 'desc' }, select: { presetKey: true } })
 
     res.set('Cache-Control', 'no-store')
     res.json({
       retreat: { title: retreat.title, organiserName: retreat.organiserName || t.org.name, slug: retreat.slug, startDate: retreat.startDate, endDate: retreat.endDate },
       orgName: t.org.name,
+      brandThemeKey: brandTheme?.presetKey ?? 'forest-linen',
       publicPath: `/o/${t.org.slug}/r/${retreat.slug}`,
       rating: retreat.showPublicRating && ratings.length ? { average: Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 10) / 10, count: ratings.length } : null,
       stories: responses.map((r) => ({

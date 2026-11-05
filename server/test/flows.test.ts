@@ -247,6 +247,7 @@ describe('anonymous notes', () => {
 
     const kit = await agent.get(`/api/admin/orgs/alpha/retreats/${retreat.id}/share-kit`)
     expect(kit.status).toBe(200)
+    expect(kit.body.brandThemeKey).toBe('forest-linen')
     expect(kit.body.stories).toHaveLength(2)
     expect(kit.body.stories.map((s: { name: string | null }) => s.name).sort()).toEqual([null, 'Maya'].sort())
     expect(kit.body.stories[0].sentences).toEqual(['The mornings were calm.', 'The teachers were kind and patient.'])

@@ -1,3 +1,5 @@
+import { BRAND_PALETTES, type BrandPaletteKey } from './brand'
+
 /**
  * Draws share-kit slides on a canvas in the organiser's browser: social-media sized images made from a
  * guest's own words, their stars and a photo. Nothing is uploaded; the result is a JPEG file.
@@ -137,52 +139,53 @@ function drawStars(ctx: CanvasRenderingContext2D, x: number, y: number, size: nu
 }
 
 const LOGO_SIZE = 150
-const ICON_PATHS = {
-  arch: new Path2D('M64 120V72c0-15 12-27 27-27s27 12 27 27v48'),
-  sweep: new Path2D('M64 119c14-18 38-27 54-27'),
-}
-
-/** The Croot logo (mark and name) on a white rounded square, top right, so it reads on any photo. */
-function crootLogo(ctx: CanvasRenderingContext2D, w: number) {
+/** The 09F woven-path mark and lowercase wordmark, with the selected site colourway. */
+function crootLogo(ctx: CanvasRenderingContext2D, w: number, paletteKey: BrandPaletteKey) {
+  const palette = BRAND_PALETTES[paletteKey]
   const x = w - 72 - LOGO_SIZE
   const y = 60
   ctx.save()
   ctx.shadowColor = 'rgba(0,0,0,0.25)'
   ctx.shadowBlur = 18
-  ctx.fillStyle = '#FFFFFF'
+  ctx.fillStyle = palette.tile
   roundRect(ctx, x, y, LOGO_SIZE, LOGO_SIZE, 26)
   ctx.fill()
   ctx.restore()
-  // The mark, drawn from the logo's own SVG paths (its square spans 30..153), scaled into the tile.
+
   const mark = 78
-  const s = mark / 123
+  const scale = mark / 124
   ctx.save()
-  ctx.translate(x + (LOGO_SIZE - mark) / 2 - 30 * s, y + 18 - 29 * s)
-  ctx.scale(s, s)
-  ctx.fillStyle = FOREST
-  roundRect(ctx, 30, 29, 123, 123, 26)
+  ctx.translate(x + (LOGO_SIZE - mark) / 2 - 30 * scale, y + 18 - 28 * scale)
+  ctx.scale(scale, scale)
+  ctx.fillStyle = palette.mark
+  roundRect(ctx, 30, 28, 124, 124, 29)
   ctx.fill()
   ctx.lineCap = 'round'
-  ctx.strokeStyle = CREAM
-  ctx.lineWidth = 11
-  ctx.stroke(ICON_PATHS.arch)
-  ctx.strokeStyle = '#B47B62'
-  ctx.lineWidth = 8
-  ctx.stroke(ICON_PATHS.sweep)
+  ctx.strokeStyle = palette.line
+  ctx.lineWidth = 15
+  ctx.stroke(new Path2D('M50 115c21-41 42-58 78-64'))
+  ctx.strokeStyle = palette.accent
+  ctx.lineWidth = 14
+  ctx.stroke(new Path2D('M52 63c26 3 48 21 75 59'))
+  ctx.fillStyle = palette.line
   ctx.beginPath()
-  ctx.arc(109, 58, 6, 0, Math.PI * 2)
-  ctx.fillStyle = '#B47B62'
+  ctx.arc(130, 50, 7, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.fillStyle = palette.accent
+  ctx.beginPath()
+  ctx.arc(129, 123, 7, 0, Math.PI * 2)
   ctx.fill()
   ctx.restore()
-  ctx.fillStyle = FOREST
-  ctx.font = `34px ${SERIF}`
+
+  ctx.fillStyle = palette.word
+  ctx.font = `700 32px ${SANS}`
   ctx.textAlign = 'center'
-  ctx.fillText('Croot', x + LOGO_SIZE / 2, y + LOGO_SIZE - 20)
+  ctx.fillText('croot', x + LOGO_SIZE / 2, y + LOGO_SIZE - 19)
   ctx.textAlign = 'left'
 }
 
-function brandChip(ctx: CanvasRenderingContext2D, brand: string, w: number) {
-  crootLogo(ctx, w)
+function brandChip(ctx: CanvasRenderingContext2D, brand: string, w: number, paletteKey: BrandPaletteKey) {
+  crootLogo(ctx, w, paletteKey)
   ctx.font = `600 34px ${SANS}`
   const tw = ctx.measureText(brand).width
   const padX = 30
@@ -233,7 +236,7 @@ async function background(ctx: CanvasRenderingContext2D, url: string | null, w: 
   ctx.fillRect(0, 0, w, h)
 }
 
-export async function renderSlide(slide: Slide, format: ShareFormat): Promise<Blob> {
+export async function renderSlide(slide: Slide, format: ShareFormat, paletteKey: BrandPaletteKey = 'forest-linen'): Promise<Blob> {
   await document.fonts?.ready
   const { w, h } = FORMAT_SIZE[format]
   const canvas = document.createElement('canvas')
@@ -245,7 +248,7 @@ export async function renderSlide(slide: Slide, format: ShareFormat): Promise<Bl
 
   if (slide.kind === 'review') {
     await background(ctx, slide.photoUrl, w, h, 'bottom')
-    brandChip(ctx, slide.brand, w)
+    brandChip(ctx, slide.brand, w, paletteKey)
     const maxLines = format === 'story' ? 9 : 7
     const quote = fitText(ctx, `“${slide.quote}”`, textWidth, maxLines, format === 'story' ? 66 : 60, 38, SERIF)
     const lineH = quote.size * 1.28
@@ -277,7 +280,7 @@ export async function renderSlide(slide: Slide, format: ShareFormat): Promise<Bl
     ctx.fillText(slide.retreatTitle, margin, y + 46, textWidth)
   } else if (slide.kind === 'cover') {
     await background(ctx, slide.photoUrl, w, h, 'bottom')
-    brandChip(ctx, slide.brand, w)
+    brandChip(ctx, slide.brand, w, paletteKey)
     const t = fitText(ctx, slide.title, textWidth, 4, 92, 56, SERIF)
     const lineH = t.size * 1.15
     let y = h - margin - (slide.rating ? 150 : 40) - t.lines.length * lineH
@@ -301,7 +304,7 @@ export async function renderSlide(slide: Slide, format: ShareFormat): Promise<Bl
     }
   } else {
     await background(ctx, slide.photoUrl, w, h, 'full')
-    brandChip(ctx, slide.brand, w)
+    brandChip(ctx, slide.brand, w, paletteKey)
     ctx.textAlign = 'center'
     const t = fitText(ctx, 'Read more guest stories', textWidth, 3, 84, 56, SERIF)
     let y = h / 2 - (t.lines.length * t.size * 1.15) / 2
