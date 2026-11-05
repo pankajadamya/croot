@@ -280,7 +280,7 @@ model Retreat {
   publicReviewsEnabled     Boolean @default(true)
   writingSlideshowEnabled  Boolean @default(false)
   heroSlideshowEnabled     Boolean @default(true)
-  showPublicRating         Boolean @default(false)
+  showPublicRating         Boolean @default(true)
   /// Itinerary retreats: a photo album unlocked for each guest once they send their review.
   rewardAlbumEnabled       Boolean @default(false)
   /// Optional link to the full album elsewhere (e.g. full-resolution photos), shown once unlocked.

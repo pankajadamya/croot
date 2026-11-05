@@ -3,7 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { CONSENT_WORDING, storyPromptsFor, type FeedbackCategory, type ReviewKind } from '../../../shared/categories'
 import { api, ApiError, del, get, patch, post, put } from '../../lib/api'
 import { formatRange } from '../../lib/format'
-import { Field, RatingScale, Switch } from '../../components/Controls'
+import { Field, Switch } from '../../components/Controls'
+import { StarInput } from '../../components/Stars'
 import { LinkUnavailable, Loading } from '../../components/States'
 import { PhotoPanel } from './PhotoPanel'
 import { AlbumLinkCard, AlbumTeaser, type AlbumSummary } from '../../components/AlbumGallery'
@@ -527,7 +528,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
               <Field id="story" label="Your story (optional)">
                 <textarea id="story" value={draft.storyText} maxLength={8000} onChange={(e) => update({ storyText: e.target.value })} style={{ minHeight: '16rem' }} />
               </Field>
-              <RatingScale
+              <StarInput
                 legend={`Overall, how was the ${visit} for you? (optional)`}
                 value={draft.overallRating}
                 allowNotApplicable={false}
@@ -551,7 +552,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                   const r = draft.ratings[cat.key]
                   return (
                     <div key={cat.key} className="card tight">
-                      <RatingScale
+                      <StarInput
                         legend={cat.label}
                         value={r.score}
                         notApplicable={r.notApplicable}

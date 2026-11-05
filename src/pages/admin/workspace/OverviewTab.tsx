@@ -303,8 +303,8 @@ function SettingsForm({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
           <Switch
             checked={f.showPublicRating}
             onChange={toggle('showPublicRating')}
-            label="Show a guest’s overall rating with their published story"
-            description="Applies to stories published or republished after this change."
+            label="Show star ratings on your public page"
+            description="Shown as stars on each published story, with the average at the top of your public page. Takes effect straight away."
           />
         </div>
       </section>

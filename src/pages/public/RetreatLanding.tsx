@@ -6,6 +6,7 @@ import { get } from '../../lib/api'
 import { formatDate } from '../../lib/format'
 import { RetreatDetails, type RetreatFacts } from '../../components/RetreatDetails'
 import { HeroSlideshow } from '../../components/HeroSlideshow'
+import { Stars, formatRating } from '../../components/Stars'
 import { ErrorNotice, Loading } from '../../components/States'
 import type { ShowcaseStory } from '../../components/StoryShowcase'
 import { ThemeScope } from '../../components/ThemeScope'
@@ -13,6 +14,7 @@ import { ThemeScope } from '../../components/ThemeScope'
 export interface RetreatPublic {
   org: { slug: string; name: string; websiteUrl?: string | null }
   retreat: RetreatFacts
+  rating: { average: number; count: number } | null
   theme: ThemeTokens
   content: { headline: string; introParagraphs: string[]; ctaLabel: string; ctaUrl: string } | null
   hero: Array<{ url: string; alt: string; caption: string; credit: string; focalX: number; focalY: number }>
@@ -103,6 +105,15 @@ export default function RetreatLanding() {
             {/* Organiser-written opening, visually distinct from guest testimony. */}
             <p className="eyebrow">From {d.retreat.organiserName || d.org.name}</p>
             <h1>{d.content?.headline ?? d.retreat.title}</h1>
+            {d.rating && (
+              <a className="rating-summary" href="#reviews-title">
+                <Stars value={d.rating.average} size={22} />
+                <strong>{formatRating(d.rating.average)}</strong>
+                <span className="muted">
+                  from {d.rating.count} guest review{d.rating.count === 1 ? '' : 's'}
+                </span>
+              </a>
+            )}
             <div className="organiser-voice">
               {d.content?.introParagraphs.map((p) => <p key={p}>{p}</p>)}
               {d.content?.ctaLabel && d.content.ctaUrl && (
@@ -116,7 +127,16 @@ export default function RetreatLanding() {
 
         {/* Guest reviews last, each with the photos that guest chose to publish. */}
         <section className="container landing-reviews" aria-labelledby="reviews-title">
-          <h2 id="reviews-title">What guests are saying</h2>
+          <div className="reviews-head">
+            <h2 id="reviews-title">What guests are saying</h2>
+            {d.rating && (
+              <span className="rating-summary small-summary">
+                <Stars value={d.rating.average} />
+                <strong>{formatRating(d.rating.average)}</strong>
+                <span className="muted">· {d.rating.count} rated</span>
+              </span>
+            )}
+          </div>
           {d.stories.length === 0 ? (
             <p className="muted">No guest stories have been published yet.</p>
           ) : (
@@ -138,6 +158,11 @@ export default function RetreatLanding() {
                         )}
                       </span>
                     </header>
+                    {s.overallRating ? (
+                      <div className="review-stars">
+                        <Stars value={s.overallRating} />
+                      </div>
+                    ) : null}
                     {s.title && <h3 className="review-title">{s.title}</h3>}
                     <div className="review-body">
                       {(s.text ?? s.excerpt)

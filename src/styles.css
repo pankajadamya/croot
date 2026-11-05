@@ -2261,3 +2261,150 @@ ol.album-admin-grid {
   font-size: 0.875rem;
   color: var(--muted);
 }
+
+/* ---------- stars ---------- */
+.stars {
+  display: inline-flex;
+  gap: 2px;
+  vertical-align: middle;
+  line-height: 0;
+}
+.star {
+  position: relative;
+  width: var(--star-size, 18px);
+  height: var(--star-size, 18px);
+}
+.star svg {
+  width: var(--star-size, 18px);
+  height: var(--star-size, 18px);
+  display: block;
+}
+.star-empty path {
+  fill: #e4ddd0;
+}
+.star-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  overflow: hidden;
+}
+.star-fill path {
+  fill: #d99a2b;
+}
+.rating-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0 0 1.25rem;
+  color: var(--text);
+  text-decoration: none;
+}
+.rating-summary strong {
+  font-size: 1.15rem;
+}
+.reviews-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.small-summary {
+  margin: 0;
+}
+.small-summary strong {
+  font-size: 1rem;
+}
+.review-stars {
+  margin: -0.25rem 0 0.6rem;
+}
+
+/* Star input in the review form. */
+.star-input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.star-input-stars {
+  display: inline-flex;
+}
+.star-input-stars label {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  cursor: pointer;
+}
+.star-input-stars input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.star-input-stars svg {
+  width: 34px;
+  height: 34px;
+  transition: transform 0.12s ease;
+}
+.star-input-stars path {
+  fill: #e4ddd0;
+  stroke: #c9bfae;
+  stroke-width: 0.8;
+}
+.star-input-stars label.on path {
+  fill: #d99a2b;
+  stroke: #b97f17;
+}
+.star-input-stars label:hover svg {
+  transform: scale(1.12);
+}
+.star-input-stars input:focus-visible + svg {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.star-input-word {
+  min-width: 8ch;
+  font-weight: 600;
+  color: var(--muted);
+}
+.star-na {
+  position: relative;
+  font-size: 0.85rem;
+}
+.star-na input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.star-na span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+}
+.star-na input:checked + span {
+  background: var(--button);
+  color: var(--button-text);
+  border-color: var(--button);
+}
+.star-na input:focus-visible + span {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .star-input-stars svg {
+    transition: none;
+  }
+  .star-input-stars label:hover svg {
+    transform: none;
+  }
+}

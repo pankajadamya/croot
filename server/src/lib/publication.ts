@@ -67,7 +67,8 @@ export async function publishResponse(input: PublishInput) {
         storyText: story,
         excerpt,
         displayName: response.consentFirstName ? firstName(response.attendee.name) : null,
-        overallRating: response.retreat.showPublicRating ? response.overallRating : null,
+        // Kept with the story; whether it shows is the retreat's "show ratings" setting, applied when read.
+        overallRating: response.overallRating,
         photoIds,
         status: 'published',
         reviewerId: input.reviewerId,

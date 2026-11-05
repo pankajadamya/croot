@@ -1,3 +1,4 @@
+import { Stars } from '../../components/Stars'
 import { useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
@@ -90,7 +91,7 @@ export default function StoryPage() {
                 “{story.excerpt}”
               </p>
               <p className="muted">{story.displayName ? `Written by ${story.displayName}` : 'Written by a retreat guest'}</p>
-              {story.overallRating && <p className="small muted">Overall: {story.overallRating} out of 5</p>}
+              {story.overallRating ? <p style={{ margin: 0 }}><Stars value={story.overallRating} size={20} /></p> : null}
             </div>
           </header>
           <section className="narrow" aria-labelledby="full-story">

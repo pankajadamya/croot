@@ -107,10 +107,14 @@ publicRouter.get(
         })
       ).map((m) => [m.id, m]),
     )
+    // The average of the overall ratings on published reviews (guests agreed to publish them with their story).
+    const rated = retreat.showPublicRating ? stories.map((s) => s.overallRating).filter((n): n is number => typeof n === 'number') : []
+    const rating = rated.length ? { average: Math.round((rated.reduce((a, b) => a + b, 0) / rated.length) * 10) / 10, count: rated.length } : null
     res.set('Cache-Control', 'public, max-age=30')
     res.json({
       org: { slug: org.slug, name: org.name, websiteUrl: org.websiteUrl },
       retreat: retreatFacts(retreat),
+      rating,
       theme,
       content,
       hero,
@@ -121,6 +125,7 @@ publicRouter.get(
         title: s.title,
         text: s.storyText,
         postedAt: s.postedAt,
+        overallRating: retreat.showPublicRating ? s.overallRating : null,
         displayName: s.displayName,
         photo: s.photoIds[0] && visible.has(s.photoIds[0]) ? { url: `/media/${s.photoIds[0]}` } : null,
         // The guest's own published photos, shown alongside their review.
@@ -161,7 +166,7 @@ publicRouter.get(
         text: live.storyText,
         excerpt: live.excerpt,
         displayName: live.displayName,
-        overallRating: live.overallRating,
+        overallRating: retreat.showPublicRating ? live.overallRating : null,
         photos: live.photoIds
           .map((id) => byId.get(id))
           .filter((p) => p !== undefined)

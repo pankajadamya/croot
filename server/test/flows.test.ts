@@ -200,9 +200,9 @@ describe('anonymous notes', () => {
       await request(app).post(`/api/invites/${token}/submit`).send({ revision: draft.body.revision })
       return prisma.response.findFirstOrThrow({ where: { attendee: { email } } })
     }
-    const firstResponse = await send('Early Guest', 'early@example.test', { storyText: 'First paragraph.\n\nSecond paragraph.' })
+    const firstResponse = await send('Early Guest', 'early@example.test', { storyText: 'First paragraph.\n\nSecond paragraph.', overallRating: 4 })
     await prisma.response.update({ where: { id: firstResponse.id }, data: { submittedAt: new Date('2026-11-02T10:00:00Z') } })
-    const response = await send('Late Guest', 'late@example.test', { storyTitle: 'A week to remember', storyText: 'Short and sweet.' }, true)
+    const response = await send('Late Guest', 'late@example.test', { storyTitle: 'A week to remember', storyText: 'Short and sweet.', overallRating: 5 }, true)
     const first = { response: firstResponse }
     const up = { body: { id: photoId } }
     for (const r of [first.response, response]) {
@@ -214,7 +214,14 @@ describe('anonymous notes', () => {
     const [latest, earlier] = page.body.stories
     expect(latest).toMatchObject({ title: 'A week to remember', text: 'Short and sweet.', postedAt: expect.any(String) })
     expect(latest.photos).toHaveLength(1)
-    expect(earlier).toMatchObject({ title: null, text: 'First paragraph.\n\nSecond paragraph.' })
+    expect(earlier).toMatchObject({ title: null, text: 'First paragraph.\n\nSecond paragraph.', overallRating: 4 })
+    expect(latest.overallRating).toBe(5)
+    expect(page.body.rating).toEqual({ average: 4.5, count: 2 })
+    // The organiser can hide ratings; it applies straight away.
+    await prisma.retreat.update({ where: { id: retreat.id }, data: { showPublicRating: false } })
+    const hidden = await request(app).get(`/api/public/orgs/alpha/retreats/${retreat.slug}`)
+    expect(hidden.body.rating).toBeNull()
+    expect(hidden.body.stories[0].overallRating).toBeNull()
     expect((await request(app).get(latest.photos[0].url)).status).toBe(200)
   })
 

@@ -11,6 +11,7 @@ export interface ShowcaseStory {
   title?: string | null
   text?: string
   postedAt?: string
+  overallRating?: number | null
 }
 
 const FRAME_MS = 8000
