@@ -3143,3 +3143,13 @@ ol.album-admin-grid {
     position: static;
   }
 }
+/* Fieldsets don't shrink below their content by default; let the photo strip scroll instead. */
+.kit-layout > *,
+.kit-format,
+.kit-story {
+  min-width: 0;
+}
+.kit-format .kit-photos,
+.kit-story .kit-photos {
+  max-width: 100%;
+}

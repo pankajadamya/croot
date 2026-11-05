@@ -136,17 +136,64 @@ function drawStars(ctx: CanvasRenderingContext2D, x: number, y: number, size: nu
   return 5 * size + 4 * gap
 }
 
+const LOGO_SIZE = 150
+const ICON_PATHS = {
+  arch: new Path2D('M64 120V72c0-15 12-27 27-27s27 12 27 27v48'),
+  sweep: new Path2D('M64 119c14-18 38-27 54-27'),
+}
+
+/** The Croot logo (mark and name) on a white rounded square, top right, so it reads on any photo. */
+function crootLogo(ctx: CanvasRenderingContext2D, w: number) {
+  const x = w - 72 - LOGO_SIZE
+  const y = 60
+  ctx.save()
+  ctx.shadowColor = 'rgba(0,0,0,0.25)'
+  ctx.shadowBlur = 18
+  ctx.fillStyle = '#FFFFFF'
+  roundRect(ctx, x, y, LOGO_SIZE, LOGO_SIZE, 26)
+  ctx.fill()
+  ctx.restore()
+  // The mark, drawn from the logo's own SVG paths (its square spans 30..153), scaled into the tile.
+  const mark = 78
+  const s = mark / 123
+  ctx.save()
+  ctx.translate(x + (LOGO_SIZE - mark) / 2 - 30 * s, y + 18 - 29 * s)
+  ctx.scale(s, s)
+  ctx.fillStyle = FOREST
+  roundRect(ctx, 30, 29, 123, 123, 26)
+  ctx.fill()
+  ctx.lineCap = 'round'
+  ctx.strokeStyle = CREAM
+  ctx.lineWidth = 11
+  ctx.stroke(ICON_PATHS.arch)
+  ctx.strokeStyle = '#B47B62'
+  ctx.lineWidth = 8
+  ctx.stroke(ICON_PATHS.sweep)
+  ctx.beginPath()
+  ctx.arc(109, 58, 6, 0, Math.PI * 2)
+  ctx.fillStyle = '#B47B62'
+  ctx.fill()
+  ctx.restore()
+  ctx.fillStyle = FOREST
+  ctx.font = `34px ${SERIF}`
+  ctx.textAlign = 'center'
+  ctx.fillText('Croot', x + LOGO_SIZE / 2, y + LOGO_SIZE - 20)
+  ctx.textAlign = 'left'
+}
+
 function brandChip(ctx: CanvasRenderingContext2D, brand: string, w: number) {
+  crootLogo(ctx, w)
   ctx.font = `600 34px ${SANS}`
   const tw = ctx.measureText(brand).width
   const padX = 30
-  const bw = Math.min(tw + padX * 2, w - 160)
+  // Leaves room for the Croot logo on the right.
+  const bw = Math.min(tw + padX * 2, w - 72 * 2 - LOGO_SIZE - 40)
   ctx.fillStyle = 'rgba(248,245,239,0.92)'
-  roundRect(ctx, 72, 72, bw, 68, 34)
+  roundRect(ctx, 72, 60, bw, 68, 34)
   ctx.fill()
   ctx.fillStyle = FOREST
   ctx.textBaseline = 'middle'
-  ctx.fillText(brand, 72 + padX, 72 + 35, bw - padX * 2)
+  ctx.fillText(brand, 72 + padX, 60 + 35, bw - padX * 2)
   ctx.textBaseline = 'alphabetic'
 }
 
@@ -172,10 +219,12 @@ async function background(ctx: CanvasRenderingContext2D, url: string | null, w: 
   }
   const g = ctx.createLinearGradient(0, 0, 0, h)
   if (shade === 'bottom') {
+    // Light at the top so the photo shows; deep behind the words so they read cleanly on any photo.
     g.addColorStop(0, 'rgba(10,26,25,0.35)')
-    g.addColorStop(0.35, 'rgba(10,26,25,0.15)')
-    g.addColorStop(0.6, 'rgba(10,26,25,0.7)')
-    g.addColorStop(1, 'rgba(10,26,25,0.95)')
+    g.addColorStop(0.22, 'rgba(10,26,25,0.08)')
+    g.addColorStop(0.42, 'rgba(10,26,25,0.55)')
+    g.addColorStop(0.6, 'rgba(10,26,25,0.88)')
+    g.addColorStop(1, 'rgba(10,26,25,0.96)')
   } else {
     g.addColorStop(0, 'rgba(10,26,25,0.55)')
     g.addColorStop(1, 'rgba(10,26,25,0.85)')
