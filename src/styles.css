@@ -498,10 +498,17 @@ table.data th {
   flex-wrap: wrap;
 }
 .brand {
+  display: inline-flex;
+  align-items: center;
   font-family: var(--serif);
   font-size: 1.35rem;
   color: var(--text);
   text-decoration: none;
+}
+.brand-logo {
+  width: 138px;
+  height: auto;
+  max-width: 100%;
 }
 .tabs {
   display: flex;

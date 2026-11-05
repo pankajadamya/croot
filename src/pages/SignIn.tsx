@@ -101,7 +101,7 @@ export default function SignIn() {
     <main className="calm">
       <div className="narrow" style={{ maxWidth: 460, padding: '4rem 0' }}>
         <Link to="/" className="brand">
-          croot
+          <img className="brand-logo" src="/croot-logo.svg" alt="Croot" />
         </Link>
         <div className="card" style={{ marginTop: '1.5rem' }}>
           <h1 style={{ fontSize: '1.8rem' }}>Sign in</h1>

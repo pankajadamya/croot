@@ -42,7 +42,7 @@ export function AdminShell({ orgSlug, children }: { orgSlug?: string; children: 
         <div className="container">
           <div className="row">
             <Link className="brand" to="/admin">
-              croot
+              <img className="brand-logo" src="/croot-logo.svg" alt="Croot" />
             </Link>
             {orgSlug && (
               <span className="muted" style={{ fontWeight: 600 }}>

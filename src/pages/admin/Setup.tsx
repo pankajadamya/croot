@@ -43,7 +43,7 @@ export default function Setup() {
     <div className="admin">
       <main className="narrow" style={{ padding: '4rem 0', maxWidth: 480 }}>
         <p className="brand" style={{ marginBottom: '1.5rem' }}>
-          croot
+          <img className="brand-logo" src="/croot-logo.svg" alt="Croot" />
         </p>
         <div className="card">
           {info.isLoading && <Loading />}

@@ -49,7 +49,7 @@ export default function MyReviews() {
     <main className="calm">
       <div className="narrow" style={{ padding: '3rem 0 5rem' }}>
         <div className="spread">
-          <span className="brand">croot</span>
+          <span className="brand"><img className="brand-logo" src="/croot-logo.svg" alt="Croot" /></span>
           <span className="row small">
             {session.memberships.length > 0 && <Link to="/admin">Organiser workspace</Link>}
             <button className="btn ghost small" onClick={() => void logout()}>

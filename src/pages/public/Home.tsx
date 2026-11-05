@@ -70,7 +70,7 @@ function Landing() {
         Skip to request form
       </a>
       <header className="container site-header spread">
-        <span className="brand">croot</span>
+        <span className="brand"><img className="brand-logo" src="/croot-logo.svg" alt="Croot" /></span>
         <nav className="row" aria-label="Main">
           <a href="#types">Review types</a>
           <a href="#how">How it works</a>

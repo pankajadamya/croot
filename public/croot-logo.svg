@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 80" role="img" aria-labelledby="title">
+  <title id="title">Croot</title>
+  <g transform="translate(-11 -11) scale(.55)">
+    <rect x="30" y="29" width="123" height="123" rx="26" fill="#183D3B"/>
+    <path d="M64 120V72c0-15 12-27 27-27s27 12 27 27v48" fill="none" stroke="#F8F5EF" stroke-width="11" stroke-linecap="round"/>
+    <path d="M64 119c14-18 38-27 54-27" fill="none" stroke="#B47B62" stroke-width="8" stroke-linecap="round"/>
+    <circle cx="109" cy="58" r="6" fill="#B47B62"/>
+  </g>
+  <text x="87" y="58" fill="#183D3B" font-family="Georgia, 'Times New Roman', serif" font-size="61" letter-spacing="-3">croot</text>
+</svg>
