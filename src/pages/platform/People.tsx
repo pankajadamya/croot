@@ -182,7 +182,15 @@ function PersonRow({ person: p, orgs, onChange }: { person: Person; orgs: Org[];
             {p.isPlatformAdmin ? 'Remove admin' : 'Make admin'}
           </button>
           {!isMe && (
-            <button type="button" className="btn ghost small" disabled={update.isPending} onClick={() => update.mutate({ active: !p.active })}>
+            <button
+              type="button"
+              className="btn ghost small"
+              disabled={update.isPending}
+              onClick={() => {
+                if (p.active && !window.confirm(`Disable ${p.email}? They’ll be signed out and can’t sign in until you enable the account again.`)) return
+                update.mutate({ active: !p.active })
+              }}
+            >
               {p.active ? 'Disable account' : 'Enable account'}
             </button>
           )}
@@ -195,7 +203,14 @@ function PersonRow({ person: p, orgs, onChange }: { person: Person; orgs: Org[];
             <li key={m.id} className="row small" style={{ gap: '0.5rem' }}>
               <span className="badge">{m.role === 'owner' ? 'Owner' : 'Organiser'}</span>
               <Link to={`/admin/${m.organisation.slug}`}>{m.organisation.name}</Link>
-              <button type="button" className="btn ghost small" disabled={revoke.isPending} onClick={() => revoke.mutate(m.id)}>
+              <button
+                type="button"
+                className="btn ghost small"
+                disabled={revoke.isPending}
+                onClick={() => {
+                  if (window.confirm(`Remove ${p.email} from ${m.organisation.name}? They’ll lose access to its workspace.`)) revoke.mutate(m.id)
+                }}
+              >
                 Remove
               </button>
             </li>

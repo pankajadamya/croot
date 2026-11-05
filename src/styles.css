@@ -3734,3 +3734,11 @@ a.review-date:hover {
     color: var(--muted);
   }
 }
+
+.admin-jump {
+  gap: 0.4rem 1.1rem;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+}

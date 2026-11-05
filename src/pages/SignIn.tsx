@@ -74,11 +74,20 @@ export default function SignIn() {
     }
   }
 
+  // After sending a code, "Send a new code" waits a little, and says when the last one went.
+  const [cooldown, setCooldown] = useState(0)
+  useEffect(() => {
+    if (!cooldown) return
+    const t = window.setTimeout(() => setCooldown((c) => Math.max(0, c - 1)), 1000)
+    return () => window.clearTimeout(t)
+  }, [cooldown])
   const requestCode = (e?: FormEvent) => {
     e?.preventDefault()
     return run(async () => {
-      const r = await post<{ message: string }>('/api/auth/code/request', { email })
-      setInfo(`${r.message} Check your inbox (and spam folder) for a 6-digit code.`)
+      await post<{ message: string }>('/api/auth/code/request', { email })
+      const at = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      setInfo(`Code sent at ${at}. Check your inbox (and spam folder).`)
+      setCooldown(30)
       setMode('code')
     })
   }
@@ -105,10 +114,7 @@ export default function SignIn() {
         </Link>
         <div className="card" style={{ marginTop: '1.5rem' }}>
           <h1 style={{ fontSize: '1.8rem' }}>Sign in</h1>
-          <p className="muted small">
-            One sign-in for everyone. We’ll take you to the right place: your reviews, or your organiser workspace if you’ve been given access.
-            Reviewing a retreat? Use the email address your invitation was sent to. Your unique link still works too.
-          </p>
+          <p className="muted small">We’ll email you a 6-digit code. Reviewing a retreat? Use the email address your invitation went to.</p>
           {error && (
             <div className="notice error" role="alert" style={{ marginBottom: '1rem' }}>
               {error}
@@ -154,8 +160,8 @@ export default function SignIn() {
                 <button type="button" className="btn ghost small" onClick={() => setMode('email')}>
                   Use a different email
                 </button>
-                <button type="button" className="btn ghost small" disabled={busy} onClick={() => void requestCode()}>
-                  Send a new code
+                <button type="button" className="btn ghost small" disabled={busy || cooldown > 0} onClick={() => void requestCode()}>
+                  {cooldown > 0 ? `Send a new code (${cooldown}s)` : 'Send a new code'}
                 </button>
               </div>
             </form>
@@ -192,17 +198,26 @@ export default function SignIn() {
             </>
           )}
 
-          <p className="small" style={{ marginTop: '1.25rem', textAlign: 'center' }}>
+          {/* Passwords exist only for a few organiser accounts set up that way; everyone else uses a code or Google. */}
+          <p className="small muted" style={{ marginTop: '1.25rem', textAlign: 'center' }}>
             {mode === 'password' ? (
-              <button type="button" className="btn ghost small" onClick={() => setMode('email')}>
+              <button type="button" className="link-button" onClick={() => setMode('email')}>
                 Use an email code instead
               </button>
             ) : (
-              <button type="button" className="btn ghost small" onClick={() => setMode('password')}>
-                Sign in with a password instead
-              </button>
+              <>
+                Set up with a password?{' '}
+                <button type="button" className="link-button" onClick={() => setMode('password')}>
+                  Sign in with it
+                </button>
+              </>
             )}
           </p>
+          {mode === 'password' && (
+            <p className="small muted" style={{ textAlign: 'center', margin: 0 }}>
+              Forgotten it? Use an email code instead: it works for every account.
+            </p>
+          )}
         </div>
         <p className="small muted" style={{ marginTop: '1rem' }}>
           By signing in you agree to the use of one essential cookie to keep you signed in. See <Link to="/legal/privacy">privacy</Link> and{' '}

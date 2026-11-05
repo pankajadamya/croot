@@ -61,6 +61,14 @@ export default function PlatformConsole() {
         </div>
       ) : (
         <div className="stack">
+          {/* Jump straight to a section instead of scrolling one long page. */}
+          <nav className="row small admin-jump" aria-label="Admin sections">
+            <a href="#pf-requests">Organiser requests</a>
+            <a href="#pf-invites">Invite links</a>
+            <a href="#pf-people">People</a>
+            <a href="#pf-tenants">Organisations</a>
+            <a href="#pf-create">Create an organisation</a>
+          </nav>
           <Requests />
           <OrganiserInvites />
           <People />
@@ -272,11 +280,11 @@ function Tenants() {
 
   return (
     <section className="card" aria-labelledby="pf-tenants">
-      <h2 id="pf-tenants">Tenants</h2>
+      <h2 id="pf-tenants">Organisations</h2>
       <MutationError error={setStatus.error || removeDomain.error || erase.error} />
       {orgs.isLoading && <Loading />}
       {orgs.error && <ErrorNotice error={orgs.error} />}
-      {orgs.data && orgs.data.length === 0 && <p className="muted">No tenants yet.</p>}
+      {orgs.data && orgs.data.length === 0 && <p className="muted">No organisations yet.</p>}
       {orgs.data && orgs.data.length > 0 && (
         <div className="table-wrap">
           <table className="data">
@@ -422,7 +430,7 @@ function CreateTenant() {
   const err = (k: string) => fieldError(create.error, k)
   return (
     <section className="card" aria-labelledby="pf-create">
-      <h2 id="pf-create">Create a tenant directly</h2>
+      <h2 id="pf-create">Create an organisation directly</h2>
       <p className="small muted">For organisers you’ve already spoken to. The owner gets a one-time setup link; no password is chosen for them.</p>
       <form onSubmit={submit} noValidate style={{ maxWidth: 640 }}>
         <Field id="ct-name" label="Organisation name" error={err('name')}>
@@ -441,7 +449,7 @@ function CreateTenant() {
         </div>
         <MutationError error={create.error} shownFields={['name', 'slug', 'ownerName', 'ownerEmail']} />
         <button className="btn" type="submit" disabled={create.isPending}>
-          {create.isPending ? 'Creating…' : 'Create tenant'}
+          {create.isPending ? 'Creating…' : 'Create organisation'}
         </button>
       </form>
       {created && (

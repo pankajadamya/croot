@@ -166,7 +166,7 @@ function Landing() {
               ['Add your guests', 'Paste a guest list. Each guest gets their own private link, with no account or password.'],
               ['Guests reflect', 'About seven minutes: a story, private ratings with “not applicable”, photos and permissions. Every question is optional.'],
               ['You review', 'Read private feedback, check every photo and publish only what guests agreed to share, word for word.'],
-              ['Share the showcase', 'Your own opening words, then guest stories in an accessible, themeable sequence on your own domain.'],
+              ['Share the showcase', 'Your own opening words, then guest stories in an accessible, themeable page at your own web address.'],
             ].map(([title, body], i) => (
               <li key={title} className="card">
                 <span className="step-num" aria-hidden="true">

@@ -219,7 +219,7 @@ export function ShareKitTab({ orgSlug, retreat }: { orgSlug: string; retreat: Re
 
       <fieldset className="card tight">
         <legend style={{ fontWeight: 700 }}>Croot logo on each image</legend>
-        <p className="small muted">Each exported slide includes the 09F symbol and croot name. The colourway starts with this retreat’s published theme; you can choose another below.</p>
+        <p className="small muted">Each image carries the croot logo. The colourway starts with this retreat’s published theme; you can choose another below.</p>
         <label htmlFor="kit-brand-palette" style={{ fontWeight: 600 }}>Logo colourway</label>
         <select id="kit-brand-palette" value={selectedBrandPalette} onChange={(e) => setBrandPalette(e.target.value as BrandPaletteKey)}>
           {BRAND_PALETTE_KEYS.map((key) => <option key={key} value={key}>{BRAND_PALETTES[key].label}</option>)}
