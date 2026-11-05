@@ -1,0 +1,12 @@
+node_modules
+dist
+.env
+.env.*
+!.env.example
+storage
+*.csv
+coverage
+*.log
+.vite
+.pglite
+.test-storage

@@ -1,0 +1,190 @@
+import { Router } from 'express'
+import { z } from 'zod'
+import { audit } from '../../lib/audit.js'
+import { parseAttendeeCsv } from '../../lib/csv.js'
+import { env } from '../../lib/env.js'
+import { HttpError, parseBody, route, text, uuidParam } from '../../lib/http.js'
+import { issueInvitation } from '../../lib/invites.js'
+import { prisma } from '../../lib/prisma.js'
+import { tenantAttendee, tenantRetreat } from '../../lib/tenant.js'
+import { tenantOf } from '../../middleware/auth.js'
+
+export const attendeesRouter = Router({ mergeParams: true })
+
+/** Links point at the tenant's own domain when one is mapped, so guests see the organiser's brand. */
+async function siteOrigin(orgId: string) {
+  const domain = await prisma.orgDomain.findFirst({ where: { organisationId: orgId }, orderBy: { createdAt: 'asc' } })
+  return domain ? `https://${domain.hostname}` : env.WEB_ORIGIN
+}
+
+type InviteState = 'not_invited' | 'revoked' | 'expired' | 'sent' | 'opened' | 'draft' | 'submitted' | 'changes_requested' | 'consented' | 'published' | 'withdrawn'
+
+attendeesRouter.get(
+  '/retreats/:retreatId/attendees',
+  route(async (req, res) => {
+    const t = tenantOf(req)
+    const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
+    const attendees = await prisma.attendee.findMany({
+      where: { organisationId: t.org.id, retreatId: retreat.id },
+      orderBy: { name: 'asc' },
+      include: {
+        invitations: { orderBy: { issuedAt: 'desc' }, take: 1 },
+        response: { select: { id: true, status: true, consentPublicText: true, publicationStatus: true, updatedAt: true } },
+      },
+    })
+    const now = new Date()
+    res.json({
+      attendees: attendees.map((a) => {
+        const inv = a.invitations[0]
+        const r = a.response
+        let state: InviteState = 'not_invited'
+        if (inv) state = inv.revokedAt ? 'revoked' : inv.expiresAt < now ? 'expired' : inv.openedAt ? 'opened' : 'sent'
+        if (r && (state === 'opened' || state === 'sent' || state === 'expired')) {
+          if (r.publicationStatus === 'withdrawn' || r.status === 'withdrawn') state = 'withdrawn'
+          else if (r.publicationStatus === 'published') state = 'published'
+          else if (r.status === 'changes_requested') state = 'changes_requested'
+          else if (r.status === 'submitted') state = r.consentPublicText ? 'consented' : 'submitted'
+          else state = 'draft'
+        }
+        return {
+          id: a.id,
+          name: a.name,
+          email: a.email,
+          stayStart: a.stayStart,
+          stayEnd: a.stayEnd,
+          state,
+          responseId: r && r.status !== 'draft' ? r.id : null,
+          invitation: inv ? { hint: inv.tokenHint, issuedAt: inv.issuedAt, expiresAt: inv.expiresAt, openedAt: inv.openedAt, lastUsedAt: inv.lastUsedAt, revoked: Boolean(inv.revokedAt) } : null,
+        }
+      }),
+    })
+  }),
+)
+
+const csvSchema = z.object({ csv: z.string().max(500_000) })
+
+/** Step 1 of import: validate and show duplicates/invalid rows. Nothing is stored. */
+attendeesRouter.post(
+  '/retreats/:retreatId/attendees/preview',
+  route(async (req, res) => {
+    const t = tenantOf(req)
+    const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
+    const { csv } = parseBody(csvSchema, req.body)
+    const existing = await prisma.attendee.findMany({ where: { retreatId: retreat.id }, select: { email: true } })
+    const rows = parseAttendeeCsv(csv, new Set(existing.map((e) => e.email)))
+    if (rows.length > 2000) throw new HttpError(400, 'Import at most 2,000 attendees at a time')
+    res.json({ rows })
+  }),
+)
+
+const stayDate = z.iso.date().nullable().optional()
+const importSchema = z.object({
+  rows: z.array(z.object({ name: text(120), email: z.email().max(200), stayStart: stayDate, stayEnd: stayDate })).min(1).max(2000),
+})
+const day = (v: string | null | undefined) => (v ? new Date(`${v}T00:00:00Z`) : null)
+
+/** Step 2: commit the validated rows. The CSV itself is never stored. */
+attendeesRouter.post(
+  '/retreats/:retreatId/attendees/import',
+  route(async (req, res) => {
+    const t = tenantOf(req)
+    const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
+    const { rows } = parseBody(importSchema, req.body)
+    const batch = new Date().toISOString()
+    const result = await prisma.attendee.createMany({
+      data: rows.map((r) => ({
+        organisationId: t.org.id,
+        retreatId: retreat.id,
+        name: r.name,
+        email: r.email.toLowerCase(),
+        stayStart: day(r.stayStart),
+        stayEnd: day(r.stayEnd),
+        importBatch: batch,
+      })),
+      skipDuplicates: true,
+    })
+    await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'attendees.imported', entityType: 'retreat', entityId: retreat.id, metadata: { count: result.count } })
+    res.json({ imported: result.count, skipped: rows.length - result.count })
+  }),
+)
+
+attendeesRouter.post(
+  '/retreats/:retreatId/attendees',
+  route(async (req, res) => {
+    const t = tenantOf(req)
+    const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
+    const body = parseBody(
+      z.object({ name: text(120).refine((v) => v.length > 0, 'Required'), email: z.email().max(200), stayStart: stayDate, stayEnd: stayDate }),
+      req.body,
+    )
+    const email = body.email.toLowerCase()
+    if (body.stayStart && body.stayEnd && body.stayEnd < body.stayStart) throw new HttpError(400, 'Check-out is before check-in')
+    if (await prisma.attendee.findUnique({ where: { retreatId_email: { retreatId: retreat.id, email } } })) {
+      throw new HttpError(409, 'That email is already on this list')
+    }
+    const a = await prisma.attendee.create({
+      data: { organisationId: t.org.id, retreatId: retreat.id, name: body.name, email, stayStart: day(body.stayStart), stayEnd: day(body.stayEnd) },
+    })
+    await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'attendee.added', entityType: 'attendee', entityId: a.id })
+    res.status(201).json({ id: a.id })
+  }),
+)
+
+/**
+ * Issue (or reissue) a link. The plain token is returned exactly once, for the organiser to copy;
+ * only its hash is kept. Reissuing revokes the previous link but keeps the guest's draft.
+ */
+attendeesRouter.post(
+  '/attendees/:attendeeId/invite',
+  route(async (req, res) => {
+    const t = tenantOf(req)
+    const attendee = await tenantAttendee(t.org.id, uuidParam(req, 'attendeeId'))
+    const { token } = await prisma.$transaction((tx) => issueInvitation(tx, { organisationId: t.org.id, attendeeId: attendee.id, ttlDays: attendee.retreat.inviteTtlDays }))
+    await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'invitation.issued', entityType: 'attendee', entityId: attendee.id })
+    res.json({ url: `${await siteOrigin(t.org.id)}/invite/${token}` })
+  }),
+)
+
+attendeesRouter.post(
+  '/retreats/:retreatId/invites/generate-missing',
+  route(async (req, res) => {
+    const t = tenantOf(req)
+    const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
+    const pending = await prisma.attendee.findMany({
+      where: { organisationId: t.org.id, retreatId: retreat.id, invitations: { none: {} } },
+      orderBy: { name: 'asc' },
+    })
+    const origin = await siteOrigin(t.org.id)
+    const links: Array<{ attendeeId: string; name: string; email: string; url: string }> = []
+    for (const a of pending) {
+      const { token } = await prisma.$transaction((tx) => issueInvitation(tx, { organisationId: t.org.id, attendeeId: a.id, ttlDays: retreat.inviteTtlDays }))
+      links.push({ attendeeId: a.id, name: a.name, email: a.email, url: `${origin}/invite/${token}` })
+    }
+    await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'invitation.bulk_issued', entityType: 'retreat', entityId: retreat.id, metadata: { count: links.length } })
+    res.json({ links })
+  }),
+)
+
+attendeesRouter.post(
+  '/attendees/:attendeeId/revoke',
+  route(async (req, res) => {
+    const t = tenantOf(req)
+    const attendee = await tenantAttendee(t.org.id, uuidParam(req, 'attendeeId'))
+    await prisma.invitation.updateMany({ where: { attendeeId: attendee.id, revokedAt: null }, data: { revokedAt: new Date() } })
+    await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'invitation.revoked', entityType: 'attendee', entityId: attendee.id })
+    res.json({ ok: true })
+  }),
+)
+
+attendeesRouter.delete(
+  '/attendees/:attendeeId',
+  route(async (req, res) => {
+    const t = tenantOf(req)
+    const attendee = await tenantAttendee(t.org.id, uuidParam(req, 'attendeeId'))
+    const response = await prisma.response.findUnique({ where: { attendeeId: attendee.id }, select: { status: true } })
+    if (response && response.status !== 'draft') throw new HttpError(409, 'This guest has submitted a response; remove it through the retention process instead.')
+    await prisma.attendee.delete({ where: { id: attendee.id } })
+    await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'attendee.removed', entityType: 'attendee', entityId: attendee.id })
+    res.status(204).end()
+  }),
+)

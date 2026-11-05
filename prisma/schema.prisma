@@ -1,0 +1,529 @@
+// croot data model.
+//
+// Multi-tenancy: one shared database. Every tenant-owned row carries `organisationId`, and every
+// tenant-scoped index leads with it, so queries stay cheap as tenants grow and a later move to
+// Postgres row-level security (or sharding by organisation) needs no reshaping. Server code reaches
+// tenant data only through `server/src/lib/tenant.ts`, which always filters by organisation.
+//
+// Privacy boundaries from the design spec are structural, not just UI:
+//   - AnonymousNote has no attendee / response / invitation key and no precise timestamp.
+//   - Public pages read PublicationRevision snapshots, never Response rows.
+//   - Tokens (invite, receipt, session, setup) are stored only as SHA-256 hashes.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------------------------
+// Platform & tenancy
+
+enum OrganisationStatus {
+  active
+  suspended
+}
+
+enum MemberRole {
+  owner
+  organiser
+}
+
+enum TenantRequestStatus {
+  pending
+  approved
+  declined
+}
+
+model Organisation {
+  id           String             @id @default(uuid()) @db.Uuid
+  slug         String             @unique
+  name         String
+  status       OrganisationStatus @default(active)
+  contactEmail String?
+  websiteUrl   String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  domains     OrgDomain[]
+  memberships Membership[]
+  retreats    Retreat[]
+}
+
+/// Custom hostnames (e.g. reviews.balanceandbeyond.co.uk) mapped to a tenant's public site.
+model OrgDomain {
+  id             String       @id @default(uuid()) @db.Uuid
+  organisationId String       @db.Uuid
+  hostname       String       @unique
+  createdAt      DateTime     @default(now())
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId])
+}
+
+/// A retreat owner asking to use croot. A platform admin approves it, which creates the tenant.
+model TenantRequest {
+  id             String              @id @default(uuid()) @db.Uuid
+  orgName        String
+  contactName    String
+  email          String
+  websiteUrl     String?
+  message        String?
+  /// Which review types the owner wants: itinerary and/or property.
+  reviewKinds    ReviewKind[]        @default([])
+  status         TenantRequestStatus @default(pending)
+  reviewedById   String?             @db.Uuid
+  reviewedAt     DateTime?
+  organisationId String?             @db.Uuid
+  createdAt      DateTime            @default(now())
+
+  @@index([status, createdAt])
+}
+
+model User {
+  id              String    @id @default(uuid()) @db.Uuid
+  email           String    @unique
+  name            String
+  passwordHash    String?
+  isPlatformAdmin Boolean   @default(false)
+  active          Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  lastLoginAt     DateTime?
+
+  memberships Membership[]
+  sessions    Session[]
+  setupTokens SetupToken[]
+}
+
+model Membership {
+  id             String       @id @default(uuid()) @db.Uuid
+  userId         String       @db.Uuid
+  organisationId String       @db.Uuid
+  role           MemberRole   @default(organiser)
+  createdAt      DateTime     @default(now())
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organisationId])
+  @@index([organisationId])
+}
+
+model Session {
+  id         String   @id @default(uuid()) @db.Uuid
+  tokenHash  String   @unique
+  userId     String   @db.Uuid
+  csrfToken  String
+  expiresAt  DateTime
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+/// One-time link to set a password (new tenant owner, new organiser, or reset).
+model SetupToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  tokenHash String    @unique
+  userId    String    @db.Uuid
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------------------------
+// Retreats
+
+/// itinerary: a hosted group journey with fixed dates and a route (one cohort of guests).
+/// property: a retreat venue collecting reviews from guests across many individual stays.
+enum ReviewKind {
+  itinerary
+  property
+}
+
+enum RetreatStatus {
+  draft
+  collecting
+  closed
+  archived
+}
+
+model Retreat {
+  id             String        @id @default(uuid()) @db.Uuid
+  organisationId String        @db.Uuid
+  slug           String
+  kind           ReviewKind    @default(itinerary)
+  title          String
+  /// Required for itinerary retreats; null for properties (each guest has their own stay dates).
+  startDate      DateTime?     @db.Date
+  endDate        DateTime?     @db.Date
+  /// Property only: address or area shown in the public details panel.
+  propertyAddress String?
+  /// Property only: up to six facilities or highlights.
+  amenities      String[]      @default([])
+  locationSummary String       @default("")
+  /// Up to four short lines describing the route.
+  routeSummary   String[]      @default([])
+  itineraryUrl   String?
+  retreatPageUrl String?
+  organiserName  String        @default("")
+  contactEmail   String?
+  contactPhone   String?
+  /// Contact details are shown publicly only once the organiser has previewed and enabled them.
+  contactPublic  Boolean       @default(false)
+  privacyUrl     String?
+  status         RetreatStatus @default(draft)
+  inviteOpensAt  DateTime?
+  inviteClosesAt DateTime?
+  inviteTtlDays  Int           @default(60)
+  draftEditingEnabled      Boolean @default(true)
+  publicReviewsEnabled     Boolean @default(true)
+  writingSlideshowEnabled  Boolean @default(false)
+  heroSlideshowEnabled     Boolean @default(true)
+  showPublicRating         Boolean @default(false)
+  /// [{ key, label }] — private feedback categories for this retreat.
+  feedbackCategories Json     @default("[]")
+  /// Below this many submitted responses, aggregate scores are hidden to protect identities.
+  aggregateThreshold Int      @default(5)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  attendees    Attendee[]
+  responses    Response[]
+  media        MediaAsset[]
+  themes       ThemeRevision[]
+  contents     ContentRevision[]
+  anonymousNotes AnonymousNote[]
+
+  @@unique([organisationId, slug])
+  @@index([organisationId, status])
+}
+
+// ---------------------------------------------------------------------------------------------
+// Attendees & invitations
+
+model Attendee {
+  id             String   @id @default(uuid()) @db.Uuid
+  organisationId String   @db.Uuid
+  retreatId      String   @db.Uuid
+  name           String
+  email          String
+  /// Property reviews: the guest's own stay. Private; never shown publicly.
+  stayStart      DateTime?     @db.Date
+  stayEnd        DateTime?     @db.Date
+  importBatch    String?
+  createdAt      DateTime @default(now())
+
+  retreat     Retreat      @relation(fields: [retreatId], references: [id], onDelete: Cascade)
+  invitations Invitation[]
+  response    Response?
+
+  @@unique([retreatId, email])
+  @@index([organisationId, retreatId])
+}
+
+model Invitation {
+  id             String    @id @default(uuid()) @db.Uuid
+  organisationId String    @db.Uuid
+  attendeeId     String    @db.Uuid
+  tokenHash      String    @unique
+  /// Last four characters, for organisers to tell links apart. Never the full token.
+  tokenHint      String
+  issuedAt       DateTime  @default(now())
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  openedAt       DateTime?
+  lastUsedAt     DateTime?
+  attendee       Attendee  @relation(fields: [attendeeId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId, attendeeId])
+}
+
+// ---------------------------------------------------------------------------------------------
+// Responses
+
+enum ResponseStatus {
+  draft
+  submitted
+  /// Organiser asked the guest to revise; the invite link is editable again.
+  changes_requested
+  withdrawn
+}
+
+enum PublicationStatus {
+  none
+  published
+  unpublished
+  withdrawn
+}
+
+model Response {
+  id             String         @id @default(uuid()) @db.Uuid
+  organisationId String         @db.Uuid
+  retreatId      String         @db.Uuid
+  attendeeId     String         @unique @db.Uuid
+  status         ResponseStatus @default(draft)
+  /// Optimistic concurrency for draft saves.
+  revision       Int            @default(0)
+  currentStep    Int            @default(0)
+
+  // 1. Public story candidate
+  storyText      String         @default("")
+  overallRating  Int?
+
+  // 2. Private feedback (ratings are FeedbackRating rows)
+  keepText       String         @default("")
+  changeText     String         @default("")
+
+  // 5. Current consent state (history is ConsentEvent)
+  consentPublicText Boolean     @default(false)
+  consentFirstName  Boolean     @default(false)
+  consentFollowUp   Boolean     @default(false)
+  consentMarketing  Boolean     @default(false)
+  consentWordingVersion String?
+
+  submittedAt      DateTime?
+  /// The guest's words exactly as submitted — organisers can never overwrite this.
+  submittedSnapshot Json?
+  receiptTokenHash String?      @unique
+  organiserMessage String?
+
+  publicationStatus PublicationStatus @default(none)
+  /// Generated on first publication only; stable afterwards.
+  publicSlug     String?        @unique
+  pinned         Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  retreat      Retreat              @relation(fields: [retreatId], references: [id], onDelete: Cascade)
+  attendee     Attendee             @relation(fields: [attendeeId], references: [id], onDelete: Cascade)
+  ratings      FeedbackRating[]
+  media        MediaAsset[]
+  consents     ConsentEvent[]
+  publications PublicationRevision[]
+  changeRequests ChangeRequest[]
+
+  @@index([organisationId, retreatId, status])
+  @@index([organisationId, retreatId, publicationStatus])
+}
+
+model FeedbackRating {
+  id             String   @id @default(uuid()) @db.Uuid
+  organisationId String   @db.Uuid
+  responseId     String   @db.Uuid
+  categoryKey    String
+  /// 1–5; null with notApplicable=false means unanswered.
+  score          Int?
+  notApplicable  Boolean  @default(false)
+  comment        String   @default("")
+  response       Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
+
+  @@unique([responseId, categoryKey])
+  @@index([organisationId])
+}
+
+enum ConsentActor {
+  attendee
+  organiser
+  system
+}
+
+model ConsentEvent {
+  id             String       @id @default(uuid()) @db.Uuid
+  organisationId String       @db.Uuid
+  responseId     String       @db.Uuid
+  /// public_text | first_name | follow_up | marketing | photo:<mediaId>
+  scope          String
+  granted        Boolean
+  wordingVersion String
+  actor          ConsentActor
+  createdAt      DateTime     @default(now())
+  response       Response     @relation(fields: [responseId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId, responseId])
+}
+
+enum ChangeRequestKind {
+  edit
+  withdraw
+}
+
+enum ChangeRequestStatus {
+  open
+  resolved
+}
+
+model ChangeRequest {
+  id             String              @id @default(uuid()) @db.Uuid
+  organisationId String              @db.Uuid
+  responseId     String              @db.Uuid
+  kind           ChangeRequestKind
+  message        String              @default("")
+  status         ChangeRequestStatus @default(open)
+  createdAt      DateTime            @default(now())
+  resolvedAt     DateTime?
+  response       Response            @relation(fields: [responseId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId, status])
+}
+
+enum PublicationEventStatus {
+  published
+  unpublished
+  withdrawn
+}
+
+/// Immutable snapshot of exactly what is (or was) public. Public endpoints read only this.
+model PublicationRevision {
+  id             String                 @id @default(uuid()) @db.Uuid
+  organisationId String                 @db.Uuid
+  responseId     String                 @db.Uuid
+  retreatId      String                 @db.Uuid
+  storyText      String
+  /// Verbatim substring of storyText used by the showcase.
+  excerpt        String
+  displayName    String?
+  overallRating  Int?
+  photoIds       String[]               @default([])
+  status         PublicationEventStatus
+  reason         String?
+  reviewerId     String?                @db.Uuid
+  createdAt      DateTime               @default(now())
+  response       Response               @relation(fields: [responseId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId, retreatId, status])
+  @@index([responseId, createdAt])
+}
+
+// ---------------------------------------------------------------------------------------------
+// Media
+
+enum MediaKind {
+  guest
+  organiser
+}
+
+enum ModerationStatus {
+  pending
+  approved
+  rejected
+}
+
+model MediaAsset {
+  id             String           @id @default(uuid()) @db.Uuid
+  organisationId String           @db.Uuid
+  retreatId      String           @db.Uuid
+  responseId     String?          @db.Uuid
+  kind           MediaKind
+  /// Private original — never served publicly.
+  originalKey    String
+  /// Metadata-stripped web derivative.
+  derivativeKey  String
+  mime           String
+  sizeBytes      Int
+  width          Int
+  height         Int
+  altText        String           @default("")
+  caption        String           @default("")
+  credit         String           @default("")
+  /// Guest's per-photo publication consent (organiser assets: rights confirmed).
+  publishConsent Boolean          @default(false)
+  moderation     ModerationStatus @default(pending)
+  displayOrder   Int              @default(0)
+  focalX         Float            @default(0.5)
+  focalY         Float            @default(0.5)
+  /// Organiser images: separate switches for the public hero and the writing-time slideshow.
+  inHeroSlideshow    Boolean      @default(false)
+  inWritingSlideshow Boolean      @default(false)
+  removedAt      DateTime?
+  createdAt      DateTime         @default(now())
+
+  retreat  Retreat   @relation(fields: [retreatId], references: [id], onDelete: Cascade)
+  response Response? @relation(fields: [responseId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId, retreatId, kind])
+  @@index([responseId])
+}
+
+// ---------------------------------------------------------------------------------------------
+// Anonymous notes — deliberately unlinked.
+
+model AnonymousNote {
+  id             String   @id @default(uuid()) @db.Uuid
+  organisationId String   @db.Uuid
+  retreatId      String   @db.Uuid
+  message        String
+  category       String?
+  /// Calendar week start only: no precise time is stored, to prevent matching in small cohorts.
+  receivedWeek   DateTime @db.Date
+  retreat        Retreat  @relation(fields: [retreatId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId, retreatId])
+}
+
+// ---------------------------------------------------------------------------------------------
+// Public site content
+
+enum RevisionStatus {
+  draft
+  published
+  archived
+}
+
+model ThemeRevision {
+  id             String         @id @default(uuid()) @db.Uuid
+  organisationId String         @db.Uuid
+  retreatId      String         @db.Uuid
+  name           String
+  presetKey      String
+  tokens         Json
+  status         RevisionStatus @default(draft)
+  actorId        String?        @db.Uuid
+  createdAt      DateTime       @default(now())
+  retreat        Retreat        @relation(fields: [retreatId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId, retreatId, status])
+}
+
+model ContentRevision {
+  id             String         @id @default(uuid()) @db.Uuid
+  organisationId String         @db.Uuid
+  retreatId      String         @db.Uuid
+  headline       String
+  introParagraphs String[]      @default([])
+  ctaLabel       String         @default("")
+  ctaUrl         String         @default("")
+  status         RevisionStatus @default(draft)
+  /// Optional scheduled go-live; null means live as soon as published.
+  publishAt      DateTime?
+  actorId        String?        @db.Uuid
+  createdAt      DateTime       @default(now())
+  retreat        Retreat        @relation(fields: [retreatId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId, retreatId, status])
+}
+
+// ---------------------------------------------------------------------------------------------
+// Audit
+
+model AuditEvent {
+  id             String   @id @default(uuid()) @db.Uuid
+  organisationId String?  @db.Uuid
+  actorUserId    String?  @db.Uuid
+  actorKind      String
+  action         String
+  entityType     String
+  entityId       String?
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+
+  @@index([organisationId, createdAt])
+  @@index([entityType, entityId])
+}

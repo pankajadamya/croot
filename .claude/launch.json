@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "croot-db",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["pglite-server", "--db=./.pglite/dev", "--port=6432", "--max-connections=10"],
+      "port": 6432
+    },
+    {
+      "name": "croot-api",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:api"],
+      "port": 6021
+    },
+    {
+      "name": "croot-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 6020
+    }
+  ]
+}
