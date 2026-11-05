@@ -1387,3 +1387,89 @@ table.data th {
     padding: 1rem 1rem 1.1rem;
   }
 }
+
+/* Slow "Ken Burns" drift on the active photo: alternating zoom in/out with a gentle pan. */
+.photo-stage img {
+  transform-origin: center;
+  will-change: transform, opacity;
+  transition: opacity 1.2s ease;
+}
+.photo-stage img.active,
+.photo-stage img.leaving {
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+.photo-stage img.kb-in-left {
+  animation-name: kb-in-left;
+}
+.photo-stage img.kb-out-right {
+  animation-name: kb-out-right;
+}
+.photo-stage img.kb-in-up {
+  animation-name: kb-in-up;
+}
+.photo-stage img.kb-out-down {
+  animation-name: kb-out-down;
+}
+/* Paused: the photo holds still where it is. */
+.photo-panel.is-paused .photo-stage img.active {
+  animation-play-state: paused;
+}
+@keyframes kb-in-left {
+  from {
+    transform: scale(1.02) translate(1.5%, 0);
+  }
+  to {
+    transform: scale(1.14) translate(-2%, -1%);
+  }
+}
+@keyframes kb-out-right {
+  from {
+    transform: scale(1.15) translate(-2%, 1%);
+  }
+  to {
+    transform: scale(1.03) translate(1.5%, 0);
+  }
+}
+@keyframes kb-in-up {
+  from {
+    transform: scale(1.03) translate(0, 1.5%);
+  }
+  to {
+    transform: scale(1.13) translate(1%, -2%);
+  }
+}
+@keyframes kb-out-down {
+  from {
+    transform: scale(1.14) translate(-1%, -2%);
+  }
+  to {
+    transform: scale(1.02) translate(0, 1%);
+  }
+}
+.photo-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: none;
+}
+.photo-pause {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
+  background: transparent;
+  color: #ffffff;
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  opacity: 0.85;
+}
+.photo-pause:hover,
+.photo-pause:focus-visible {
+  opacity: 1;
+}
+.photo-pause:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
