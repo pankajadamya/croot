@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { Link, useNavigate, useParams } from 'react-router'
 import { CONSENT_WORDING, storyPromptsFor, type FeedbackCategory, type ReviewKind } from '../../../shared/categories'
 import { api, ApiError, del, get, patch, post, put } from '../../lib/api'
 import { formatRange } from '../../lib/format'
@@ -29,6 +29,7 @@ interface Consents {
 interface InviteView {
   firstName: string
   editable: boolean
+  signIn: { required: boolean; signedIn: boolean; canReopen: boolean }
   retreat: {
     kind: ReviewKind
     title: string
@@ -87,10 +88,19 @@ function emptyDraft(view: InviteView): Draft {
   }
 }
 
+/** Reached by the guest's unique link. */
 export default function InviteFlow() {
   const { token = '' } = useParams()
+  return <ReviewFlow base={`/api/invites/${token}`} />
+}
+
+/**
+ * The review form, by unique link (base /api/invites/:token) or signed in (base /api/me/reviews/:id).
+ * Drafts can be resumed either way; changing a review that was already sent needs a verified sign-in.
+ */
+export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignIn?: boolean }) {
   const navigate = useNavigate()
-  const base = `/api/invites/${token}`
+  const [reopening, setReopening] = useState(false)
   const [view, setView] = useState<InviteView | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [draft, setDraft] = useState<Draft | null>(null)
@@ -223,8 +233,44 @@ export default function InviteFlow() {
   if (loadError) return <LinkUnavailable message={loadError} />
   if (!view || !draft) return <Loading />
 
+  async function reopen() {
+    setReopening(true)
+    setSubmitError(null)
+    try {
+      await post(`${base}/reopen`)
+      await load()
+    } catch (e) {
+      setSubmitError((e as Error).message)
+    } finally {
+      setReopening(false)
+    }
+  }
+
   if (!view.editable) {
     const submitted = view.response?.status === 'submitted'
+    const awaitingSignIn = view.signIn.required && !view.signIn.signedIn
+    const signInLink = (
+      <Link className="btn secondary" to={`/signin?next=${encodeURIComponent('/my-reviews')}`}>
+        Sign in to edit my review
+      </Link>
+    )
+    if (view.response?.status === 'changes_requested' && awaitingSignIn) {
+      return (
+        <main className="calm">
+          <div className="narrow stack" style={{ padding: '4rem 0' }}>
+            <p className="eyebrow">{view.retreat.title}</p>
+            <h1>Your review is open for changes</h1>
+            {view.response.organiserMessage && (
+              <div className="notice warn">
+                <strong>A note from the organiser:</strong> {view.response.organiserMessage}
+              </div>
+            )}
+            <p>Because you’ve already sent this review, please sign in with the email address your invitation was sent to before changing it. This keeps anyone else with your link from altering your words.</p>
+            {signInLink}
+          </div>
+        </main>
+      )
+    }
     return (
       <main className="calm">
         <div className="narrow" style={{ padding: '4rem 0' }}>
@@ -233,9 +279,26 @@ export default function InviteFlow() {
           {submitted ? (
             <>
               <p>Your response has been sent. You can view it, change your permissions or ask for an edit from your private response page.</p>
-              <button className="btn" onClick={openReceipt}>
-                Open my private response page
-              </button>
+              <div className="row">
+                <button className="btn" onClick={openReceipt}>
+                  Open my private response page
+                </button>
+                {view.signIn.canReopen &&
+                  (view.signIn.signedIn ? (
+                    <button className="btn secondary" onClick={reopen} disabled={reopening}>
+                      {reopening ? 'Opening…' : 'Edit my review'}
+                    </button>
+                  ) : (
+                    signInLink
+                  ))}
+              </div>
+              {view.signIn.canReopen && (
+                <p className="small muted" style={{ marginTop: '1rem' }}>
+                  {view.signIn.signedIn
+                    ? 'Editing reopens your review. If it’s already published, the published version stays up until the organiser approves your changes.'
+                    : 'To change a review you’ve already sent, sign in with the email address your invitation was sent to.'}
+                </p>
+              )}
               <p className="small muted" style={{ marginTop: '1rem' }}>
                 This creates a fresh private link; any earlier response link stops working.
               </p>
@@ -295,6 +358,11 @@ export default function InviteFlow() {
         </aside>
 
         <main className="flow-main" id="main">
+          {viaSignIn && (
+            <Link to="/my-reviews" className="small" style={{ display: 'inline-block', marginBottom: '1rem' }}>
+              ← My reviews
+            </Link>
+          )}
           {step > 0 && (
             <div aria-hidden="true" className="progress">
               {STEPS.slice(1).map((s, i) => (

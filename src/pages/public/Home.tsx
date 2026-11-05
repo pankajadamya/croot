@@ -75,8 +75,8 @@ function Landing() {
           <a href="#types">Review types</a>
           <a href="#how">How it works</a>
           <a href="#request">Request access</a>
-          <Link to="/admin" className="btn secondary small">
-            Organiser sign in
+          <Link to="/signin" className="btn secondary small">
+            Sign in
           </Link>
         </nav>
       </header>
@@ -204,7 +204,7 @@ function Landing() {
             <Link to="/legal/privacy">Privacy</Link>
             <Link to="/legal/terms">Data processing terms</Link>
             <Link to="/legal/cookies">Cookies</Link>
-            <Link to="/admin">Organiser sign in</Link>
+            <Link to="/signin">Sign in</Link>
           </nav>
         </div>
       </footer>

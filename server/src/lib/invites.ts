@@ -56,7 +56,7 @@ export async function resolveInvite(token: unknown) {
 export type ResolvedInvite = Awaited<ReturnType<typeof resolveInvite>>
 
 /** Whether the guest may still change their answers through the invite link. */
-export function canEdit(r: ResolvedInvite): boolean {
+export function canEdit(r: Pick<ResolvedInvite, 'retreat' | 'response'>): boolean {
   const now = new Date()
   const { retreat, response } = r
   if (retreat.status !== 'collecting') return false
@@ -67,7 +67,7 @@ export function canEdit(r: ResolvedInvite): boolean {
   return response.status === 'draft' && retreat.draftEditingEnabled
 }
 
-export async function ensureResponse(r: ResolvedInvite) {
+export async function ensureResponse(r: Pick<ResolvedInvite, 'retreat' | 'response' | 'attendee'>) {
   if (r.response) return r.response
   return prisma.response.upsert({
     where: { attendeeId: r.attendee.id },

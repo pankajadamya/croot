@@ -22,8 +22,15 @@ datasource db {
 // Platform & tenancy
 
 enum OrganisationStatus {
+  /// Self-service sign-up awaiting platform approval: the workspace works, but invitations and public pages stay off.
+  pending
   active
   suspended
+}
+
+enum LoginCodePurpose {
+  signin
+  signup
 }
 
 enum MemberRole {
@@ -115,6 +122,10 @@ model User {
   email           String    @unique
   name            String
   passwordHash    String?
+  /// Google account id (OIDC `sub`), once the user has signed in with Google.
+  googleSub       String?   @unique
+  /// Set when the user proved control of the email address (email code or Google-verified email).
+  emailVerifiedAt DateTime?
   isPlatformAdmin Boolean   @default(false)
   active          Boolean   @default(true)
   createdAt       DateTime  @default(now())
@@ -149,6 +160,23 @@ model Session {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([expiresAt])
+}
+
+/// One-time sign-in / sign-up code sent by email. Only an HMAC of the code is stored.
+model LoginCode {
+  id         String           @id @default(uuid()) @db.Uuid
+  email      String
+  codeHash   String
+  purpose    LoginCodePurpose
+  /// Sign-up only: the name the person gave.
+  name       String?
+  attempts   Int              @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime         @default(now())
+
+  @@index([email, createdAt])
   @@index([expiresAt])
 }
 

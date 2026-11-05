@@ -4,7 +4,7 @@ import { ApiError, get, post, setCsrfToken } from './api'
 export interface Membership {
   slug: string
   name: string
-  status: 'active' | 'suspended'
+  status: 'pending' | 'active' | 'suspended'
   role: 'owner' | 'organiser'
 }
 

@@ -173,8 +173,9 @@ export default function PrivacyNotice() {
 
         <h2>Cookies</h2>
         <p>
-          Guest pages, invitation links and the public site use no cookies and no analytics or tracking. Organisers who sign in receive one essential
-          session cookie. See <Link to="/legal/cookies">cookies</Link>.
+          Invitation links and the public site use no cookies and no analytics or tracking. If you choose to sign in (with an email code or
+          Google) to see or change your reviews, one essential session cookie keeps you signed in. If you use Google, we receive only your name,
+          verified email address and a Google account identifier. See <Link to="/legal/cookies">cookies</Link>.
         </p>
 
         {extra && (

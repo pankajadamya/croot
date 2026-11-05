@@ -20,7 +20,7 @@ const DAY = 86_400_000
 const monthsAgo = (now: Date, m: number) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - m, now.getUTCDate()))
 
 export async function runRetention(now = new Date()) {
-  const counts = { drafts: 0, nonResponders: 0, responsesErased: 0, responsesMinimised: 0, originals: 0, notes: 0, auditEvents: 0, sessions: 0, setupTokens: 0, invitations: 0, tenantRequests: 0 }
+  const counts = { drafts: 0, nonResponders: 0, responsesErased: 0, responsesMinimised: 0, originals: 0, notes: 0, auditEvents: 0, sessions: 0, setupTokens: 0, invitations: 0, tenantRequests: 0, loginCodes: 0 }
   const orgs = await prisma.organisation.findMany()
 
   for (const org of orgs) {
@@ -112,6 +112,7 @@ export async function runRetention(now = new Date()) {
   counts.invitations = (
     await prisma.invitation.deleteMany({ where: { OR: [{ revokedAt: { lt: new Date(now.getTime() - 90 * DAY) } }, { expiresAt: { lt: new Date(now.getTime() - 90 * DAY) } }] } })
   ).count
+  counts.loginCodes = (await prisma.loginCode.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - DAY) } } })).count
   counts.tenantRequests = (
     await prisma.tenantRequest.deleteMany({
       where: { OR: [{ status: 'declined', reviewedAt: { lt: monthsAgo(now, 6) } }, { status: 'approved', reviewedAt: { lt: monthsAgo(now, 24) } }] },

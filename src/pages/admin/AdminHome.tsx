@@ -7,7 +7,9 @@ import { AdminShell } from './AdminShell'
 export default function AdminHome() {
   const { session, loading } = useAuth()
   if (loading) return <Loading />
-  if (!session) return <Navigate to="/admin/login" replace />
+  if (!session) return <Navigate to="/signin" replace />
+  // Guests (no organisation, not platform staff) belong on their own reviews page.
+  if (session.memberships.length === 0 && !session.user.isPlatformAdmin) return <Navigate to="/my-reviews" replace />
   if (session.memberships.length === 1 && !session.user.isPlatformAdmin) {
     return <Navigate to={`/admin/${session.memberships[0].slug}`} replace />
   }
@@ -27,6 +29,7 @@ export default function AdminHome() {
                 <div className="small muted">{m.role === 'owner' ? 'Owner' : 'Organiser'}</div>
               </div>
               {m.status === 'suspended' && <span className="badge warn">Suspended</span>}
+              {m.status === 'pending' && <span className="badge warn">Awaiting approval</span>}
             </li>
           ))}
         </ul>

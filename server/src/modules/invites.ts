@@ -1,12 +1,12 @@
-import { Router } from 'express'
+import { Router, type Request, type Response } from 'express'
 import multer from 'multer'
 import { z } from 'zod'
-import type { Prisma } from '@prisma/client'
+import type { Invitation, Prisma } from '@prisma/client'
 import { CONSENT_WORDING_VERSION, type FeedbackCategory } from '../../../shared/categories.js'
 import { firstName } from '../../../shared/slug.js'
 import { audit } from '../lib/audit.js'
 import { env } from '../lib/env.js'
-import { HttpError, param, parseBody, route, text, uuidParam } from '../lib/http.js'
+import { HttpError, parseBody, route, text, uuidParam } from '../lib/http.js'
 import { processImage } from '../lib/images.js'
 import { canEdit, ensureResponse, resolveInvite, type ResolvedInvite } from '../lib/invites.js'
 import { prisma } from '../lib/prisma.js'
@@ -14,16 +14,98 @@ import { storage } from '../lib/storage.js'
 import { hashToken, newToken } from '../lib/tokens.js'
 import { tokenLimiter, uploadLimiter } from '../middleware/rateLimits.js'
 
+/**
+ * A guest's review, reached two ways:
+ *   /api/invites/:token          the unique link (no account needed to start, save and resume)
+ *   /api/me/reviews/:attendeeId  a signed-in guest whose verified email matches the invitation
+ * Once a review has been sent, changing it (text, ratings, photos, resubmitting) requires the
+ * signed-in route or a signed-in session on the link: see requireEditable().
+ */
+type Review = Omit<ResolvedInvite, 'invitation'> & { invitation: Invitation | null }
+
+const reviewRoutes = Router({ mergeParams: true })
+const current = (res: Response): Review => res.locals.review as Review
+
+/** True when the request comes from a signed-in user who proved they own the invited address. */
+function signedInAsGuest(req: Request, r: Review) {
+  return Boolean(req.auth?.emailVerified && req.auth.user.email === r.attendee.email)
+}
+
 export const invitesRouter = Router()
-invitesRouter.use(tokenLimiter)
+invitesRouter.use(
+  '/:token',
+  tokenLimiter,
+  route(async (req, res, next) => {
+    res.locals.review = await resolveInvite(req.params.token)
+    next()
+  }),
+  reviewRoutes,
+)
+
+export const myReviewsRouter = Router()
+
+/** Every review addressed to the signed-in guest's verified email, across organisations. */
+myReviewsRouter.get(
+  '/',
+  route(async (req, res) => {
+    if (!req.auth!.emailVerified) return res.json({ reviews: [], emailVerified: false })
+    const rows = await prisma.attendee.findMany({
+      where: { email: req.auth!.user.email, retreat: { status: { in: ['collecting', 'closed'] }, organisation: { status: 'active' } } },
+      include: {
+        retreat: { select: { title: true, kind: true, startDate: true, endDate: true, organisation: { select: { name: true } } } },
+        response: { select: { status: true, submittedAt: true, publicationStatus: true, publicSlug: true, updatedAt: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+    res.json({
+      emailVerified: true,
+      reviews: rows.map((a) => ({
+        attendeeId: a.id,
+        programme: a.retreat.title,
+        kind: a.retreat.kind,
+        organisation: a.retreat.organisation.name,
+        startDate: a.retreat.kind === 'property' ? a.stayStart : a.retreat.startDate,
+        endDate: a.retreat.kind === 'property' ? a.stayEnd : a.retreat.endDate,
+        status: a.response?.status ?? 'not_started',
+        submittedAt: a.response?.submittedAt ?? null,
+        publication: a.response?.publicationStatus ?? 'none',
+        storyUrl: a.response?.publicationStatus === 'published' && a.response.publicSlug ? `/stories/${a.response.publicSlug}` : null,
+      })),
+    })
+  }),
+)
+
+myReviewsRouter.use(
+  '/:attendeeId',
+  route(async (req, res, next) => {
+    res.locals.review = await resolveForGuest(req)
+    next()
+  }),
+  reviewRoutes,
+)
+
+async function resolveForGuest(req: Request): Promise<Review> {
+  const id = uuidParam(req, 'attendeeId')
+  if (!req.auth?.emailVerified) throw new HttpError(403, 'Sign in with your email to see your reviews')
+  const attendee = await prisma.attendee.findFirst({
+    where: { id, email: req.auth.user.email },
+    include: { retreat: { include: { organisation: { select: { id: true, slug: true, name: true, status: true } } } }, response: true },
+  })
+  if (!attendee) throw new HttpError(404, 'Review not found')
+  const { retreat } = attendee
+  if (retreat.organisation.status !== 'active' || retreat.status === 'archived' || retreat.status === 'draft') throw new HttpError(404, 'Review not found')
+  const invitation = await prisma.invitation.findFirst({ where: { attendeeId: id, revokedAt: null }, orderBy: { issuedAt: 'desc' } })
+  return { invitation, attendee, retreat, response: attendee.response }
+}
+
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: env.MAX_UPLOAD_BYTES, files: 1 } })
 
-function categoriesOf(r: ResolvedInvite): FeedbackCategory[] {
+function categoriesOf(r: Review): FeedbackCategory[] {
   return (r.retreat.feedbackCategories as unknown as FeedbackCategory[]) ?? []
 }
 
-async function draftView(r: ResolvedInvite) {
+async function draftView(r: Review, req: Request) {
   const response = r.response
     ? await prisma.response.findUnique({
         where: { id: r.response.id },
@@ -47,7 +129,13 @@ async function draftView(r: ResolvedInvite) {
     : []
   return {
     firstName: firstName(r.attendee.name),
-    editable: canEdit(r),
+    editable: canEdit(r) && (!r.response?.submittedAt || signedInAsGuest(req, r)),
+    // A sent review can be changed only after signing in with the invited email address.
+    signIn: {
+      required: Boolean(r.response?.submittedAt),
+      signedIn: signedInAsGuest(req, r),
+      canReopen: r.response?.status === 'submitted' && r.retreat.status === 'collecting',
+    },
     retreat: {
       kind: r.retreat.kind,
       title: r.retreat.title,
@@ -86,15 +174,15 @@ async function draftView(r: ResolvedInvite) {
   }
 }
 
-invitesRouter.get(
-  '/:token',
+reviewRoutes.get(
+  '/',
   route(async (req, res) => {
-    const r = await resolveInvite(req.params.token)
-    if (!r.invitation.openedAt) {
+    const r = current(res)
+    if (r.invitation && !r.invitation.openedAt) {
       await prisma.invitation.update({ where: { id: r.invitation.id }, data: { openedAt: new Date(), lastUsedAt: new Date() } })
     }
     res.set('Cache-Control', 'no-store')
-    res.json(await draftView(r))
+    res.json(await draftView(r, req))
   }),
 )
 
@@ -119,16 +207,19 @@ const draftSchema = z.object({
     .optional(),
 })
 
-async function requireEditable(token: unknown) {
-  const r = await resolveInvite(token)
+function requireEditable(req: Request, res: Response) {
+  const r = current(res)
+  if (r.response?.submittedAt && !signedInAsGuest(req, r)) {
+    throw new HttpError(401, 'To change a review you have already sent, sign in with the email address you were invited on.', { signInRequired: true })
+  }
   if (!canEdit(r)) throw new HttpError(409, 'This response can no longer be edited. You can still view it from your private response link.')
   return r
 }
 
-invitesRouter.put(
-  '/:token/draft',
+reviewRoutes.put(
+  '/draft',
   route(async (req, res) => {
-    const r = await requireEditable(req.params.token)
+    const r = requireEditable(req, res)
     const body = parseBody(draftSchema, req.body)
     const response = await ensureResponse(r)
     const keys = new Set(categoriesOf(r).map((c) => c.key))
@@ -161,17 +252,17 @@ invitesRouter.put(
       }
       return tx.response.findUniqueOrThrow({ where: { id: response.id }, select: { revision: true, updatedAt: true } })
     })
-    await prisma.invitation.update({ where: { id: r.invitation.id }, data: { lastUsedAt: new Date() } })
+    if (r.invitation) await prisma.invitation.update({ where: { id: r.invitation.id }, data: { lastUsedAt: new Date() } })
     res.json({ revision: saved.revision, savedAt: saved.updatedAt })
   }),
 )
 
-invitesRouter.post(
-  '/:token/photos',
+reviewRoutes.post(
+  '/photos',
   uploadLimiter,
   upload.single('photo'),
   route(async (req, res) => {
-    const r = await requireEditable(req.params.token)
+    const r = requireEditable(req, res)
     if (!req.file) throw new HttpError(400, 'Choose a photo to upload')
     const response = await ensureResponse(r)
     const count = await prisma.mediaAsset.count({ where: { responseId: response.id, removedAt: null } })
@@ -207,7 +298,7 @@ const photoPatch = z.object({
   publishConsent: z.boolean().optional(),
 })
 
-async function ownPhoto(r: ResolvedInvite, photoId: string) {
+async function ownPhoto(r: Review, photoId: string) {
   const photo = r.response
     ? await prisma.mediaAsset.findFirst({ where: { id: photoId, responseId: r.response.id, removedAt: null } })
     : null
@@ -215,10 +306,10 @@ async function ownPhoto(r: ResolvedInvite, photoId: string) {
   return photo
 }
 
-invitesRouter.patch(
-  '/:token/photos/:photoId',
+reviewRoutes.patch(
+  '/photos/:photoId',
   route(async (req, res) => {
-    const r = await requireEditable(req.params.token)
+    const r = requireEditable(req, res)
     const photo = await ownPhoto(r, uuidParam(req, 'photoId'))
     const body = parseBody(photoPatch, req.body)
     const updated = await prisma.mediaAsset.update({ where: { id: photo.id }, data: body })
@@ -226,10 +317,10 @@ invitesRouter.patch(
   }),
 )
 
-invitesRouter.delete(
-  '/:token/photos/:photoId',
+reviewRoutes.delete(
+  '/photos/:photoId',
   route(async (req, res) => {
-    const r = await requireEditable(req.params.token)
+    const r = requireEditable(req, res)
     const photo = await ownPhoto(r, uuidParam(req, 'photoId'))
     await prisma.mediaAsset.update({ where: { id: photo.id }, data: { removedAt: new Date(), publishConsent: false } })
     await Promise.all([storage.remove(photo.originalKey), storage.remove(photo.derivativeKey)]).catch(() => {})
@@ -238,10 +329,10 @@ invitesRouter.delete(
 )
 
 /** The guest's own preview of their upload (private, never cached). */
-invitesRouter.get(
-  '/:token/photos/:photoId/image',
+reviewRoutes.get(
+  '/photos/:photoId/image',
   route(async (req, res) => {
-    const r = await resolveInvite(req.params.token)
+    const r = current(res)
     const photo = await ownPhoto(r, uuidParam(req, 'photoId'))
     const bytes = await storage.get(photo.derivativeKey)
     if (!bytes) throw new HttpError(404, 'Photo not found')
@@ -249,13 +340,31 @@ invitesRouter.get(
   }),
 )
 
+/**
+ * A signed-in guest reopens their sent review to change it. The published version (the words they
+ * approved earlier) stays live until the organiser approves the update.
+ */
+reviewRoutes.post(
+  '/reopen',
+  route(async (req, res) => {
+    const r = current(res)
+    if (!signedInAsGuest(req, r)) {
+      throw new HttpError(401, 'Sign in with the email address you were invited on to change your review.', { signInRequired: true })
+    }
+    if (r.response?.status !== 'submitted') throw new HttpError(409, 'This review is not waiting to be changed')
+    if (r.retreat.status !== 'collecting') throw new HttpError(409, 'Reviews for this programme are closed. Contact the organiser to change yours.')
+    await prisma.response.update({ where: { id: r.response.id }, data: { status: 'changes_requested', organiserMessage: null } })
+    await audit({ organisationId: r.retreat.organisationId, actorUserId: req.auth!.user.id, actorKind: 'attendee', action: 'response.reopened_by_guest', entityType: 'response', entityId: r.response.id })
+    res.json({ ok: true })
+  }),
+)
+
 const submitSchema = z.object({ revision: z.number().int().min(0) })
 
-invitesRouter.post(
-  '/:token/submit',
+reviewRoutes.post(
+  '/submit',
   route(async (req, res) => {
-    const token = param(req, 'token')
-    const r = await resolveInvite(token)
+    const r = current(res)
     const body = parseBody(submitSchema, req.body)
 
     // Idempotent: a retried submit after success issues a fresh receipt link rather than a duplicate.
@@ -264,7 +373,7 @@ invitesRouter.post(
       await prisma.response.update({ where: { id: r.response.id }, data: { receiptTokenHash: hashToken(receiptToken) } })
       return res.json({ receiptToken, alreadySubmitted: true })
     }
-    if (!canEdit(r)) throw new HttpError(409, 'This response can no longer be submitted.')
+    requireEditable(req, res)
     const response = await ensureResponse(r)
     if (response.revision !== body.revision) {
       throw new HttpError(409, 'This response was updated somewhere else. Reload to see the latest version.', { conflict: true })

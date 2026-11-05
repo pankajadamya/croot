@@ -11,6 +11,8 @@ export const SESSION_COOKIE = isProduction ? '__Host-croot_session' : 'croot_ses
 
 export interface AuthContext {
   user: Pick<User, 'id' | 'email' | 'name' | 'isPlatformAdmin'>
+  /** The user proved control of their email (code or Google). Required to act as a guest. */
+  emailVerified: boolean
   sessionId: string
   csrfToken: string
 }
@@ -58,7 +60,7 @@ export async function loadSession(req: Request, _res: Response, next: NextFuncti
   if (typeof token !== 'string' || !token) return next()
   const session = await prisma.session.findUnique({
     where: { tokenHash: hashToken(token) },
-    include: { user: { select: { id: true, email: true, name: true, isPlatformAdmin: true, active: true } } },
+    include: { user: { select: { id: true, email: true, name: true, isPlatformAdmin: true, active: true, emailVerifiedAt: true } } },
   })
   if (!session || session.expiresAt < new Date() || !session.user.active) return next()
   // Sliding expiry, written at most every few minutes to keep reads cheap.
@@ -68,8 +70,8 @@ export async function loadSession(req: Request, _res: Response, next: NextFuncti
       data: { lastSeenAt: new Date(), expiresAt: new Date(Date.now() + env.SESSION_TTL_HOURS * 3600_000) },
     })
   }
-  const { active: _active, ...user } = session.user
-  req.auth = { user, sessionId: session.id, csrfToken: session.csrfToken }
+  const { active: _active, emailVerifiedAt, ...user } = session.user
+  req.auth = { user, emailVerified: Boolean(emailVerifiedAt), sessionId: session.id, csrfToken: session.csrfToken }
   next()
 }
 

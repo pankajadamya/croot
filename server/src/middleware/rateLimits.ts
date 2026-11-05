@@ -19,3 +19,6 @@ export const uploadLimiter = rateLimit({ ...base, windowMs: 15 * 60_000, limit: 
 /** Anonymous notes: abuse control without any identity, keyed only by IP in memory (never stored). */
 export const anonymousLimiter = rateLimit({ ...base, windowMs: 60 * 60_000, limit: 10 })
 export const publicFormLimiter = rateLimit({ ...base, windowMs: 60 * 60_000, limit: 10 })
+
+/** Requesting email codes: per IP, on top of the per-address hourly cap in loginCodes.ts. */
+export const codeLimiter = rateLimit({ ...base, windowMs: 15 * 60_000, limit: 10 })

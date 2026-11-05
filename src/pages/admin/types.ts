@@ -113,6 +113,7 @@ export interface ResponseListItem {
   photoCount: number
   openChangeRequests: number
   pinned: boolean
+  updatedSincePublished?: boolean
 }
 
 export interface ResponseDetailData {

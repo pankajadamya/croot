@@ -14,7 +14,9 @@ const AdminPrivacy = lazy(() => import('./pages/admin/Privacy'))
 const InviteFlow = lazy(() => import('./pages/attendee/InviteFlow'))
 const Receipt = lazy(() => import('./pages/attendee/Receipt'))
 
-const Login = lazy(() => import('./pages/admin/Login'))
+const SignIn = lazy(() => import('./pages/SignIn'))
+const MyReviews = lazy(() => import('./pages/attendee/MyReviews'))
+const MyReviewFlow = lazy(() => import('./pages/attendee/MyReviews').then((m) => ({ default: m.MyReviewFlow })))
 const Setup = lazy(() => import('./pages/admin/Setup'))
 const AdminHome = lazy(() => import('./pages/admin/AdminHome'))
 const OrgDashboard = lazy(() => import('./pages/admin/OrgDashboard'))
@@ -40,7 +42,10 @@ export function App() {
         <Route path="/invite/:token" element={<InviteFlow />} />
         <Route path="/response/:token" element={<Receipt />} />
 
-        <Route path="/admin/login" element={<Login />} />
+        <Route path="/signin" element={<SignIn />} />
+        <Route path="/admin/login" element={<SignIn />} />
+        <Route path="/my-reviews" element={<MyReviews />} />
+        <Route path="/my-reviews/:attendeeId" element={<MyReviewFlow />} />
         <Route path="/admin/setup/:token" element={<Setup />} />
         <Route path="/admin" element={<AdminHome />} />
         <Route path="/admin/:orgSlug" element={<OrgDashboard />} />

@@ -26,7 +26,7 @@ interface Tenant {
   id: string
   slug: string
   name: string
-  status: 'active' | 'suspended'
+  status: 'pending' | 'active' | 'suspended'
   createdAt: string
   domains: Array<{ id: string; hostname: string }>
   retreatCount: number
@@ -241,7 +241,7 @@ function Tenants() {
                     </div>
                   </td>
                   <td>
-                    <span className={`badge ${o.status === 'active' ? 'ok' : 'warn'}`}>{o.status === 'active' ? 'Active' : 'Suspended'}</span>
+                    <span className={`badge ${o.status === 'active' ? 'ok' : 'warn'}`}>{o.status === 'active' ? 'Active' : o.status === 'pending' ? 'Pending approval' : 'Suspended'}</span>
                     <div style={{ marginTop: '0.4rem' }}>
                       <button
                         type="button"
@@ -252,7 +252,7 @@ function Tenants() {
                           if (next === 'active' || window.confirm(`Suspend ${o.name}? Its team will lose access to the workspace.`)) setStatus.mutate({ id: o.id, status: next })
                         }}
                       >
-                        {o.status === 'active' ? 'Suspend' : 'Reactivate'}
+                        {o.status === 'active' ? 'Suspend' : o.status === 'pending' ? 'Approve' : 'Reactivate'}
                       </button>
                       <button
                         type="button"

@@ -46,6 +46,10 @@ function PlatformPrivacy() {
       <ul>
         <li>Access requests (name, email, organisation, website, message): to assess and set up your account. Legal basis: steps before a contract.</li>
         <li>Account details (name, email, password hash, role, last sign-in): to provide the service. Legal basis: contract.</li>
+        <li>
+          Sign-in: one-time codes sent to your email (stored only as a keyed hash, deleted within a day), and, if you choose Google, your Google
+          account identifier, name and verified email. Legal basis: contract, or for guests the organiser’s legitimate interests.
+        </li>
         <li>Security and audit records of actions taken in the workspace: legitimate interests and accountability.</li>
       </ul>
       <h2>Retention</h2>
@@ -55,7 +59,7 @@ function PlatformPrivacy() {
         <li>Sessions expire after inactivity and are deleted automatically. Audit records follow each organisation’s retention setting.</li>
       </ul>
       <h2>Sub-processors and transfers</h2>
-      <p>Hosting: {PLATFORM_OPERATOR.hosting}. We do not use advertising, analytics or tracking services. Any change is announced to organisers in advance.</p>
+      <p>Hosting: {PLATFORM_OPERATOR.hosting}. Email delivery: our transactional email provider (Resend, to confirm). Optional sign-in: Google (only if you choose it). We do not use advertising, analytics or tracking services. Any change is announced to organisers in advance.</p>
       <h2>Your rights and complaints</h2>
       <p>
         You can access, correct, delete, restrict, object to or port your information by emailing us. You may also complain to the UK Information
@@ -93,7 +97,7 @@ function ProcessingTerms() {
 function Cookies() {
   return (
     <Shell title="Cookies" version={PLATFORM_PRIVACY_VERSION}>
-      <p>croot sets one cookie, and only when an organiser signs in:</p>
+      <p>croot sets cookies only when someone signs in (organisers, or guests who choose to sign in instead of using their link):</p>
       <div className="table-wrap">
         <table className="data">
           <thead>
@@ -106,14 +110,19 @@ function Cookies() {
           <tbody>
             <tr>
               <td>croot_session</td>
-              <td>Keeps an organiser signed in (strictly necessary)</td>
+              <td>Keeps you signed in (strictly necessary)</td>
               <td>Up to 12 hours of inactivity</td>
+            </tr>
+            <tr>
+              <td>croot_oauth</td>
+              <td>Protects a Google sign-in from forgery while it is in progress (strictly necessary)</td>
+              <td>10 minutes</td>
             </tr>
           </tbody>
         </table>
       </div>
       <p>
-        Guests, invitation links, anonymous notes and public story pages set no cookies and use no analytics, advertising or tracking, so no cookie
+        Invitation links, anonymous notes and public story pages set no cookies and use no analytics, advertising or tracking, so no cookie
         consent banner is needed. Strictly necessary cookies are exempt from consent under PECR and the ePrivacy Directive. If analytics are ever
         added, they will stay off guest pages and require consent first.
       </p>

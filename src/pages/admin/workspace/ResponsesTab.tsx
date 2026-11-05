@@ -100,6 +100,13 @@ export function ResponsesTab({ orgSlug, retreat }: { orgSlug: string; retreat: R
                       {r.attendeeName}
                     </Link>
                     {r.pinned && <div className="small muted">Pinned</div>}
+                    {r.updatedSincePublished && (
+                      <div>
+                        <span className="badge warn" title="The guest changed their review after it was published. The older approved version is still live.">
+                          Updated since published
+                        </span>
+                      </div>
+                    )}
                   </td>
                   <td className="small">{formatDate(r.submittedAt)}</td>
                   <td>

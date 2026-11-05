@@ -173,7 +173,10 @@ export default function Receipt() {
 
         <section className="card">
           <h2 style={{ fontSize: '1.3rem' }}>Ask for a change</h2>
-          <p className="small muted">Want to edit your story or give a permission you declined? Tell the organiser and they’ll reopen your response.</p>
+          <p className="small muted">
+            To change your words yourself, <Link to="/signin?next=%2Fmy-reviews">sign in</Link> with the email address your invitation was sent to. Or
+            tell the organiser what you’d like changed and they’ll reopen your response.
+          </p>
           <Field id="req" label="What would you like to change?">
             <textarea id="req" value={requestText} maxLength={2000} onChange={(e) => setRequestText(e.target.value)} style={{ minHeight: '6rem' }} />
           </Field>

@@ -45,9 +45,20 @@ responsesRouter.get(
         _count: { select: { media: { where: { removedAt: null } }, changeRequests: { where: { status: 'open' } } } },
       },
     })
+    // A guest may edit and resend a published review; the older approved words stay live until republished.
+    const published = rows.filter((r) => r.publicationStatus === 'published').map((r) => r.id)
+    const lastPublished = new Map<string, Date>()
+    for (const p of await prisma.publicationRevision.findMany({
+      where: { responseId: { in: published }, status: 'published' },
+      orderBy: { createdAt: 'asc' },
+      select: { responseId: true, createdAt: true },
+    })) {
+      lastPublished.set(p.responseId, p.createdAt)
+    }
     res.json({
       responses: rows.map((r) => ({
         id: r.id,
+        updatedSincePublished: Boolean(r.submittedAt && lastPublished.get(r.id) && r.submittedAt > lastPublished.get(r.id)!),
         attendeeName: r.attendee.name,
         status: r.status,
         publicationStatus: r.publicationStatus,

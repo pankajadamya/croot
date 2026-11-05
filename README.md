@@ -41,6 +41,22 @@ One Node process serves the API and the built SPA (Dockerfile → Coolify on OVH
   explicit pool limits. For several instances, move rate limits to a shared store
   (`server/src/middleware/rateLimits.ts`). Row-level security can be layered on later without reshaping.
 
+## Sign-in and accounts
+
+- **Guests** need no account. Their unique invitation link opens, saves and resumes a review. They can also sign in
+  with an **email code** or **Google** using the address the invitation went to. They then see **My reviews**
+  (`/my-reviews`), listing every review addressed to that email.
+- **Changing a sent review needs sign-in.** The server rejects edits to an already-sent review unless the session's
+  verified email matches the invited guest. Withdrawing permissions or deleting data stays available from the receipt link.
+  An edited review that was already published keeps its approved version live, flagged "Updated since published"
+  for the organiser.
+- **Organisers** are onboarded with one-time setup links from `/platform` (*Create tenant*, or approving a request).
+  They sign in with an email code, Google or a password at `/signin`. Self-service organiser sign-up exists but is off
+  (`ORG_SIGNUP_ENABLED=false`). When on, new organisations start as *pending* until approved (`SIGNUP_AUTO_APPROVE`).
+- Email codes are 6 digits, valid for 10 minutes and single use, and die after 5 wrong attempts. Only an HMAC (`AUTH_SECRET`) is stored.
+  Responses never reveal whether an address has an account. Google uses PKCE, state and nonce, and accepts only verified emails.
+- In development `EMAIL_PROVIDER=console` prints codes to the API log. Production requires a real provider and `AUTH_SECRET`.
+
 ## Privacy boundaries (enforced server-side)
 
 - Tokens (invite, receipt, session, setup) are random and stored only as SHA-256 hashes; logs redact them.

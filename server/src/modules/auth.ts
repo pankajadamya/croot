@@ -1,12 +1,15 @@
-import { Router } from 'express'
+import { Router, type Response } from 'express'
 import { z } from 'zod'
 import { audit } from '../lib/audit.js'
-import { HttpError, parseBody, route } from '../lib/http.js'
+import { env, googleEnabled, isProduction } from '../lib/env.js'
+import { authorisationUrl, exchangeCode, OAUTH_COOKIE, openState } from '../lib/google.js'
+import { HttpError, parseBody, route, text } from '../lib/http.js'
+import { mayCreateAccount, requestCode, verifyCode } from '../lib/loginCodes.js'
 import { hashPassword, PASSWORD_MIN_LENGTH, verifyPassword } from '../lib/password.js'
 import { prisma } from '../lib/prisma.js'
-import { hashToken, looksLikeToken, newToken } from '../lib/tokens.js'
+import { hashToken, looksLikeToken, newToken, safeEqual } from '../lib/tokens.js'
 import { createSession, destroySession, requireCsrf, requireUser } from '../middleware/auth.js'
-import { loginLimiter, tokenLimiter } from '../middleware/rateLimits.js'
+import { codeLimiter, loginLimiter, tokenLimiter } from '../middleware/rateLimits.js'
 
 export const authRouter = Router()
 
@@ -18,6 +21,107 @@ async function membershipsOf(userId: string) {
   })
   return rows.map((m) => ({ slug: m.organisation.slug, name: m.organisation.name, status: m.organisation.status, role: m.role }))
 }
+
+async function signedIn(res: Response, userId: string, method: 'code' | 'google' | 'password', created = false) {
+  const user = await prisma.user.update({ where: { id: userId }, data: { lastLoginAt: new Date() } })
+  const { csrfToken } = await createSession(res, user.id)
+  await audit({ actorUserId: user.id, actorKind: 'user', action: created ? `auth.signup.${method}` : `auth.login.${method}`, entityType: 'user', entityId: user.id })
+  return {
+    user: { id: user.id, email: user.email, name: user.name, isPlatformAdmin: user.isPlatformAdmin },
+    csrfToken,
+    memberships: await membershipsOf(user.id),
+    created,
+  }
+}
+
+/** Which sign-in methods this deployment offers. */
+authRouter.get(
+  '/providers',
+  route(async (_req, res) => {
+    res.json({ google: googleEnabled, emailCode: true, password: true, organiserSignup: env.ORG_SIGNUP_ENABLED })
+  }),
+)
+
+const codeRequestSchema = z.object({
+  email: z.email().max(200),
+  purpose: z.enum(['signin', 'signup']).default('signin'),
+  name: text(120).optional(),
+})
+
+/** Always answers the same way, whether or not the address has an account. */
+authRouter.post(
+  '/code/request',
+  codeLimiter,
+  route(async (req, res) => {
+    const body = parseBody(codeRequestSchema, req.body)
+    await requestCode(body.email, body.purpose, body.name)
+    res.json({ ok: true, message: 'If that address can sign in here, a code is on its way.' })
+  }),
+)
+
+authRouter.post(
+  '/code/verify',
+  loginLimiter,
+  route(async (req, res) => {
+    const body = parseBody(z.object({ email: z.email().max(200), code: z.string().trim().max(12) }), req.body)
+    const result = await verifyCode(body.email, body.code.replace(/\s+/g, ''))
+    if (!result.ok) throw new HttpError(401, 'That code is not valid or has expired. Request a new one.')
+    res.json(await signedIn(res, result.userId, 'code', result.created))
+  }),
+)
+
+// ---------------------------------------------------------------------------------------------
+// Google sign-in / sign-up
+
+authRouter.get(
+  '/google/start',
+  loginLimiter,
+  route(async (req, res) => {
+    if (!googleEnabled) throw new HttpError(404, 'Google sign-in is not configured')
+    const { url, cookie, maxAge } = authorisationUrl(typeof req.query.next === 'string' ? req.query.next : '/admin')
+    res.cookie(OAUTH_COOKIE, cookie, { httpOnly: true, secure: isProduction, sameSite: 'lax', path: '/api/auth/google', maxAge })
+    res.redirect(302, url)
+  }),
+)
+
+authRouter.get(
+  '/google/callback',
+  route(async (req, res) => {
+    const fail = (reason: string) => res.redirect(302, `/admin/login?error=${encodeURIComponent(reason)}`)
+    const saved = openState(req.cookies?.[OAUTH_COOKIE])
+    res.clearCookie(OAUTH_COOKIE, { path: '/api/auth/google' })
+    if (!googleEnabled) return fail('google_unavailable')
+    if (typeof req.query.error === 'string') return fail('google_cancelled')
+    if (!saved || typeof req.query.state !== 'string' || !safeEqual(req.query.state, saved.state) || typeof req.query.code !== 'string') {
+      return fail('google_state')
+    }
+    let profile
+    try {
+      profile = await exchangeCode(req.query.code, saved)
+    } catch (e) {
+      console.error('google sign-in failed:', (e as Error).message)
+      return fail('google_failed')
+    }
+    if (!profile) return fail('google_unverified')
+
+    // Match by Google account first, then link a verified email to an existing account.
+    let user = await prisma.user.findUnique({ where: { googleSub: profile.sub } })
+    let created = false
+    if (!user) {
+      const byEmail = await prisma.user.findUnique({ where: { email: profile.email } })
+      if (byEmail) {
+        user = await prisma.user.update({ where: { id: byEmail.id }, data: { googleSub: profile.sub, emailVerifiedAt: byEmail.emailVerifiedAt ?? new Date() } })
+      } else {
+        if (!(await mayCreateAccount(profile.email))) return fail('no_account')
+        user = await prisma.user.create({ data: { email: profile.email, name: profile.name, googleSub: profile.sub, emailVerifiedAt: new Date() } })
+        created = true
+      }
+    }
+    if (!user.active) return fail('account_disabled')
+    await signedIn(res, user.id, 'google', created)
+    res.redirect(302, saved.next)
+  }),
+)
 
 authRouter.get(
   '/me',
@@ -39,14 +143,7 @@ authRouter.post(
     // Always run the hash comparison so response time does not reveal whether the account exists.
     const ok = await verifyPassword(body.password, user?.passwordHash ?? 'scrypt$16384$8$1$AAAAAAAAAAAAAAAAAAAAAA==$AAAA')
     if (!user || !ok || !user.active) throw new HttpError(401, 'Email or password is incorrect')
-    const { csrfToken } = await createSession(res, user.id)
-    await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
-    await audit({ actorUserId: user.id, actorKind: 'user', action: 'auth.login', entityType: 'user', entityId: user.id })
-    res.json({
-      user: { id: user.id, email: user.email, name: user.name, isPlatformAdmin: user.isPlatformAdmin },
-      csrfToken,
-      memberships: await membershipsOf(user.id),
-    })
+    res.json(await signedIn(res, user.id, 'password'))
   }),
 )
 

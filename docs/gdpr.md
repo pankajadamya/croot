@@ -30,6 +30,7 @@ and owners confirm them on **Workspace → Privacy**.
 | Consent and audit records | Guests, organisers | Scope, wording version, actor, time | Accountability (Art. 5(2), 7(1)) | Legal obligation and legitimate interests | Organiser team, operator | Consent: with the response. Audit: 36 months |
 | Photo originals | Guests | Original image files | Produce metadata-free web copies | As for photos | Nobody (never served) | 30 days after submission |
 | Organiser accounts | Organisers | Name, email, password hash, sign-ins | Provide the service | Contract | Operator | While a member of an organisation |
+| Sign-in | Guests and organisers who sign in | Email, HMAC of one-time code, Google account id (optional), session | Authenticate; let guests change sent reviews securely | Contract (organisers); legitimate interests (guests) | Operator; Google only if chosen; email provider | Codes: 1 day. Sessions: until expiry |
 | Access requests | Prospective organisers | Name, email, org, website, message | Assess and onboard | Pre-contract steps | Operator | Declined: 6 months. Approved: 24 months |
 
 Special-category data is not requested. The guest privacy notice asks guests not to include it.

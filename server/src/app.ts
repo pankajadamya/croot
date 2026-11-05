@@ -8,11 +8,12 @@ import { env, isProduction } from './lib/env.js'
 import { HttpError } from './lib/http.js'
 import { accessLog } from './lib/logger.js'
 import { poolStats, prisma } from './lib/prisma.js'
-import { loadSession } from './middleware/auth.js'
+import { loadSession, requireCsrf, requireUser } from './middleware/auth.js'
 import { errorHandler } from './middleware/errors.js'
+import { accountRouter } from './modules/account.js'
 import { adminRouter } from './modules/admin/index.js'
 import { authRouter } from './modules/auth.js'
-import { invitesRouter } from './modules/invites.js'
+import { invitesRouter, myReviewsRouter } from './modules/invites.js'
 import { platformRouter } from './modules/platform.js'
 import { mediaRouter, publicRouter } from './modules/public.js'
 import { receiptsRouter } from './modules/receipts.js'
@@ -61,10 +62,13 @@ export function createApp() {
   api.use(express.json({ limit: '600kb' }))
   // Anonymous notes are mounted before cookies/sessions are parsed, so that path never reads one.
   api.use('/public', publicRouter)
-  api.use('/invites', invitesRouter)
-  api.use('/responses', receiptsRouter)
   api.use(cookieParser(), loadSession)
+  // Guests: by unique link, or signed in. Editing a sent review needs a verified sign-in (see invites.ts).
+  api.use('/invites', invitesRouter)
+  api.use('/me/reviews', requireUser, requireCsrf, myReviewsRouter)
+  api.use('/responses', receiptsRouter)
   api.use('/auth', authRouter)
+  api.use('/account', accountRouter)
   api.use('/platform', platformRouter)
   api.use('/admin/orgs/:orgSlug', adminRouter)
   api.use((_req, _res, next) => next(new HttpError(404, 'Not found')))
