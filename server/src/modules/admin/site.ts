@@ -217,6 +217,9 @@ siteRouter.post(
         width: image.width,
         height: image.height,
         displayOrder: count,
+        // Included in both slideshows by default; it only appears once it has alt text and confirmed permission.
+        inHeroSlideshow: true,
+        inWritingSlideshow: true,
       },
     })
     await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'media.uploaded', entityType: 'media', entityId: m.id })
@@ -245,11 +248,9 @@ siteRouter.patch(
     const body = parseBody(mediaPatch, req.body)
     const { rightsConfirmed, ...rest } = body
     const next = { ...media, ...rest, publishConsent: rightsConfirmed ?? media.publishConsent }
-    // Only licensed/consented images with alt text can appear publicly.
+    // The slideshow switches mean 'include when ready'. Only images with alt text and confirmed
+    // permission are approved, and every public query and /media request requires approval.
     const ready = next.publishConsent && next.altText.trim().length > 0
-    if ((next.inHeroSlideshow || next.inWritingSlideshow) && !ready) {
-      throw new HttpError(409, 'Add alt text and confirm you have permission before showing this image')
-    }
     const updated = await prisma.mediaAsset.update({
       where: { id: media.id },
       data: { ...rest, publishConsent: next.publishConsent, moderation: ready ? 'approved' : 'pending' },

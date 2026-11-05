@@ -8,6 +8,7 @@ import { ThemeScope } from '../../../components/ThemeScope'
 import { fieldError, fromLocalInput, MutationError, toLocalInput } from '../adminUi'
 import type { ContentRevision, OrganiserMedia, Retreat } from '../types'
 import { useRetreatTheme } from './AppearanceTab'
+import { imageStatus, SlideshowSettings } from './SlideshowSettings'
 
 interface ContentState {
   draft: ContentRevision | null
@@ -238,6 +239,7 @@ function ImageLibrary({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
         Images you provide for the public slideshow and the optional memory prompts beside the guest’s writing form. An image can be shown only once it has alt text and you’ve
         confirmed you have permission to use it. Guest photos are managed from each response instead.
       </p>
+      <SlideshowSettings orgSlug={orgSlug} retreat={retreat} media={media.data ?? []} />
       <div
         className={`drop-zone ${dragging ? 'dragging' : ''}`}
         onDragOver={(e) => {
@@ -344,7 +346,7 @@ function MediaEditor({ orgSlug, media, onChanged }: { orgSlug: string; media: Or
     <div className="card tight">
       <img src={media.previewUrl} alt={media.altText || 'Image without alt text yet'} loading="lazy" />
       <div className="row small" style={{ margin: '0.5rem 0' }}>
-        <span className={`badge ${media.approved ? 'ok' : 'warn'}`}>{media.approved ? 'Ready to show' : 'Needs alt text and permission'}</span>
+        <span className={`badge ${media.approved ? 'ok' : 'warn'}`}>{imageStatus(media)}</span>
       </div>
       <Field id={`alt-${id}`} label="Alt text" hint="Describe the image for people who can’t see it." error={fieldError(save.error, 'altText')}>
         <input id={`alt-${id}`} type="text" value={f.altText} onChange={(e) => set('altText')(e.target.value)} aria-describedby={`alt-${id}-hint`} />
@@ -360,10 +362,14 @@ function MediaEditor({ orgSlug, media, onChanged }: { orgSlug: string; media: Or
       </Field>
       <div className="stack">
         <Switch checked={f.rightsConfirmed} onChange={set('rightsConfirmed')} label="I have permission to publish this image" />
-        <Switch checked={f.inHeroSlideshow} onChange={set('inHeroSlideshow')} label="Public slideshow" disabled={!ready && !f.inHeroSlideshow} />
-        <Switch checked={f.inWritingSlideshow} onChange={set('inWritingSlideshow')} label="Writing-form memory prompts" disabled={!ready && !f.inWritingSlideshow} />
+        <Switch checked={f.inHeroSlideshow} onChange={set('inHeroSlideshow')} label="Include in the public slideshow" />
+        <Switch checked={f.inWritingSlideshow} onChange={set('inWritingSlideshow')} label="Include beside the guest’s review form" />
       </div>
-      {!ready && <p className="small muted">Add alt text and confirm permission to use this image in a slideshow.</p>}
+      {!ready && (
+        <p className="small notice warn" style={{ marginTop: '0.5rem' }}>
+          Not shown yet: {[!f.altText.trim() && 'add alt text', !f.rightsConfirmed && 'confirm you have permission'].filter(Boolean).join(' and ')}, then Save.
+        </p>
+      )}
       <MutationError error={save.error || remove.error} shownFields={['altText', 'caption', 'credit', 'displayOrder']} />
       <div className="spread" style={{ marginTop: '0.75rem' }}>
         <div className="row">
