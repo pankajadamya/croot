@@ -1,11 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ApiError, get, orgApi, post, put } from '../../../lib/api'
+import { ApiError, get, orgApi, patch, post, put } from '../../../lib/api'
 import { formatDateTime } from '../../../lib/format'
-import { Field } from '../../../components/Controls'
+import { Field, Switch } from '../../../components/Controls'
 import { ErrorNotice, Loading } from '../../../components/States'
 import { ThemeScope } from '../../../components/ThemeScope'
-import { fieldError, fromLocalInput, MutationError, toLocalInput } from '../adminUi'
+import { fieldError, fromLocalInput, MutationError, retreatKey, toLocalInput } from '../adminUi'
 import type { ContentRevision, OrganiserMedia, Retreat } from '../types'
 import { useRetreatTheme } from './AppearanceTab'
 import { AlbumSection } from './AlbumSection'
@@ -27,6 +27,7 @@ export function SiteTab({ orgSlug, retreat }: { orgSlug: string; retreat: Retrea
       {content.isLoading && <Loading />}
       {content.error && <ErrorNotice error={content.error} />}
       {content.data && <OpeningEditor key={content.data.draft?.id ?? 'new'} orgSlug={orgSlug} retreat={retreat} state={content.data} />}
+      <VisitorSettings orgSlug={orgSlug} retreat={retreat} />
       <ImageLibrary orgSlug={orgSlug} retreat={retreat} />
       {retreat.kind === 'itinerary' && <AlbumSection orgSlug={orgSlug} retreat={retreat} />}
     </div>
@@ -149,7 +150,7 @@ function OpeningEditor({ orgSlug, retreat, state }: { orgSlug: string; retreat: 
                 className="btn ghost"
                 disabled={unpublish.isPending}
                 onClick={() => {
-                  if (window.confirm('Unpublish your opening? Guest stories stay published.')) unpublish.mutate()
+                  unpublish.mutate()
                 }}
               >
                 Unpublish
@@ -199,6 +200,48 @@ function OpeningEditor({ orgSlug, retreat, state }: { orgSlug: string; retreat: 
           <p className="small muted">Shown with your {theme.source} theme.</p>
         </div>
       </div>
+    </section>
+  )
+}
+
+/** What visitors see on the public page. Each switch saves straight away. */
+function VisitorSettings({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat }) {
+  const queryClient = useQueryClient()
+  const update = useMutation({
+    mutationFn: (body: Partial<Pick<Retreat, 'publicReviewsEnabled' | 'showPublicRating' | 'contactPublic'>>) =>
+      patch<{ retreat: Retreat }>(`${orgApi(orgSlug)}/retreats/${retreat.id}`, body),
+    onSuccess: ({ retreat: updated }) => queryClient.setQueryData(retreatKey(orgSlug, retreat.id), updated),
+  })
+  return (
+    <section className="card" aria-labelledby="visitors-title">
+      <h2 id="visitors-title">What visitors see</h2>
+      <p className="small muted" style={{ marginTop: 0 }}>
+        These save as soon as you change them.
+      </p>
+      <div className="stack">
+        <Switch
+          checked={retreat.publicReviewsEnabled}
+          disabled={update.isPending}
+          onChange={(v) => update.mutate({ publicReviewsEnabled: v })}
+          label="Show published guest stories"
+          description={retreat.publicReviewsEnabled ? 'Stories you publish appear on the page.' : 'Stories stay hidden, even ones you’ve published.'}
+        />
+        <Switch
+          checked={retreat.showPublicRating}
+          disabled={update.isPending}
+          onChange={(v) => update.mutate({ showPublicRating: v })}
+          label="Show star ratings"
+          description="Stars on each published story, and the average at the top."
+        />
+        <Switch
+          checked={retreat.contactPublic}
+          disabled={update.isPending}
+          onChange={(v) => update.mutate({ contactPublic: v })}
+          label="Show your contact email and phone"
+          description="Set them in Overview first."
+        />
+      </div>
+      <MutationError error={update.error} />
     </section>
   )
 }

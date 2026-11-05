@@ -1,7 +1,8 @@
 import { Link, useParams } from 'react-router'
 import { ErrorNotice, Loading } from '../../components/States'
 import { AdminShell } from './AdminShell'
-import { CopyField, KindBadge, programmeDates, publicRetreatUrl, RETREAT_STATUS_LABELS, useRetreat } from './adminUi'
+import { KindBadge, programmeDates, RETREAT_STATUS_LABELS, useRetreat } from './adminUi'
+import { LiveStatus } from './workspace/LiveStatus'
 import { OverviewTab } from './workspace/OverviewTab'
 import { InvitationsTab } from './workspace/InvitationsTab'
 import { ResponsesTab } from './workspace/ResponsesTab'
@@ -52,12 +53,7 @@ export default function RetreatWorkspace() {
             </div>
           </div>
 
-          <details className="card tight" style={{ marginBottom: '1.5rem' }}>
-            <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Share link</summary>
-            <div style={{ marginTop: '1rem' }}>
-              <CopyField label="Public review site" value={publicRetreatUrl(orgSlug, retreat.data.slug)} hint="Shows your opening and published guest stories." />
-            </div>
-          </details>
+          <LiveStatus orgSlug={orgSlug} retreat={retreat.data} />
 
           <nav className="tabs" aria-label="Retreat sections">
             {TABS.map(([key, label]) => (

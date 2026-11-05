@@ -3494,3 +3494,73 @@ ol.album-admin-grid {
 .story-panel .row .helpful-row {
   flex-basis: 100%;
 }
+
+/* ---------- organiser: live status panel ---------- */
+.live-status {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+}
+.live-status.is-draft {
+  border-color: #d9a441;
+  background: color-mix(in srgb, #f4c26b 14%, var(--surface));
+}
+.live-status-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.live-status h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+.live-checks {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.25rem;
+  font-size: 0.92rem;
+}
+.live-checks li {
+  display: flex;
+  gap: 0.4rem;
+}
+.live-checks li.ok > span:first-child {
+  color: #2e7d4f;
+  font-weight: 700;
+}
+.live-checks li.todo > span:first-child {
+  color: var(--muted);
+}
+.live-link {
+  margin-top: 0.75rem;
+}
+.live-link summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+.save-status {
+  position: sticky;
+  bottom: 1rem;
+  align-self: flex-end;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.9rem;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+details.advanced {
+  margin-top: 1rem;
+}
+details.advanced summary {
+  cursor: pointer;
+  font-weight: 600;
+}

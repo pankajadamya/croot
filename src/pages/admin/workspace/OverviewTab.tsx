@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { orgApi, patch } from '../../../lib/api'
 import { toDateInput } from '../../../lib/format'
@@ -40,8 +40,8 @@ export function OverviewTab({ orgSlug, retreat }: { orgSlug: string; retreat: Re
           </p>
         </section>
       )}
-      {/* Remount when the saved retreat changes so the form shows what the server stored. */}
-      <SettingsForm key={retreat.updatedAt} orgSlug={orgSlug} retreat={retreat} />
+      {/* Keyed by programme only: saving must not remount the form (that would lose typing and the "Saved" note). */}
+      <SettingsForm key={retreat.id} orgSlug={orgSlug} retreat={retreat} />
     </div>
   )
 }
@@ -65,29 +65,30 @@ function SettingsForm({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
     organiserName: retreat.organiserName,
     contactEmail: retreat.contactEmail ?? '',
     contactPhone: retreat.contactPhone ?? '',
-    contactPublic: retreat.contactPublic,
     privacyUrl: retreat.privacyUrl ?? '',
     status: retreat.status,
     inviteOpensAt: toLocalInput(retreat.inviteOpensAt),
     inviteClosesAt: toLocalInput(retreat.inviteClosesAt),
     inviteTtlDays: String(retreat.inviteTtlDays),
     draftEditingEnabled: retreat.draftEditingEnabled,
-    publicReviewsEnabled: retreat.publicReviewsEnabled,
-    writingSlideshowEnabled: retreat.writingSlideshowEnabled,
-    heroSlideshowEnabled: retreat.heroSlideshowEnabled,
-    showPublicRating: retreat.showPublicRating,
     aggregateThreshold: String(retreat.aggregateThreshold),
   }))
   const [categories, setCategories] = useState<CategoryRow[]>(retreat.feedbackCategories)
   const [newCategory, setNewCategory] = useState('')
+  // Everything here saves automatically, a moment after you stop typing. The web address is the one
+  // exception: changing it breaks old links, so it saves only when you confirm.
   const [saved, setSaved] = useState(false)
+  const [dirty, setDirty] = useState(false)
+  const [savedSlug, setSavedSlug] = useState(retreat.slug)
 
   const text = (k: keyof typeof f) => (e: { target: { value: string } }) => {
     setSaved(false)
+    if (k !== 'slug') setDirty(true)
     setF((x) => ({ ...x, [k]: e.target.value }))
   }
   const toggle = (k: keyof typeof f) => (v: boolean) => {
     setSaved(false)
+    setDirty(true)
     setF((x) => ({ ...x, [k]: v }))
   }
 
@@ -95,7 +96,6 @@ function SettingsForm({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
     mutationFn: () =>
       patch<{ retreat: Retreat }>(`${orgApi(orgSlug)}/retreats/${retreat.id}`, {
         title: f.title,
-        slug: f.slug,
         ...(isProperty
           ? {
               propertyAddress: f.propertyAddress.trim() || null,
@@ -112,17 +112,12 @@ function SettingsForm({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
         organiserName: f.organiserName,
         contactEmail: f.contactEmail.trim() || null,
         contactPhone: f.contactPhone.trim() || null,
-        contactPublic: f.contactPublic,
         privacyUrl: f.privacyUrl.trim() || null,
         status: f.status,
         inviteOpensAt: fromLocalInput(f.inviteOpensAt),
         inviteClosesAt: fromLocalInput(f.inviteClosesAt),
         inviteTtlDays: Number(f.inviteTtlDays),
         draftEditingEnabled: f.draftEditingEnabled,
-        publicReviewsEnabled: f.publicReviewsEnabled,
-        writingSlideshowEnabled: f.writingSlideshowEnabled,
-        heroSlideshowEnabled: f.heroSlideshowEnabled,
-        showPublicRating: f.showPublicRating,
         aggregateThreshold: Number(f.aggregateThreshold),
         feedbackCategories: categories.map(({ key, label }) => ({ key, label: label.trim() })),
       }),
@@ -133,7 +128,46 @@ function SettingsForm({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
     },
   })
 
-  const err = (k: string) => fieldError(save.error, k)
+  const saveSlug = useMutation({
+    mutationFn: (slug: string) => patch<{ retreat: Retreat }>(`${orgApi(orgSlug)}/retreats/${retreat.id}`, { slug }),
+    onSuccess: ({ retreat: updated }) => {
+      queryClient.setQueryData(retreatKey(orgSlug, retreat.id), updated)
+      void queryClient.invalidateQueries({ queryKey: orgKey(orgSlug) })
+      setSavedSlug(updated.slug)
+      setSaved(true)
+    },
+  })
+  function commitSlug() {
+    const next = f.slug.trim()
+    if (!next || next === savedSlug) return
+    if (!window.confirm(`Change the web address to “${next}”? Links to the old address will stop working, including any you’ve already shared.`)) {
+      setF((x) => ({ ...x, slug: savedSlug }))
+      return
+    }
+    saveSlug.mutate(next)
+  }
+
+  // Auto-save: a short pause after the last change.
+  const latest = useRef(save)
+  latest.current = save
+  useEffect(() => {
+    if (!dirty) return
+    const t = window.setTimeout(() => {
+      setDirty(false)
+      latest.current.mutate()
+    }, 900)
+    return () => window.clearTimeout(t)
+  }, [dirty, f, categories])
+
+  // Don't let a closing tab lose a change that hasn't saved yet.
+  useEffect(() => {
+    if (!dirty && !save.isPending) return
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault()
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [dirty, save.isPending])
+
+  const err = (k: string) => fieldError(save.error, k) ?? (k === 'slug' ? fieldError(saveSlug.error, k) : undefined)
 
   function addCategory() {
     const label = newCategory.trim()
@@ -144,6 +178,7 @@ function SettingsForm({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
     setCategories((c) => [...c, { key, label, isNew: true }])
     setNewCategory('')
     setSaved(false)
+    setDirty(true)
   }
 
   function move(index: number, delta: number) {
@@ -154,10 +189,12 @@ function SettingsForm({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
       return next
     })
     setSaved(false)
+    setDirty(true)
   }
 
   function submit(e: FormEvent) {
     e.preventDefault()
+    setDirty(false)
     save.mutate()
   }
 
@@ -171,8 +208,8 @@ function SettingsForm({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
         <Field id="rt-title" label={isProperty ? 'Property name' : 'Title'} error={err('title')}>
           <input id="rt-title" type="text" value={f.title} onChange={text('title')} />
         </Field>
-        <Field id="rt-slug" label="Web address slug" hint="Changing this changes the public address; old links will stop working." error={err('slug')}>
-          <input id="rt-slug" type="text" value={f.slug} onChange={text('slug')} aria-describedby="rt-slug-hint" />
+        <Field id="rt-slug" label="Web address" hint="The last part of your public page’s address. Changing it breaks links you’ve already shared, so we’ll ask first." error={err('slug')}>
+          <input id="rt-slug" type="text" value={f.slug} onChange={text('slug')} onBlur={commitSlug} aria-describedby="rt-slug-hint" />
         </Field>
         {!isProperty && (
           <div className="grid-2">
@@ -247,12 +284,7 @@ function SettingsForm({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
             <input id="rt-phone" type="text" inputMode="tel" value={f.contactPhone} onChange={text('contactPhone')} />
           </Field>
         </div>
-        <Switch
-          checked={f.contactPublic}
-          onChange={toggle('contactPublic')}
-          label="Show contact details on the public site"
-          description="Off until you have checked the details above are right to publish."
-        />
+        <p className="small muted">Whether these show on your public page is set in the Public site tab.</p>
         <Field id="rt-privacy" label="Privacy notice link" error={err('privacyUrl')}>
           <input id="rt-privacy" type="url" placeholder="https://" value={f.privacyUrl} onChange={text('privacyUrl')} />
         </Field>
@@ -278,35 +310,27 @@ function SettingsForm({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
           </Field>
         </div>
         <div className="grid-2">
-          <Field id="rt-ttl" label="Invitation links expire after (days)" hint="Applies to links issued from now on." error={err('inviteTtlDays')}>
-            <input id="rt-ttl" type="number" min={1} max={365} value={f.inviteTtlDays} onChange={text('inviteTtlDays')} />
-          </Field>
-          <Field
-            id="rt-threshold"
-            label="Minimum responses before showing scores"
-            hint="Category scores stay hidden below this number to protect guests’ identities (3–50)."
-            error={err('aggregateThreshold')}
-          >
-            <input id="rt-threshold" type="number" min={3} max={50} value={f.aggregateThreshold} onChange={text('aggregateThreshold')} />
-          </Field>
         </div>
-        <div className="stack">
-          <Switch checked={f.draftEditingEnabled} onChange={toggle('draftEditingEnabled')} label="Guests can save drafts and come back later" />
-          <Switch checked={f.publicReviewsEnabled} onChange={toggle('publicReviewsEnabled')} label="Show published guest stories on the public site" />
-          <Switch checked={f.heroSlideshowEnabled} onChange={toggle('heroSlideshowEnabled')} label="Show your image slideshow on the public site" />
-          <Switch
-            checked={f.writingSlideshowEnabled}
-            onChange={toggle('writingSlideshowEnabled')}
-            label="Show retreat photos beside the guest’s writing form"
-            description="A quiet memory prompt guests can hide. It never covers the form."
-          />
-          <Switch
-            checked={f.showPublicRating}
-            onChange={toggle('showPublicRating')}
-            label="Show star ratings on your public page"
-            description="Shown as stars on each published story, with the average at the top of your public page. Takes effect straight away."
-          />
-        </div>
+        <Switch checked={f.draftEditingEnabled} onChange={toggle('draftEditingEnabled')} label="Guests can save drafts and come back later" />
+        <details className="advanced">
+          <summary>More options</summary>
+          <div className="grid-2" style={{ marginTop: '0.75rem' }}>
+            <Field id="rt-ttl" label="Invitation links expire after (days)" hint="Applies to links issued from now on." error={err('inviteTtlDays')}>
+              <input id="rt-ttl" type="number" min={1} max={365} value={f.inviteTtlDays} onChange={text('inviteTtlDays')} />
+            </Field>
+            <Field
+              id="rt-threshold"
+              label="Hide category scores until this many guests reply"
+              hint="Protects guests’ identities while numbers are small (3–50)."
+              error={err('aggregateThreshold')}
+            >
+              <input id="rt-threshold" type="number" min={3} max={50} value={f.aggregateThreshold} onChange={text('aggregateThreshold')} />
+            </Field>
+          </div>
+          <p className="small muted" style={{ margin: 0 }}>
+            What visitors see on your public page (stories, star ratings, slideshow) is set in the Public site tab.
+          </p>
+        </details>
       </section>
 
       <section className="card" aria-labelledby="ov-categories">
@@ -326,6 +350,7 @@ function SettingsForm({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
                     value={c.label}
                     onChange={(e) => {
                       setSaved(false)
+                      setDirty(true)
                       setCategories((all) => all.map((x) => (x.key === c.key ? { ...x, label: e.target.value } : x)))
                     }}
                   />
@@ -340,7 +365,9 @@ function SettingsForm({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
                   type="button"
                   className="btn ghost small"
                   onClick={() => {
+                    if (!c.isNew && !window.confirm(`Remove “${c.label}”? Its existing ratings will be hidden from views and exports.`)) return
                     setSaved(false)
+                    setDirty(true)
                     setCategories((all) => all.filter((x) => x.key !== c.key))
                   }}
                   aria-label={`Remove ${c.label}`}
@@ -374,11 +401,18 @@ function SettingsForm({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
         {err('feedbackCategories') && <p className="small" style={{ color: 'var(--danger)' }}>{err('feedbackCategories')}</p>}
       </section>
 
-      <div className="card tight spread" style={{ position: 'sticky', bottom: '1rem' }}>
-        <div aria-live="polite">{saved && <span className="badge ok">Saved</span>}</div>
-        <button className="btn" type="submit" disabled={save.isPending}>
-          {save.isPending ? 'Saving…' : 'Save settings'}
-        </button>
+      <div className="save-status" aria-live="polite">
+        {save.isPending || saveSlug.isPending ? (
+          <span className="muted">Saving…</span>
+        ) : save.error || saveSlug.error ? (
+          <span style={{ color: 'var(--danger)' }}>Not saved: check the highlighted fields</span>
+        ) : dirty ? (
+          <span className="muted">Saving shortly…</span>
+        ) : saved ? (
+          <span className="badge ok">All changes saved</span>
+        ) : (
+          <span className="muted">Changes save automatically</span>
+        )}
       </div>
       <MutationError
         error={save.error}

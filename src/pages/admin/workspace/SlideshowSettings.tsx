@@ -13,7 +13,7 @@ export function imageStatus(m: OrganiserMedia): string {
 
 /**
  * The programme's two slideshow switches, placed beside the images they show, with how many images are
- * ready. The same switches also appear in the programme's settings.
+ * ready. This is the only place they live.
  */
 export function SlideshowSettings({ orgSlug, retreat, media }: { orgSlug: string; retreat: Retreat; media: OrganiserMedia[] }) {
   const queryClient = useQueryClient()
