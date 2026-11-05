@@ -233,6 +233,30 @@ describe('anonymous notes', () => {
     expect(again.body.stories[0].photos[0].hearts).toBe(1)
   })
 
+  it('share kit offers only stories whose guests agreed to social-media use, with names only when allowed', async () => {
+    const { org, user, retreat } = await makeTenant('alpha')
+    const { agent, csrf } = await login(user.email)
+    const send = async (email: string, consents: Record<string, boolean>) => {
+      const { token } = await invite(org.id, retreat.id, 'Maya Guest', email)
+      const draft = await request(app).put(`/api/invites/${token}/draft`).send({ revision: 0, storyText: 'The mornings were calm. The teachers were kind and patient.', overallRating: 5, consents })
+      await request(app).post(`/api/invites/${token}/submit`).send({ revision: draft.body.revision })
+    }
+    await send('social@example.test', { publicText: true, marketing: true, firstName: true })
+    await send('anon-social@example.test', { publicText: true, marketing: true })
+    await send('site-only@example.test', { publicText: true })
+
+    const kit = await agent.get(`/api/admin/orgs/alpha/retreats/${retreat.id}/share-kit`)
+    expect(kit.status).toBe(200)
+    expect(kit.body.stories).toHaveLength(2)
+    expect(kit.body.stories.map((s: { name: string | null }) => s.name).sort()).toEqual([null, 'Maya'].sort())
+    expect(kit.body.stories[0].sentences).toEqual(['The mornings were calm.', 'The teachers were kind and patient.'])
+    expect(kit.body.publicPath).toBe(`/o/alpha/r/${retreat.slug}`)
+
+    const used = await agent.post(`/api/admin/orgs/alpha/retreats/${retreat.id}/share-kit/used`).set('X-CSRF-Token', csrf).send({ storyIds: [kit.body.stories[0].id], format: 'post' })
+    expect(used.status).toBe(200)
+    expect(await prisma.auditEvent.count({ where: { action: 'share_kit.used' } })).toBe(1)
+  })
+
   it('points guests to the retreat’s public page once they have sent their review', async () => {
     const { org, retreat } = await makeTenant('alpha')
     const { token } = await invite(org.id, retreat.id)

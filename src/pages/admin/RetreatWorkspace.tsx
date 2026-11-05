@@ -6,6 +6,7 @@ import { OverviewTab } from './workspace/OverviewTab'
 import { InvitationsTab } from './workspace/InvitationsTab'
 import { ResponsesTab } from './workspace/ResponsesTab'
 import { AnonymousTab } from './workspace/AnonymousTab'
+import { ShareKitTab } from './workspace/ShareKitTab'
 import { InsightsTab } from './workspace/InsightsTab'
 import { SiteTab } from './workspace/SiteTab'
 import { AppearanceTab } from './workspace/AppearanceTab'
@@ -18,6 +19,7 @@ const TABS = [
   ['insights', 'Insights'],
   ['site', 'Public site'],
   ['appearance', 'Appearance'],
+  ['share', 'Share kit'],
 ] as const
 
 type TabKey = (typeof TABS)[number][0]
@@ -73,6 +75,7 @@ export default function RetreatWorkspace() {
           {active === 'insights' && <InsightsTab orgSlug={orgSlug} retreat={retreat.data} />}
           {active === 'site' && <SiteTab orgSlug={orgSlug} retreat={retreat.data} />}
           {active === 'appearance' && <AppearanceTab orgSlug={orgSlug} retreat={retreat.data} />}
+          {active === 'share' && <ShareKitTab orgSlug={orgSlug} retreat={retreat.data} />}
         </>
       )}
     </AdminShell>
