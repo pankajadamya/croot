@@ -22,7 +22,7 @@ export function AnonymousTab({ orgSlug, retreat }: { orgSlug: string; retreat: R
         <h2 style={{ marginTop: 0 }}>How anonymous notes stay anonymous</h2>
         <p className="small" style={{ marginBottom: 0 }}>
           Guests can write an anonymous note in the review form. It’s sent separately from their review and stored on its own: no name, email,
-          invitation, response or time of any kind is kept with it. Notes are listed alphabetically, and only once at least {q.data?.minimum ?? 3} have
+          invitation, response or time of day is kept with it. Only the date is kept, and only so it can be deleted on schedule; it isn’t shown here. Notes are listed alphabetically, and only once at least {q.data?.minimum ?? 3} have
           arrived, so neither their order nor a new one appearing hints at who wrote it. Please don’t try to work out the author.
         </p>
       </div>

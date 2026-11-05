@@ -86,8 +86,9 @@ describe('retention', () => {
     await submitted(privGuest.token, '', {})
     // Never responded → erased.
     await invite(org.id, retreat.id, 'Silent Guest', 'silent@example.test')
-    // Anonymous note for a retreat that ended over 24 months ago → deleted (notes hold no date of their own).
-    await prisma.anonymousNote.create({ data: { organisationId: org.id, retreatId: retreat.id, message: 'old' } })
+    // Anonymous note received over 24 months ago → deleted; a recent one stays.
+    await prisma.anonymousNote.create({ data: { organisationId: org.id, retreatId: retreat.id, message: 'old', receivedOn: new Date('2026-11-05') } })
+    await prisma.anonymousNote.create({ data: { organisationId: org.id, retreatId: retreat.id, message: 'recent', receivedOn: new Date('2028-12-01') } })
     await prisma.response.updateMany({ data: { submittedAt: new Date(now.getTime() - 800 * DAY) } })
 
     const counts = await runRetention(now)

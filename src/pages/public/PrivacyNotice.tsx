@@ -121,7 +121,7 @@ export default function PrivacyNotice() {
               <tr>
                 <td>Anonymous notes</td>
                 <td>To hear concerns you’d rather not attach your name to</td>
-                <td>Legitimate interests. Stored without your name, email, link or any time or date.</td>
+                <td>Legitimate interests. Stored without your name, email or link, and with only the date (no time), so it can be deleted on schedule.</td>
               </tr>
               <tr>
                 <td>Records of your permissions and of changes made by the organiser</td>
@@ -156,7 +156,7 @@ export default function PrivacyNotice() {
             you withdraw it; everything else about you is deleted at that point.
           </li>
           <li>Original photo files: deleted {c.originalPhotoRetentionDays} days after you send them. We keep only web copies with location and camera details removed.</li>
-          <li>Anonymous notes: deleted {c.anonymousNoteRetentionMonths} months after the retreat ends.</li>
+          <li>Anonymous notes: deleted {c.anonymousNoteRetentionMonths} months after they’re sent.</li>
         </ul>
 
         <h2>Your rights</h2>

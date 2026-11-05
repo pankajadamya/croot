@@ -187,9 +187,12 @@ publicRouter.post(
     if (!retreat) throw new HttpError(404, 'Not found')
     if (retreat.status !== 'collecting') throw new HttpError(409, 'Notes for this retreat are closed.')
     const body = parseBody(noteSchema, req.body)
-    // Only the words are stored: no time, IP, user agent, cookie, referrer or request id, and no audit
-    // event (its timestamp would let a note be matched to a review sent at the same moment).
-    await prisma.anonymousNote.create({ data: { organisationId: retreat.organisationId, retreatId: retreat.id, message: body.message } })
+    // Only the words and the date (for retention) are stored: no time of day, IP, user agent, cookie,
+    // referrer or request id, and no audit event (its timestamp would let a note be matched to a review
+    // sent at the same moment).
+    const now = new Date()
+    const receivedOn = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+    await prisma.anonymousNote.create({ data: { organisationId: retreat.organisationId, retreatId: retreat.id, message: body.message, receivedOn } })
     res.set('Cache-Control', 'no-store')
     res.status(201).json({ ok: true })
   }),

@@ -137,7 +137,7 @@ describe('publication and consent', () => {
 })
 
 describe('anonymous notes', () => {
-  it('stores only the words: no identity, time or link to a response', async () => {
+  it('stores only the words and the date: no identity, time of day or link to a response', async () => {
     const { org, user, retreat } = await makeTenant('alpha')
     const { token } = await invite(org.id, retreat.id)
     // The review form tells the browser where to send it: by retreat only, never the invite token.
@@ -148,7 +148,8 @@ describe('anonymous notes', () => {
     const res = await request(app).post(view.body.retreat.anonymousNotePath).send({ message: 'The transfers were rushed.' })
     expect(res.status).toBe(201)
     const note = await prisma.anonymousNote.findFirstOrThrow()
-    expect(Object.keys(note).sort()).toEqual(['id', 'message', 'organisationId', 'retreatId'])
+    expect(Object.keys(note).sort()).toEqual(['id', 'message', 'organisationId', 'receivedOn', 'retreatId'])
+    expect(note.receivedOn.toISOString()).toMatch(/T00:00:00\.000Z$/) // the day only, no time
     expect(await prisma.auditEvent.count()).toBe(before)
     expect(JSON.stringify(await prisma.response.findMany())).not.toContain('transfers were rushed')
 

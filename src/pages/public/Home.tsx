@@ -188,7 +188,7 @@ function Landing() {
               {[
                 ['Separate permissions', 'Story text, first name, each photo and marketing reuse are separate choices, and all start switched off.'],
                 ['Never rewritten', 'Organisers can’t edit a guest’s words. They can ask the guest, who makes any change themselves.'],
-                ['Truly separate anonymous notes', 'Written in the review form but stored on their own, with no name, email, invitation or time, so they can’t be traced back through Croot.'],
+                ['Truly separate anonymous notes', 'Written in the review form but stored on their own, with no name, email, invitation or time of day, so they can’t be traced back through Croot.'],
                 ['Withdraw any time', 'Guests have a private page to withdraw permissions. Public pages update immediately.'],
               ].map(([t, b]) => (
                 <div key={t}>

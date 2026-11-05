@@ -593,7 +593,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                 Something you’d rather say anonymously?
               </h1>
               <p>
-                Write it here and it’s sent separately when you send your review. It’s stored on its own, with no name, link or time, so the organiser
+                Write it here and it’s sent separately when you send your review. It’s stored on its own, with no name, link or time of day, so the organiser
                 can’t tell who wrote it.
               </p>
               <Field id="anon-note" label="Anonymous note (optional)" hint="It isn’t saved as you go, so it stays in this browser window until you send.">
