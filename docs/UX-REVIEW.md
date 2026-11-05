@@ -288,3 +288,79 @@ I completed a separate desktop and 390 px mobile review before reading this docu
 
 I checked the running public home, organiser home, retreat showcase, sign-in, organiser dashboard, Overview, Invitations, Responses, response detail, Insights, Public site, Appearance and Share Kit at desktop size; the retreat showcase and Invitations at 390 px; and the guest flow from source. I did not use one-time guest/receipt links live, upload media, publish content, change settings or run a dedicated assistive-technology test. Findings about guest submission and unvisited states remain code-based until exercised with a safe test account.
 
+
+---
+
+## Fixes made (5 November 2026)
+
+Shipped to `main` in seven commits (`0c476f7` … `5666fd4`), with 71 automated tests passing. The public pages were checked in a browser. Organiser workspace and guest-flow screens were checked through tests and code only, because the browser session isn't signed in as an organiser of the seeded retreat.
+
+**Organisers: going live and saving**
+- A **Public page** status panel sits on every workspace tab. It shows Live / Not live and why, a checklist (collecting, opening published, stories), **Open public page**, the public link, and one-click **Start collecting reviews** for drafts.
+- Overview now **saves automatically**. Changing the web address asks first, because it breaks old links. Removing a feedback area asks first. Advanced options are tucked away and labels are plainer. The lost "Saved" message is fixed.
+- Settings for what visitors see (stories, star ratings, contact details) live only on **Public site**. There are no duplicate slideshow switches.
+
+**Guests**
+- The **anonymous note** survives a refresh and is covered by the leave warning. A one-time key means a retry never stores it twice, and the summary says when it has been sent.
+- There is **one stable private link**: asking again shows the same link, so bookmarks keep working.
+- **Sign in to edit** returns to the same review and reopens it.
+- The link-unavailable and form-closed screens offer a way forward.
+- **Choices and confirmations**
+  - Photo publishing needs a shared story.
+  - Review & send lists every choice.
+  - Removing a photo and "Load latest" both ask first.
+- **The private page** shows photo thumbnails, one row per photo, messages that match each choice, and "Download a copy of everything you sent".
+- **Form polish**
+  - The step bar is clickable.
+  - The time estimate is honest.
+  - "Begin reflection" now says "Start".
+  - There's a "Skip this section" link on private feedback.
+  - Phones get a compact photo strip after Welcome, and "Hide photos" is remembered.
+  - Field hints and errors are read out with their inputs, and file pickers show keyboard focus.
+
+**Album (decisions 1 and 3)**
+- Guests' album photos appear **once the organiser approves them**, approved from the album grid. The organiser can still take any photo out.
+- The album has an **unguessable link** that anyone can open without signing in. The retreat and story pages don't link to it. Organisers can copy it or make a new one. Hearts and videos work through it.
+- Wording is updated for guests, organisers and the privacy notice (consent wording version 5).
+
+**Public visitors**
+- The retreat page opens with the organiser's title, rating and words, with the details card beside them and photos after.
+- There is one rating ("so far" when there are only a few reviews), one "Get updates" entry, and one main call to action.
+- Each review links to its story page, can copy its link, and carries an **"Invited by the organiser"** badge. This is the supportable wording. "Verified guest" is held back until attendance is actually checked.
+- Failed votes are shown instead of silently undone, and the helpful count appears once.
+- The organiser's retreats page shows the list first, uses text-first cards when there's no photo, puts the sign-up after the list, and has a footer with a privacy link.
+
+**Email invitations**
+- **Email invitations** sends each guest their own link, once. Each row has **Email again**, and copying links remains as a fallback.
+- Sending is blocked while the programme is a draft.
+- Rows show when a link was emailed.
+- Leaving the page with copied links still on screen warns first.
+- The guest table stacks into rows on phones.
+
+**Sign-in, admin and brand**
+- Sign-in has a short intro. Password sign-in is tucked behind "Set up with a password?", with a pointer to email codes if forgotten. It shows "Code sent at 14:05" and waits 30 seconds before "Send a new code".
+- The admin console has jump links, says "Organisations", and confirms before disabling an account or removing someone from an organisation.
+- The logo stays lowercase "croot" in a sans-serif font (decision 2).
+
+**More organiser polish**
+- Dashboard links go straight to change requests, and Responses has a **Change requests** queue.
+- Search works as you type.
+- After publishing, a **Next story ready to publish** link appears, plus **Approve all photos the guest allowed**.
+- Unpublishing confirms first. A story under revision explains that its live version stays up.
+- **I have permission for all of them** confirms image rights in one go.
+- Share kit shows stories first and has a helpful empty state.
+- **Email everyone** can send a test to yourself first.
+- Non-owners see the website as plain text.
+- Plainer wording throughout, and the workspace tabs show they scroll on phones.
+
+### Not done yet
+
+- **A full public-page preview** inside the editor at desktop and phone widths. The status panel's **Open public page** is the stand-in for now.
+- **Merging Anonymous notes and Insights** into one "Feedback" tab, and drag-to-reorder for images in place of the number field.
+- **Story viewer and slideshow:** pause controls use both a changing label and `aria-pressed`, and a tap on the story viewer both pauses and advances.
+- **Better alt text:** prompting guests and organisers for real descriptions.
+- **Consent wording voice:** labels speak as the guest while descriptions speak to the organiser.
+- **Album viewer:** keep keyboard focus inside it when open full screen.
+- **Leftover CSS:** remove the unused `.landing-top.with-album` and album-card rules.
+- **Landing page:** reduce its five "Get started" buttons.
+- **Completion time:** measure real completion times to replace the estimate.
