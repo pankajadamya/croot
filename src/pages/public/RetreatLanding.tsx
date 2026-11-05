@@ -149,9 +149,29 @@ export default function RetreatLanding() {
       </a>
       <SiteHeader org={d.org} />
       <main id="main">
-        {/* Who and what first: the organiser's title, the rating and their own words, with the practical
-            details in a narrow card beside them. */}
-        <section className="container landing-intro">
+        {/* The photo album leads, with the retreat's details in a card over it. */}
+        <section className={`container landing-top ${d.album ? 'with-album' : ''}`}>
+          {d.album && <AlbumPromo album={d.album} title={`Photos from ${d.retreat.title}`} />}
+          <RetreatDetails
+            retreat={d.retreat}
+            organiser={{
+              name: d.org.name,
+              websiteUrl: d.org.websiteUrl ?? null,
+              retreatsPath: `/o/${d.org.slug}`,
+              onGetUpdates: () => setUpdatesOpen(true),
+              quietWebsite: Boolean(d.content?.ctaLabel && d.content.ctaUrl),
+            }}
+          />
+          <InterestDialog open={updatesOpen} onClose={() => setUpdatesOpen(false)} orgSlug={d.org.slug} orgName={d.org.name} retreatSlug={d.retreat.slug} />
+        </section>
+
+        {/* Photos on the left, the organiser's own words on the right (stacked on small screens). */}
+        <section className={`container landing-hero ${d.hero.length ? '' : 'no-photos'}`}>
+          {d.hero.length > 0 && (
+            <div className="landing-photos" aria-label="Retreat photos">
+              <HeroSlideshow slides={d.hero} />
+            </div>
+          )}
           <div className="landing-opening">
             {/* Organiser-written opening, visually distinct from guest testimony. */}
             <p className="eyebrow">From {d.retreat.organiserName || d.org.name}</p>
@@ -175,26 +195,7 @@ export default function RetreatLanding() {
               )}
             </div>
           </div>
-          <aside className="landing-details" aria-label="Practical details">
-            <RetreatDetails
-              retreat={d.retreat}
-              organiser={{
-                name: d.org.name,
-                websiteUrl: d.org.websiteUrl ?? null,
-                retreatsPath: `/o/${d.org.slug}`,
-                onGetUpdates: () => setUpdatesOpen(true),
-                quietWebsite: Boolean(d.content?.ctaLabel && d.content.ctaUrl),
-              }}
-            />
-          </aside>
-          <InterestDialog open={updatesOpen} onClose={() => setUpdatesOpen(false)} orgSlug={d.org.slug} orgName={d.org.name} retreatSlug={d.retreat.slug} />
         </section>
-
-        {d.hero.length > 0 && (
-          <section className="container landing-gallery" aria-label="Retreat photos">
-            <HeroSlideshow slides={d.hero} />
-          </section>
-        )}
 
         {/* Guest reviews last, each with the photos that guest chose to publish. */}
         <section className="container landing-reviews" aria-labelledby="reviews-title">

@@ -11,6 +11,7 @@ import { storage } from '../lib/storage.js'
 import { anonymousLimiter, heartLimiter, publicFormLimiter } from '../middleware/rateLimits.js'
 import { confirmInterest, interestWording, registerInterest, unsubscribeInterest } from '../lib/interest.js'
 import { heartCounts, heartedBy, setHeart, voterSchema } from '../lib/hearts.js'
+import { publicAlbumLink } from '../lib/album.js'
 import { helpfulBy, helpfulCounts, setHelpful } from '../lib/helpful.js'
 
 /**
@@ -120,6 +121,7 @@ publicRouter.get(
     res.json({
       org: { slug: org.slug, name: org.name, websiteUrl: org.websiteUrl },
       retreat: retreatFacts(retreat),
+      album: await publicAlbumLink(retreat),
       rating,
       theme,
       content,

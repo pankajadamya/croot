@@ -96,6 +96,21 @@ export async function resetShareToken(retreatId: string) {
 }
 
 export const sharePath = (token: string) => `/album/${token}`
+
+/** For the top of the public retreat page: a card linking to the album, led by its title photo. */
+export async function publicAlbumLink(retreat: RetreatLike) {
+  if (!available(retreat)) return null
+  const photos = await albumPhotos(retreat.id, retreat.rewardAlbumCoverId)
+  if (!photos.length) return null
+  const token = await ensureShareToken(retreat)
+  const api = `/api/albums/${token}`
+  return {
+    url: sharePath(token),
+    count: photos.length,
+    cover: `${api}/${photos[0].id}`,
+    preview: photos.slice(1, 4).map((ph) => `${api}/${ph.id}`),
+  }
+}
 export const shareApi = (token: string) => `/api/albums/${token}`
 
 /** The retreat behind an album link, if the link is current and the album is on. */

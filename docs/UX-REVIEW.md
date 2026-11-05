@@ -364,3 +364,8 @@ Shipped to `main` in seven commits (`0c476f7` … `5666fd4`), with 71 automated 
 - **Leftover CSS:** remove the unused `.landing-top.with-album` and album-card rules.
 - **Landing page:** reduce its five "Get started" buttons.
 - **Completion time:** measure real completion times to replace the estimate.
+
+### Later change (5 November 2026)
+
+- **Album back at the top of the retreat page.** At the owner's request, the album card is back at the top of the retreat page, with the retreat details card over it and the photos-and-opening section below. The card links to the album's random link, so the album is now findable from the public retreat page. Guest wording, organiser wording and the privacy notice say so (consent wording version 6). Guests' album photos still need the organiser's approval, and "Make a new link" still replaces the address.
+- **Story viewer fixed.** It was stuck on the first photo: in development mode React can run a state update twice, which skipped a photo, so with two photos it looped back to the first. It now advances once per photo.

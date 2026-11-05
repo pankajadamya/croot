@@ -27,6 +27,7 @@ export function StoryViewer({ slides, overlay, label }: { slides: ViewerSlide[];
   // Progress of the current photo, 0..1, advanced by animation frames so it pauses exactly.
   const [progress, setProgress] = useState(0)
   const last = useRef<number | null>(null)
+  const progressRef = useRef(0)
   const pressStart = useRef<{ x: number; t: number } | null>(null)
   const stopped = paused || held || hiddenTab || count < 2
 
@@ -42,17 +43,17 @@ export function StoryViewer({ slides, overlay, label }: { slides: ViewerSlide[];
       return
     }
     let raf = 0
+    // Progress lives in a ref, and moving on happens here, outside any state updater: React may run
+    // updaters twice (development), which would skip a photo, and with two photos land back on the first.
     const tick = (t: number) => {
       const dt = last.current === null ? 0 : t - last.current
       last.current = t
-      setProgress((p) => {
-        const next = p + dt / SLIDE_MS
-        if (next >= 1) {
-          setIndex((i) => (i + 1) % count)
-          return 0
-        }
-        return next
-      })
+      progressRef.current += dt / SLIDE_MS
+      if (progressRef.current >= 1) {
+        progressRef.current = 0
+        setIndex((i) => (i + 1) % count)
+      }
+      setProgress(progressRef.current)
       raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
@@ -62,6 +63,7 @@ export function StoryViewer({ slides, overlay, label }: { slides: ViewerSlide[];
   if (!count) return null
   const go = (i: number) => {
     setIndex(((i % count) + count) % count)
+    progressRef.current = 0
     setProgress(0)
   }
   const current = slides[index]

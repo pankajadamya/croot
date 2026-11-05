@@ -182,7 +182,7 @@ function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { ba
           <div className="album-contribute">
             <div>
               <h2>Add your photos</h2>
-              <p>Share your own moments. Photos you add appear here once the organiser approves them, for anyone with the album link to see. Only add photos the people in them would be happy to share.</p>
+              <p>Share your own moments. Photos you add appear here once the organiser approves them. The album is linked from the public retreat page, so anyone can see it. Only add photos the people in them would be happy to share.</p>
             </div>
             <label className="album-btn" htmlFor="album-add">
               {uploading ? `Adding ${Math.min(uploading.done + 1, uploading.total)} of ${uploading.total}…` : 'Add photos'}

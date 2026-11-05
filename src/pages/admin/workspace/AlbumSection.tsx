@@ -98,8 +98,7 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
       <p className="small muted" style={{ maxWidth: '70ch' }}>
         A thank-you that encourages reviews. Guests see a blurred preview when they open their review link, and get the album link as soon as
         they send their review, <strong>whatever they choose to share or rate</strong>. They can add their own photos, which appear once you
-        approve them. Anyone with the link can view the album, so guests can share it with friends and family. It isn’t linked from your public
-        page.
+        approve them. The album is linked from the top of your public retreat page, and anyone can view it without signing in.
       </p>
 
       <div className="panel-sage" style={{ margin: '1rem 0' }}>
@@ -123,7 +122,7 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
           <label htmlFor="album-page-link" style={{ fontWeight: 600 }}>
             Album link
           </label>
-          <span className="hint">Anyone with this link can view the album, no sign-in needed. It can’t be guessed and isn’t on your public page. If it spreads further than you’d like, make a new one.</span>
+          <span className="hint">The album’s address, also linked from your public retreat page. Anyone can view it without signing in. Making a new link updates the retreat page too.</span>
           <div className="row" style={{ flexWrap: 'wrap' }}>
             <input id="album-page-link" readOnly value={pageLink} onFocus={(e) => e.target.select()} style={{ flex: '1 1 22rem' }} />
             <button
@@ -203,7 +202,7 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
           Add album photos and videos
         </label>
         <span className="hint" id="album-upload-hint">
-          Choose several at once, or drag them here. Videos: MP4, MOV or WebM, up to {MAX_VIDEO_MB} MB each. Anyone with the album link can see them. If others appear
+          Choose several at once, or drag them here. Videos: MP4, MOV or WebM, up to {MAX_VIDEO_MB} MB each. They’re public, linked from your retreat page. If others appear
           in a photo, include it only if they’re happy for it to be shared.
         </span>
         <input

@@ -128,14 +128,16 @@ describe('thank-you photo album (itinerary retreats)', () => {
     expect((await request(app).get(`/media/${shared}`)).status).toBe(404)
   })
 
-  it('is reached by an unguessable link that anyone can open, not from the public pages, and can be replaced', async () => {
+  it('has an unguessable link that anyone can open, linked from the retreat page, and can be replaced', async () => {
     const { agent, csrf, retreat, token, photoId } = await albumSetup()
     const pageUrl = (await agent.get(`/api/admin/orgs/alpha/retreats/${retreat.id}/album`)).body.pageUrl as string
     expect(pageUrl).toMatch(/^\/album\/[\w-]{24,}$/)
     const api = `/api${pageUrl.replace('/album/', '/albums/')}`
 
-    // The public retreat page doesn't mention it, and the old predictable address is gone.
-    expect((await request(app).get(`/api/public/orgs/alpha/retreats/${retreat.slug}`)).body.album).toBeUndefined()
+    // The public retreat page links to it (with its title photo); the old predictable address is gone.
+    const card = (await request(app).get(`/api/public/orgs/alpha/retreats/${retreat.slug}`)).body.album
+    expect(card).toMatchObject({ url: pageUrl, count: 1 })
+    expect((await request(app).get(card.cover)).status).toBe(200)
     expect((await request(app).get(`/api/public/orgs/alpha/retreats/${retreat.slug}/album`)).status).toBe(404)
 
     // No cookies, no review: the link opens the album and its photos; adding photos needs a sent review.
