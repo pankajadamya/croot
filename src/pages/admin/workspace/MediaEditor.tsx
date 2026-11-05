@@ -112,10 +112,10 @@ export function MediaEditor({ orgSlug, media, onChanged }: { orgSlug: string; me
         hint="Describe the image for people who can’t see it. If left empty, the caption is used, or “Retreat photo”."
         error={fieldError(error, 'altText')}
       >
-        <input id={`alt-${id}`} type="text" aria-describedby={`alt-${id}-hint`} {...text('altText')} />
+        <input id={`alt-${id}`} type="text" maxLength={300} aria-describedby={`alt-${id}-hint`} {...text('altText')} />
       </Field>
       <Field id={`cap-${id}`} label="Caption" error={fieldError(error, 'caption')}>
-        <input id={`cap-${id}`} type="text" {...text('caption')} />
+        <input id={`cap-${id}`} type="text" maxLength={300} {...text('caption')} />
       </Field>
       <Field id={`cred-${id}`} label="Credit" hint="Photographer or source" error={fieldError(error, 'credit')}>
         <input id={`cred-${id}`} type="text" {...text('credit')} />

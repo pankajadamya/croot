@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react'
+import { shortCaption } from '../../lib/caption'
 import { IMAGE_ACCEPT, prepareImage } from '../../lib/prepareImage'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, useLocation, useParams, useSearchParams } from 'react-router'
@@ -230,7 +231,7 @@ function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { ba
                   )}
                 </button>
                 {(p.sharedByGuest || p.caption) && (
-                  <span className="album-tag">{p.mine ? 'Shared by you' : p.sharedByGuest ? 'Shared by a guest' : p.caption}</span>
+                  <span className="album-tag">{p.mine ? 'Shared by you' : p.sharedByGuest ? 'Shared by a guest' : shortCaption(p.caption, 70)}</span>
                 )}
                 {hearts.enabled && <HeartButton on={hearts.hearted(p.id)} count={hearts.count(p)} onToggle={() => void hearts.toggle(p)} />}
               </li>
@@ -324,7 +325,7 @@ function Lightbox({
         </>
       )}
       <div className="lightbox-caption">
-        <span>
+        <span className="lightbox-caption-text">
           {p.caption || (p.sharedByGuest ? (p.mine ? 'Shared by you' : 'Shared by a guest') : '')}
         </span>
         <span className="lightbox-count">

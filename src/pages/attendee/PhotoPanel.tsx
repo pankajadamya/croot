@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { shortCaption } from '../../lib/caption'
 
 export interface PanelSlide {
   url: string
@@ -154,7 +155,7 @@ export function PhotoPanel({
 
       <div className="photo-band">
         <div aria-live={paused ? 'polite' : 'off'}>
-          {current.caption && <p className="photo-eyebrow">{current.caption}</p>}
+          {current.caption && <p className="photo-eyebrow" aria-label={current.caption}>{shortCaption(current.caption, 80)}</p>}
           <p className="photo-line">A little reminder of the journey</p>
         </div>
         {count > 1 && (

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { shortCaption } from '../lib/caption'
 
 export interface ViewerSlide {
   url: string
@@ -151,8 +152,8 @@ export function StoryViewer({ slides, overlay, label }: { slides: ViewerSlide[];
         )}
       </div>
       {current.caption && (
-        <p className="story-caption" aria-live={stopped ? 'polite' : 'off'}>
-          {current.caption}
+        <p className="story-caption" aria-live={stopped ? 'polite' : 'off'} aria-label={current.caption}>
+          {shortCaption(current.caption)}
         </p>
       )}
     </div>

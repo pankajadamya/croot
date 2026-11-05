@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
+import { shortCaption } from '../lib/caption'
 
 export interface HeroSlide {
   url: string
@@ -116,7 +117,7 @@ export function HeroSlideshow({ slides }: { slides: HeroSlide[] }) {
       </div>
       <figcaption className="photo-band">
         <div aria-live={paused ? 'polite' : 'off'}>
-          {current.caption && <p className="photo-line">{current.caption}</p>}
+          {current.caption && <p className="photo-line" aria-label={current.caption}>{shortCaption(current.caption)}</p>}
           {current.credit && <p className="photo-credit">Photo: {current.credit}</p>}
         </div>
         {count > 1 && (
