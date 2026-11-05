@@ -131,6 +131,11 @@ function OpeningEditor({ orgSlug, retreat, state }: { orgSlug: string; retreat: 
               {message}
             </div>
           )}
+          {!pub && headline.trim() && !message && (
+            <div className="notice warn" role="status">
+              Visitors can’t see this opening yet. It’s a draft until you choose <strong>Publish now</strong>.
+            </div>
+          )}
           <div className="row">
             <button className="btn secondary" type="submit" disabled={saveDraft.isPending}>
               {saveDraft.isPending ? 'Saving…' : 'Save draft'}

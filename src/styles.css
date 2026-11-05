@@ -1975,3 +1975,36 @@ ol.album-admin-grid {
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* Public retreat page: the photos as a full-width, slowly drifting slideshow with an attached caption band. */
+.hero-slides {
+  position: relative;
+  margin: 0;
+  aspect-ratio: 16 / 9;
+  max-height: 78vh;
+  width: 100%;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--forest);
+}
+.hero-slides .photo-band {
+  padding: 1rem 1.5rem 1.1rem;
+  align-items: center;
+  min-height: 72px;
+}
+.hero-slides .photo-line {
+  font-size: clamp(1.05rem, 1.6vw, 1.35rem);
+}
+.photo-credit {
+  margin: 0.2rem 0 0;
+  font-size: 0.8rem;
+  color: #dbe8d6;
+}
+@media (max-width: 700px) {
+  .hero-slides {
+    aspect-ratio: 4 / 5;
+  }
+  .hero-slides .photo-band {
+    padding: 0.8rem 1rem;
+  }
+}

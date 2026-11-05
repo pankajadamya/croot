@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
 import type { ThemeTokens } from '../../../shared/themes'
 import { get } from '../../lib/api'
 import { RetreatDetails, type RetreatFacts } from '../../components/RetreatDetails'
+import { HeroSlideshow } from '../../components/HeroSlideshow'
 import { ErrorNotice, Loading } from '../../components/States'
 import { StoryShowcase, type ShowcaseStory } from '../../components/StoryShowcase'
 import { ThemeScope } from '../../components/ThemeScope'
@@ -40,33 +41,6 @@ export function SiteFooter({ retreat, orgSlug }: { retreat: RetreatFacts; orgSlu
         </span>
       </div>
     </footer>
-  )
-}
-
-function HeroSlides({ images }: { images: RetreatPublic['hero'] }) {
-  const [i, setI] = useState(0)
-  const reduced = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-  useEffect(() => {
-    if (images.length < 2 || reduced) return
-    const id = window.setInterval(() => setI((x) => (x + 1) % images.length), 7000)
-    return () => window.clearInterval(id)
-  }, [images.length, reduced])
-  if (!images.length) return null
-  const img = images[i]
-  return (
-    <figure style={{ margin: 0 }}>
-      <img
-        src={img.url}
-        alt={img.alt}
-        style={{ width: '100%', aspectRatio: '16 / 9', objectFit: 'cover', objectPosition: `${img.focalX * 100}% ${img.focalY * 100}%`, borderRadius: 'var(--radius-lg)' }}
-      />
-      {(img.caption || img.credit) && (
-        <figcaption className="small muted" style={{ marginTop: '0.4rem' }}>
-          {img.caption}
-          {img.credit && ` · ${img.credit}`}
-        </figcaption>
-      )}
-    </figure>
   )
 }
 
@@ -109,7 +83,7 @@ export default function RetreatLanding() {
         </section>
         {d.hero.length > 0 && (
           <section className="container" aria-label="Retreat photos">
-            <HeroSlides images={d.hero} />
+            <HeroSlideshow slides={d.hero} />
           </section>
         )}
         <section className="container" style={{ marginTop: '2.5rem' }}>
@@ -121,7 +95,7 @@ export default function RetreatLanding() {
           ) : null}
         </section>
         <section className="container" style={{ marginTop: '2rem' }}>
-          <RetreatDetails retreat={d.retreat} defaultOpen={d.stories.length === 0} />
+          <RetreatDetails retreat={d.retreat} />
         </section>
         {d.stories.length > 1 && (
           <section className="container" style={{ marginTop: '3rem' }}>
