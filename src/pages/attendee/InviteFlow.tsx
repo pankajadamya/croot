@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { UploadZone } from '../../components/UploadZone'
 import { IMAGE_ACCEPT, MAX_UPLOAD_MB, prepareImage } from '../../lib/prepareImage'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
-import { CONSENT_WORDING, storyPromptsFor, type FeedbackCategory, type ReviewKind } from '../../../shared/categories'
+import { CONSENT_WORDING, type FeedbackCategory, type ReviewKind } from '../../../shared/categories'
 import { api, ApiError, del, get, patch, post, put } from '../../lib/api'
 import { formatRange } from '../../lib/format'
 import { Field, Switch } from '../../components/Controls'
@@ -85,6 +85,23 @@ interface Draft {
 }
 
 const STEPS = ['Welcome', 'Your story', 'Private feedback', 'Anonymous note', 'Photos & permissions', 'Review & send'] as const
+
+const STORY_PILLS: Record<ReviewKind, Array<{ label: string; question: string }>> = {
+  itinerary: [
+    { label: 'A favourite moment', question: 'What moment has stayed with you, and what made it special?' },
+    { label: 'Yoga & Pilates', question: 'How did the movement or teaching shape your experience?' },
+    { label: 'People & connection', question: 'Did someone in the group help you feel welcome or supported?' },
+    { label: 'The places we visited', question: 'Which place or part of the journey would you most like to remember?' },
+    { label: 'What changed for you', question: 'What, if anything, felt different when you returned home?' },
+  ],
+  property: [
+    { label: 'A favourite moment', question: 'What moment from your stay has stayed with you?' },
+    { label: 'Rest & calm', question: 'Was there a space or experience that helped you slow down?' },
+    { label: 'Food & activities', question: 'Which meal, class or activity stood out?' },
+    { label: 'People & welcome', question: 'How did the team or other guests shape your stay?' },
+    { label: 'Who would enjoy it', question: 'Who would you recommend this place to, and why?' },
+  ],
+}
 type SaveState = 'idle' | 'saving' | 'saved' | 'error' | 'conflict'
 
 function emptyDraft(view: InviteView): Draft {
@@ -130,6 +147,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
   const [draft, setDraft] = useState<Draft | null>(null)
   const [photos, setPhotos] = useState<Photo[]>([])
   const [step, setStep] = useState(0)
+  const [selectedStoryPill, setSelectedStoryPill] = useState<string | null>(null)
   // The furthest step reached, so the step bar can jump back to any of them.
   const [furthest, setFurthest] = useState(0)
   useEffect(() => setFurthest((f) => Math.max(f, step)), [step])
@@ -502,7 +520,9 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                   aria-current={i + 1 === step ? 'step' : undefined}
                   disabled={i + 1 > furthest || i + 1 === step}
                   onClick={() => void goTo(i + 1)}
-                />
+                >
+                  <span className="progress-step-label">{s}</span>
+                </button>
               ))}
             </nav>
           )}
@@ -587,26 +607,40 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
           )}
 
           {step === 1 && (
-            <section aria-labelledby="step-heading">
+            <section className="story-step" aria-labelledby="step-heading">
               <h1 id="step-heading" ref={headingRef} tabIndex={-1}>
                 Your story
               </h1>
-              <p className="muted">
-                Write in your own words. If you choose to share it later, others considering {isProperty ? 'a stay here' : 'a retreat'} may read it.
+              <p className="story-step-intro muted">
+                Your story, title and overall rating can appear publicly only if you give permission later and the organiser approves.
               </p>
-              <div className="panel-sage small" style={{ marginBottom: '1rem' }}>
-                <strong>Some prompts, if helpful:</strong>
-                <ul style={{ margin: '0.4rem 0 0', paddingLeft: '1.2rem' }}>
-                  {storyPromptsFor(view.retreat.kind).map((p) => (
-                    <li key={p}>{p}</li>
+              <div className="story-prompt-panel" aria-labelledby="story-prompt-title">
+                <h2 id="story-prompt-title">A few gentle prompts</h2>
+                <p>Choose any that help you get started.</p>
+                <div className="story-pills" role="group" aria-label="Writing prompts">
+                  {STORY_PILLS[view.retreat.kind].map(({ label }) => (
+                    <button
+                      type="button"
+                      key={label}
+                      className={`story-pill ${selectedStoryPill === label ? 'selected' : ''}`}
+                      aria-pressed={selectedStoryPill === label}
+                      onClick={() => setSelectedStoryPill(selectedStoryPill === label ? null : label)}
+                    >
+                      {label}
+                    </button>
                   ))}
-                </ul>
+                </div>
+                {selectedStoryPill && (
+                  <p className="story-prompt-question" role="status">
+                    {STORY_PILLS[view.retreat.kind].find((p) => p.label === selectedStoryPill)?.question}
+                  </p>
+                )}
               </div>
-              <Field id="story-title" label="A title for your story (optional)" hint="A few words that sum it up, like “The reset I didn’t know I needed”.">
-                <input id="story-title" type="text" value={draft.storyTitle} maxLength={120} onChange={(e) => update({ storyTitle: e.target.value })} />
-              </Field>
               <Field id="story" label="Your story (optional)">
-                <textarea id="story" value={draft.storyText} maxLength={8000} onChange={(e) => update({ storyText: e.target.value })} style={{ minHeight: '16rem' }} />
+                <textarea id="story" value={draft.storyText} maxLength={8000} onChange={(e) => update({ storyText: e.target.value })} />
+              </Field>
+              <Field id="story-title" label="Story title (optional)" hint="A few words that sum it up, like “The reset I didn’t know I needed”.">
+                <input id="story-title" type="text" value={draft.storyTitle} maxLength={120} onChange={(e) => update({ storyTitle: e.target.value })} />
               </Field>
               <StarInput
                 legend={`Overall, how was the ${visit} for you? (optional)`}

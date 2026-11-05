@@ -677,20 +677,6 @@ table.data th {
 .welcome-actions .btn {
   min-width: 170px;
 }
-.progress {
-  display: flex;
-  gap: 0.35rem;
-  margin-bottom: 0.5rem;
-}
-.progress span {
-  flex: 1;
-  height: 5px;
-  border-radius: 99px;
-  background: var(--border);
-}
-.progress span.done {
-  background: var(--button);
-}
 .flow-actions {
   display: flex;
   justify-content: space-between;
@@ -3735,23 +3721,33 @@ details.advanced summary {
 
 /* ---------- guest flow polish ---------- */
 .progress {
-  display: flex;
-  gap: 0.35rem;
-  margin-bottom: 0.5rem;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.4rem;
+  margin-bottom: 0.7rem;
 }
 .progress-step {
-  flex: 1;
-  height: 12px;
-  padding: 0;
+  min-width: 0;
+  min-height: 54px;
+  padding: 11px 3px 3px;
   border: 0;
   background: none;
+  color: var(--muted);
   cursor: pointer;
   position: relative;
+  text-align: left;
+  font: inherit;
+  font-size: 0.76rem;
+  line-height: 1.2;
+}
+.progress-step-label {
+  display: block;
 }
 .progress-step::before {
   content: '';
   position: absolute;
-  inset: 3.5px 0;
+  inset: 0 0 auto;
+  height: 5px;
   border-radius: 99px;
   background: var(--border);
 }
@@ -3759,12 +3755,98 @@ details.advanced summary {
 .progress-step.current::before {
   background: var(--button);
 }
+.progress-step.done,
+.progress-step.current {
+  color: var(--text);
+}
+.progress-step.current {
+  font-weight: 700;
+}
 .progress-step:disabled {
   cursor: default;
 }
 .progress-step:focus-visible {
   outline: 2px solid var(--button);
   outline-offset: 2px;
+}
+.story-step {
+  max-width: 760px;
+  margin-inline: auto;
+}
+.story-step h1 {
+  margin: 0 0 0.3rem;
+  font-size: clamp(2.5rem, 4vw, 3.6rem);
+  line-height: 1.1;
+}
+.story-step-intro {
+  margin: 0 0 1.2rem;
+}
+.story-prompt-panel {
+  margin-bottom: 1.2rem;
+  padding: 1rem 1.2rem;
+  border-radius: var(--radius);
+  background: var(--sage);
+}
+.story-prompt-panel h2 {
+  margin: 0 0 0.15rem;
+  font-family: var(--sans);
+  font-size: 1.15rem;
+}
+.story-prompt-panel > p {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+.story-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.story-pill {
+  min-height: 44px;
+  padding: 0.45rem 0.85rem;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--button) 8%, var(--surface));
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.story-pill.selected {
+  border-color: var(--button);
+  background: var(--surface);
+}
+.story-pill:focus-visible {
+  outline: 3px solid var(--button);
+  outline-offset: 2px;
+}
+.story-prompt-panel .story-prompt-question {
+  margin: 0.8rem 0 0;
+  padding-left: 0.75rem;
+  border-left: 2px solid var(--button);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-style: italic;
+}
+.story-step textarea {
+  min-height: 12rem;
+}
+@media (max-width: 860px) {
+  .progress {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .progress-step {
+    min-height: 47px;
+    font-size: 0.72rem;
+  }
+  .story-prompt-panel {
+    padding: 0.85rem;
+  }
+  .story-step textarea {
+    min-height: 10rem;
+  }
 }
 /* File pickers styled as buttons show keyboard focus too. */
 input.sr-only:focus-visible + label,
