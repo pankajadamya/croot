@@ -140,6 +140,8 @@ export interface ResponseDetailData {
     firstName: boolean
     followUp: boolean
     marketing: boolean
+    /** null: the guest added no photos, or answered before this question existed. */
+    photoMarketing: boolean | null
     wordingVersion: string | null
     history: Array<{ scope: string; granted: boolean; actor: string; wordingVersion: string | null; at: string }>
   }

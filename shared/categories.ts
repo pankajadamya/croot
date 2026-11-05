@@ -80,13 +80,19 @@ export function storyPromptsFor(kind: ReviewKind): string[] {
 // v3: publishing the story includes its title and the guest's overall star rating.
 // v6: album photos appear once the organiser approves them; the album is linked from the public retreat page.
 // v7: adding a photo on the review form explicitly shares it with the story and available retreat album.
-export const CONSENT_WORDING_VERSION = '2026-11-v7'
+// v8: adding a photo shares it in the retreat album only; using photos on the organiser's website and social
+//     media is a separate, explicit Yes/No answer (nothing pre-selected). Story reuse no longer mentions photos.
+export const CONSENT_WORDING_VERSION = '2026-11-v8'
 
 export const CONSENT_WORDING = {
   publicText: 'You may publish my written story, with its title and my overall star rating, on the retreat review site.',
   albumPhoto: 'Shared in the retreat’s photo album once the organiser approves it. The album is linked from the public retreat page, so anyone can see it, no sign-in needed. The organiser can take it out at any time, and you can stop sharing whenever you like.',
   firstName: 'You may show my first name with my story.',
   followUp: 'You may contact me about my private feedback.',
-  marketing: 'You may reuse my story or photos in social media or advertising (separate from the website).',
+  marketing: 'You may reuse my story in social media or advertising (separate from the website).',
+  photoMarketing:
+    'You may use my photos to promote your retreats: with my story on the retreat review page (if I publish it), on your website and in social media or advertising. You can withdraw this at any time.',
+  albumAdd:
+    'Photos you add go into the retreat’s photo album once the organiser approves them, for everyone from the retreat to see. The album is linked from the public retreat page. You can remove any photo later.',
   photo: 'You may publish this photo with my story.',
 }

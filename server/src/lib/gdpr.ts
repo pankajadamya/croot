@@ -57,7 +57,7 @@ export async function exportGuestData(organisationId: string, attendeeId: string
         keep: r.keepText,
         change: r.changeText,
       },
-      permissions: { publishStory: r.consentPublicText, showFirstName: r.consentFirstName, contactAboutFeedback: r.consentFollowUp, marketing: r.consentMarketing },
+      permissions: { publishStory: r.consentPublicText, showFirstName: r.consentFirstName, contactAboutFeedback: r.consentFollowUp, marketing: r.consentMarketing, photosOnWebsiteAndSocialMedia: r.consentPhotoMarketing },
       permissionHistory: r.consents.map((c) => ({ scope: c.scope, granted: c.granted, wordingVersion: c.wordingVersion, by: c.actor, at: c.createdAt })),
       photos: r.media.map((m) => ({ id: m.id, description: m.altText, caption: m.caption, mayPublish: m.publishConsent, reviewed: m.moderation, uploadedAt: m.createdAt })),
       publicationHistory: r.publications.map((p) => ({ status: p.status, publishedText: p.storyText, excerpt: p.excerpt, nameShown: p.displayName, at: p.createdAt })),

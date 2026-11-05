@@ -33,6 +33,8 @@ interface Consents {
   firstName: boolean
   followUp: boolean
   marketing: boolean
+  /** "Can the organiser use your photos on their website and social media?" null until answered. */
+  photoMarketing: boolean | null
 }
 interface InviteView {
   firstName: string
@@ -118,7 +120,7 @@ function emptyDraft(view: InviteView): Draft {
     overallRating: r?.overallRating ?? null,
     keepText: r?.keepText ?? '',
     changeText: r?.changeText ?? '',
-    consents: r?.consents ?? { publicText: false, firstName: false, followUp: false, marketing: false },
+    consents: r?.consents ?? { publicText: false, firstName: false, followUp: false, marketing: false, photoMarketing: null },
     ratings,
     stay: { start: view.stay?.start?.slice(0, 10) ?? '', end: view.stay?.end?.slice(0, 10) ?? '' },
   }
@@ -147,8 +149,6 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
   const [loadError, setLoadError] = useState<string | null>(null)
   const [draft, setDraft] = useState<Draft | null>(null)
   const [photos, setPhotos] = useState<Photo[]>([])
-  const [bulkSharing, setBulkSharing] = useState(false)
-  const [bulkSharingError, setBulkSharingError] = useState<string | null>(null)
   const [step, setStep] = useState(0)
   const [selectedStoryPill, setSelectedStoryPill] = useState<string | null>(null)
   // The furthest step reached, so the step bar can jump back to any of them.
@@ -463,26 +463,11 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
   const visit = isProperty ? 'stay' : 'retreat'
   const dates = formatRange(view.retreat.startDate, view.retreat.endDate)
   const storyAvailable = Boolean(draft.storyText.trim())
-  const allPublicSharing = storyAvailable && c.publicText && c.firstName && c.marketing && photos.every((photo) =>
-    photo.publishConsent && (!view.retreat.albumSharingAvailable || photo.albumConsent),
-  )
-
-  async function setAllPublicSharing(allow: boolean) {
-    if (bulkSharing || (allow && !storyAvailable)) return
-    setBulkSharing(true)
-    setBulkSharingError(null)
-    update({ consents: { ...c, publicText: allow, firstName: allow, marketing: allow } })
-    try {
-      for (const photo of photos) {
-        const changes = { publishConsent: allow, ...(view?.retreat.albumSharingAvailable ? { albumConsent: allow } : {}) }
-        const saved = await patch<Photo>(`${base}/photos/${photo.id}`, changes)
-        setPhotos((current) => current.map((item) => item.id === photo.id ? { ...item, ...saved } : item))
-      }
-    } catch (error) {
-      setBulkSharingError(`Some photo choices could not be saved. Please check each photo and try again. ${(error as Error).message}`)
-    } finally {
-      setBulkSharing(false)
-    }
+  // With photos added, the guest must answer the photo question (yes or no) before moving on.
+  const photoAnswerMissing = photos.length > 0 && c.photoMarketing === null
+  function answerPhotoMarketing(yes: boolean) {
+    update({ consents: { ...c, photoMarketing: yes } })
+    setPhotos((current) => current.map((p) => ({ ...p, publishConsent: yes })))
   }
   const saveLabel: Record<SaveState, ReactNode> = {
     idle: dirty.current ? 'Unsaved changes' : savedAt ? `Saved ${savedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '',
@@ -777,25 +762,12 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                   How your information is used
                 </a>
               </p>
-              <div className="permissions-all">
-                <Switch
-                  checked={allPublicSharing}
-                  disabled={bulkSharing || !storyAvailable}
-                  onChange={(allow) => void setAllPublicSharing(allow)}
-                  label="Allow all public sharing"
-                  description={storyAvailable
-                    ? `Story, first name and social media${photos.length ? `, plus ${photos.length} photo${photos.length === 1 ? '' : 's'}` : ''}.`
-                    : 'Write a story first. Individual choices are below.'}
-                />
-              </div>
-              {bulkSharing && <p className="small muted" role="status">Saving your sharing choices…</p>}
-              {bulkSharingError && <div className="notice error" role="alert">{bulkSharingError}</div>}
               <div className="permissions-card permissions-words">
                 <h2>Your story</h2>
                 <div className="permissions-choice">
                   <Switch
                     checked={c.publicText}
-                    disabled={!storyAvailable || bulkSharing}
+                    disabled={!storyAvailable}
                     onChange={(v) => update({ consents: { ...c, publicText: v, firstName: v ? c.firstName : false } })}
                     label="Publish my story on the retreat review site"
                     description={storyAvailable ? 'Includes its title and overall rating, after organiser approval.' : 'No story written yet.'}
@@ -805,7 +777,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                 <div className="permissions-choice">
                   <Switch
                     checked={c.firstName}
-                    disabled={!c.publicText || bulkSharing}
+                    disabled={!c.publicText}
                     onChange={(v) => update({ consents: { ...c, firstName: v } })}
                     label={`Show my first name (“${view.firstName}”) with it`}
                     description={c.publicText ? undefined : 'Available when you share your story.'}
@@ -814,9 +786,8 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                 <div className="permissions-choice">
                   <Switch
                     checked={c.marketing}
-                    disabled={bulkSharing}
                     onChange={(v) => update({ consents: { ...c, marketing: v } })}
-                    label="Allow reuse in social media or advertising"
+                    label="Allow my story to be reused in social media or advertising"
                     description="A separate choice from the review site."
                   />
                 </div>
@@ -831,13 +802,16 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
               <div className="permissions-card permissions-photos">
                 <h2>Your photos <span className="permissions-count">· {photos.length} of 8</span></h2>
                 <p className="permissions-upload-consent">
-                  By adding photos here, you agree they may appear with your story{view.retreat.albumSharingAvailable ? ' and in the public retreat album' : ''} after organiser approval. {view.retreat.albumSharingAvailable && 'The organiser can remove a photo from the album without removing it from your story. '}You can withdraw permission later.
+                  {view.retreat.albumSharingAvailable
+                    ? CONSENT_WORDING.albumAdd
+                    : `Photos you add are kept with your review for ${view.retreat.organisationName}.`}{' '}
+                  Only add photos where the people in them are happy to be seen.
                 </p>
                 <details className="permissions-details">
                   <summary>Read photo sharing details</summary>
-                  <p>{CONSENT_WORDING.photo}</p>
                   {view.retreat.albumSharingAvailable && <p>{CONSENT_WORDING.albumPhoto}</p>}
-                  <p>If others appear, share only with their agreement. Camera and location details are removed. You can withdraw permission later.</p>
+                  <p>{CONSENT_WORDING.photoMarketing}</p>
+                  <p>Camera and location details are removed from every photo.</p>
                 </details>
                 <PhotoManager
                   base={base}
@@ -845,8 +819,30 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                   setPhotos={setPhotos}
                   albumAvailable={view.retreat.albumSharingAvailable}
                 />
+                {photos.length > 0 && (
+                  <fieldset className={`choice-question ${photoAnswerMissing ? 'needs-answer' : ''}`} id="photo-marketing">
+                    <legend>
+                      Can {view.retreat.organisationName} also use your photos on their website and social media?
+                    </legend>
+                    <p className="small muted">
+                      To show what the {visit} is like: with your story on the review page (if you publish it), on their website, and in social media or
+                      advertising. You can change your mind later.
+                    </p>
+                    <div className="choice-pair">
+                      <label className={`choice-option ${c.photoMarketing === true ? 'selected' : ''}`}>
+                        <input type="radio" name="photo-marketing" checked={c.photoMarketing === true} onChange={() => answerPhotoMarketing(true)} />
+                        <span>Yes, they can use them</span>
+                      </label>
+                      <label className={`choice-option ${c.photoMarketing === false ? 'selected' : ''}`}>
+                        <input type="radio" name="photo-marketing" checked={c.photoMarketing === false} onChange={() => answerPhotoMarketing(false)} />
+                        <span>No, just the album</span>
+                      </label>
+                    </div>
+                    {photoAnswerMissing && <p className="small choice-required">Please choose yes or no to continue.</p>}
+                  </fieldset>
+                )}
               </div>
-              <Actions step={step} goTo={goTo} saveLabel={saveLabel[saveState]} nextLabel="Review" nextDisabled={bulkSharing} />
+              <Actions step={step} goTo={goTo} saveLabel={saveLabel[saveState]} nextLabel="Review" nextDisabled={photoAnswerMissing} />
             </section>
           )}
 
@@ -882,10 +878,14 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                 <li>{c.publicText && draft.storyText.trim() ? 'Your story may be published, if the organiser approves it' : 'Your story stays private'}</li>
                 {c.publicText && <li>{c.firstName ? `Shown with your first name, “${view.firstName}”` : 'Shown without your name'}</li>}
                 <li>{c.marketing ? 'May be reused in social media or advertising' : 'Not reused in social media or advertising'}</li>
+                {photos.length > 0 && view.retreat.albumSharingAvailable && (
+                  <li>
+                    {photos.length} photo{photos.length === 1 ? '' : 's'} in the retreat album, once the organiser approves {photos.length === 1 ? 'it' : 'them'}
+                  </li>
+                )}
                 {photos.length > 0 && (
                   <li>
-                    {photos.filter((ph) => ph.publishConsent).length} of {photos.length} photo{photos.length === 1 ? '' : 's'} may appear with your story if you publish it and the organiser approves it
-                    {view.retreat.albumSharingAvailable ? `; ${photos.filter((ph) => ph.albumConsent).length} may appear in the retreat album once approved` : ''}
+                    {c.photoMarketing ? 'Your photos may be used on their website and social media' : 'Your photos won’t be used on their website or social media'}
                   </li>
                 )}
               </ul>
@@ -968,25 +968,6 @@ function PhotoManager({
   const confirm = useConfirm()
   const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [sharingExisting, setSharingExisting] = useState(false)
-  const hasPrivatePhotos = photos.some((photo) => !photo.publishConsent || (albumAvailable && !photo.albumConsent))
-
-  async function sharePreviouslyAdded() {
-    setSharingExisting(true)
-    setError(null)
-    let next = photos
-    for (const photo of photos) {
-      if (photo.publishConsent && (!albumAvailable || photo.albumConsent)) continue
-      try {
-        const saved = await patch<Photo>(`${base}/photos/${photo.id}`, { publishConsent: true, ...(albumAvailable ? { albumConsent: true } : {}) })
-        next = next.map((item) => item.id === photo.id ? { ...item, ...saved } : item)
-        setPhotos(next)
-      } catch (e) {
-        setError(`Some previously added photos are still private: ${(e as Error).message}`)
-      }
-    }
-    setSharingExisting(false)
-  }
 
   async function onFiles(files: File[]) {
     if (!files.length) return
@@ -1043,14 +1024,6 @@ function PhotoManager({
         disabled={photos.length >= 8}
         onFiles={(files) => void onFiles(files)}
       />
-      {hasPrivatePhotos && (
-        <div className="notice small guest-photo-legacy">
-          Some photos remain private. You can share them with your story{albumAvailable ? ' and the album' : ''} in one click.{' '}
-          <button type="button" className="btn secondary small" disabled={sharingExisting} onClick={() => void sharePreviouslyAdded()}>
-            {sharingExisting ? 'Sharing…' : 'Share previously added photos'}
-          </button>
-        </div>
-      )}
       {photos.length > 0 && (
         <div className="guest-photo-list" aria-label="Your uploaded photos">
           {photos.map((p, i) => (
@@ -1061,8 +1034,8 @@ function PhotoManager({
                   <input id={`alt-${p.id}`} type="text" defaultValue={p.altText} maxLength={300} placeholder="What is in this photo?" onBlur={(e) => e.target.value !== p.altText && void change(p, { altText: e.target.value })} />
                 </Field>
               </div>
-              <span className={`guest-photo-share-state small ${p.publishConsent && (!albumAvailable || p.albumConsent) ? 'is-allowed' : 'is-private'}`}>
-                {p.publishConsent && (!albumAvailable || p.albumConsent) ? 'Sharing allowed' : 'Private'}
+              <span className={`guest-photo-share-state small ${p.publishConsent || (albumAvailable && p.albumConsent) ? 'is-allowed' : 'is-private'}`}>
+                {[albumAvailable && p.albumConsent ? 'Album' : null, p.publishConsent ? 'Website & social' : null].filter(Boolean).join(' · ') || 'Private'}
               </span>
               <button type="button" className="link-button guest-photo-remove" onClick={() => void remove(p)}>
                 Remove

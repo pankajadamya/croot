@@ -17,7 +17,7 @@ interface ReceiptView {
   storyTitle: string
   storyText: string
   overallRating: number | null
-  consents: { publicText: boolean; firstName: boolean; followUp: boolean; marketing: boolean }
+  consents: { publicText: boolean; firstName: boolean; followUp: boolean; marketing: boolean; photoMarketing: boolean | null }
   photos: Array<{ id: string; caption: string; publishConsent: boolean; albumConsent: boolean; published: boolean }>
   publication: { status: 'none' | 'published' | 'unpublished' | 'withdrawn'; url: string | null }
   organiserMessage: string | null
@@ -177,7 +177,15 @@ export default function Receipt() {
               busy={busy}
               onWithdraw={() => withdraw({ scope: 'first_name' }, 'Stop showing your first name?')}
             />
-            <PermissionRow label="Reuse in social media or advertising" on={c.marketing} busy={busy} onWithdraw={() => withdraw({ scope: 'marketing' }, 'Withdraw marketing permission?')} />
+            <PermissionRow label="Reuse my story in social media or advertising" on={c.marketing} busy={busy} onWithdraw={() => withdraw({ scope: 'marketing' }, 'Stop reuse of your story in social media and advertising?')} />
+            {d.photos.length > 0 && (
+              <PermissionRow
+                label="Use my photos on their website and social media"
+                on={c.photoMarketing === true}
+                busy={busy}
+                onWithdraw={() => withdraw({ scope: 'photo_marketing' }, 'Stop the organiser using your photos on their website and social media? Any photos shown with your story come off now. They stay in the album.')}
+              />
+            )}
             <PermissionRow label="Contact me about my feedback" on={c.followUp} busy={busy} onWithdraw={() => withdraw({ scope: 'follow_up' }, 'Ask the organiser not to contact you?')} />
             {d.photos.map((p, i) => (
               <li key={p.id} className="receipt-photo">
@@ -280,7 +288,9 @@ function doneMessage(scope: string) {
     case 'follow_up':
       return 'Done. The organiser has been asked not to contact you about your feedback.'
     case 'marketing':
-      return 'Done. Your story and photos won’t be used in social media or advertising.'
+      return 'Done. Your story won’t be used in social media or advertising.'
+    case 'photo_marketing':
+      return 'Done. Your photos won’t be used on their website or social media. They stay in the album.'
     default:
       return 'Done.'
   }

@@ -18,7 +18,8 @@ const SCOPE_LABELS: Record<string, string> = {
   publicText: 'Publish written story',
   firstName: 'Show first name',
   followUp: 'Contact about feedback',
-  marketing: 'Reuse in social media or advertising',
+  marketing: 'Reuse story in social media or advertising',
+  photo_marketing: 'Use photos on website and social media',
   photo: 'Publish a photo',
 }
 
@@ -187,8 +188,13 @@ function Detail({ orgSlug, r, refresh }: { orgSlug: string; r: ResponseDetailDat
               Contact about feedback <YesNo value={r.consents.followUp} />
             </li>
             <li>
-              Reuse in social media or advertising <YesNo value={r.consents.marketing} />
+              Reuse story in social media or advertising <YesNo value={r.consents.marketing} />
             </li>
+            {r.consents.photoMarketing !== null && (
+              <li>
+                Use photos on your website and social media <YesNo value={r.consents.photoMarketing} />
+              </li>
+            )}
           </ul>
           {r.consents.history.length > 0 && (
             <details>

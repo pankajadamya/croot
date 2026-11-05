@@ -205,10 +205,9 @@ describe('anonymous notes', () => {
         // A photo with the guest's permission, not yet approved when the story is published.
         const up = await request(app).post(`/api/invites/${token}/photos`).attach('photo', png, 'p.png')
         photoId = up.body.id
-        await prisma.mediaAsset.update({ where: { id: photoId }, data: { publishConsent: true } })
       }
       const rev = (await request(app).get(`/api/invites/${token}`)).body.response?.revision ?? 0
-      const draft = await request(app).put(`/api/invites/${token}/draft`).send({ revision: rev, consents: { publicText: true }, ...body })
+      const draft = await request(app).put(`/api/invites/${token}/draft`).send({ revision: rev, consents: { publicText: true, ...(withPhoto ? { photoMarketing: true } : {}) }, ...body })
       await request(app).post(`/api/invites/${token}/submit`).send({ revision: draft.body.revision })
       return prisma.response.findFirstOrThrow({ where: { attendee: { email } } })
     }

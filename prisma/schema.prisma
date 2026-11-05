@@ -398,6 +398,9 @@ model Response {
   consentFirstName  Boolean     @default(false)
   consentFollowUp   Boolean     @default(false)
   consentMarketing  Boolean     @default(false)
+  /// "Can the organiser use your photos on their website and social media?" null = not answered yet.
+  /// Asked as an explicit Yes/No whenever the guest adds photos; sets publishConsent on each photo.
+  consentPhotoMarketing Boolean?
   consentWordingVersion String?
 
   submittedAt      DateTime?

@@ -98,7 +98,7 @@ describe('thank-you photo album (itinerary retreats)', () => {
 
     // Once the sharer sends their review, it appears (the unshared one never does).
     const rev = (await request(app).get(`/api/invites/${sharer.token}`)).body.response.revision
-    const d2 = await request(app).put(`/api/invites/${sharer.token}/draft`).send({ revision: rev, keepText: 'y' })
+    const d2 = await request(app).put(`/api/invites/${sharer.token}/draft`).send({ revision: rev, keepText: 'y', consents: { photoMarketing: false } }) // 'No, just the album'
     expect(d2.status).toBe(200)
     const sent = await request(app).post(`/api/invites/${sharer.token}/submit`).send({ revision: d2.body.revision })
     // Shared and sent, but not yet approved: not in the album.

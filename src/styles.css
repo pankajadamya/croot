@@ -1325,6 +1325,61 @@ table.data th {
   background: var(--sage);
 }
 /* Large upload area: the whole box opens the picker (the photo gallery on phones). */
+/* An explicit question with two equal answers and nothing pre-selected. */
+.choice-question {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1rem 1.1rem 1.1rem;
+  margin: 1.25rem 0 0;
+}
+.choice-question.needs-answer {
+  border-color: var(--accent, #2f5d46);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #2f5d46) 15%, transparent);
+}
+.choice-question legend {
+  font-weight: 600;
+  padding: 0 0.3rem;
+}
+.choice-question > p {
+  margin: 0.25rem 0 0.8rem;
+}
+.choice-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.6rem;
+}
+.choice-option {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 3rem;
+  padding: 0.7rem 0.9rem;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 500;
+  background: var(--surface, #fff);
+}
+.choice-option input {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0;
+  accent-color: var(--accent, #2f5d46);
+}
+.choice-option.selected {
+  border-color: var(--accent, #2f5d46);
+  background: color-mix(in srgb, var(--accent, #2f5d46) 8%, var(--surface, #fff));
+}
+.choice-option:has(input:focus-visible) {
+  outline: 2px solid var(--accent, #2f5d46);
+  outline-offset: 2px;
+}
+.choice-required {
+  margin: 0.6rem 0 0;
+  color: var(--accent, #2f5d46);
+  font-weight: 600;
+}
+
 .upload-zone {
   margin-bottom: 1rem;
   border: 2px solid color-mix(in srgb, var(--button) 28%, var(--border));

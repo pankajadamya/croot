@@ -80,6 +80,7 @@ receiptsRouter.get(
         firstName: response.consentFirstName,
         followUp: response.consentFollowUp,
         marketing: response.consentMarketing,
+        photoMarketing: response.consentPhotoMarketing,
       },
       photos: response.media.map((m) => ({ id: m.id, caption: m.caption, publishConsent: m.publishConsent, albumConsent: m.albumConsent, published: Boolean(live?.photoIds.includes(m.id)) })),
       publication: { status: response.publicationStatus, url: live && response.publicSlug ? `/stories/${response.publicSlug}` : null },
@@ -191,7 +192,7 @@ receiptsRouter.post(
 )
 
 const withdrawSchema = z.union([
-  z.object({ scope: z.enum(['public_text', 'first_name', 'marketing', 'follow_up']) }),
+  z.object({ scope: z.enum(['public_text', 'first_name', 'marketing', 'follow_up', 'photo_marketing']) }),
   z.object({ scope: z.literal('photo'), photoId: z.uuid() }),
   z.object({ scope: z.literal('album_photo'), photoId: z.uuid() }),
 ])
@@ -224,6 +225,15 @@ receiptsRouter.post(
       await prisma.response.update({ where: { id: response.id }, data: { consentFirstName: false } })
       await event('first_name')
       await dropNameFromLive(response.organisationId, response.id)
+    } else if (body.scope === 'photo_marketing') {
+      // No more use of any photo on the website or social media; each comes off the live story now.
+      await prisma.response.update({ where: { id: response.id }, data: { consentPhotoMarketing: false } })
+      await event('photo_marketing')
+      for (const photo of response.media.filter((m) => m.publishConsent)) {
+        await prisma.mediaAsset.update({ where: { id: photo.id }, data: { publishConsent: false } })
+        await event(`photo:${photo.id}`)
+        await dropPhotoFromLive({ organisationId: response.organisationId, responseId: response.id, photoId: photo.id, reason: 'Guest withdrew photo consent' })
+      }
     } else if (body.scope === 'marketing') {
       await prisma.response.update({ where: { id: response.id }, data: { consentMarketing: false } })
       await event('marketing')

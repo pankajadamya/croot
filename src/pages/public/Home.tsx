@@ -186,7 +186,7 @@ function Landing() {
             <h2 id="trust-heading">Built around guest consent</h2>
             <div className="grid-2">
               {[
-                ['Separate permissions', 'Story text, first name, each photo and marketing reuse are separate choices, and all start switched off.'],
+                ['Separate permissions', 'Story, first name, social media reuse and the use of photos are separate choices. Nothing is switched on for the guest: they choose each one.'],
                 ['Never rewritten', 'Organisers can’t edit a guest’s words. They can ask the guest, who makes any change themselves.'],
                 ['Truly separate anonymous notes', 'Written in the review form but stored on their own, with no name, email, invitation or time of day, so they can’t be traced back through Croot.'],
                 ['Withdraw any time', 'Guests have a private page to withdraw permissions. Public pages update immediately.'],

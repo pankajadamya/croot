@@ -177,6 +177,7 @@ async function draftView(r: Review, req: Request) {
         firstName: response.consentFirstName,
         followUp: response.consentFollowUp,
         marketing: response.consentMarketing,
+        photoMarketing: response.consentPhotoMarketing,
       },
       ratings: response.ratings.map((x) => ({ categoryKey: x.categoryKey, score: x.score, notApplicable: x.notApplicable, comment: x.comment })),
       photos: response.media.map((m) => ({ id: m.id, altText: m.altText, caption: m.caption, publishConsent: m.publishConsent, albumConsent: m.albumConsent, width: m.width, height: m.height })),
@@ -216,7 +217,7 @@ const draftSchema = z.object({
   changeText: text(2000).optional(),
   ratings: z.array(ratingSchema).max(30).optional(),
   consents: z
-    .object({ publicText: z.boolean(), firstName: z.boolean(), followUp: z.boolean(), marketing: z.boolean() })
+    .object({ publicText: z.boolean(), firstName: z.boolean(), followUp: z.boolean(), marketing: z.boolean(), photoMarketing: z.boolean().nullable() })
     .partial()
     .optional(),
   stay: z.object({ start: z.iso.date().nullable(), end: z.iso.date().nullable() }).optional(),
@@ -250,6 +251,8 @@ reviewRoutes.put(
     if (body.consents?.firstName !== undefined) data.consentFirstName = body.consents.firstName
     if (body.consents?.followUp !== undefined) data.consentFollowUp = body.consents.followUp
     if (body.consents?.marketing !== undefined) data.consentMarketing = body.consents.marketing
+    const photoMarketing = body.consents?.photoMarketing
+    if (typeof photoMarketing === 'boolean') data.consentPhotoMarketing = photoMarketing
     const stay = r.retreat.kind === 'property' && body.stay ? body.stay : null
     if (stay?.start && stay.end && stay.end < stay.start) throw new HttpError(400, 'Check-out is before check-in', { stay: ['Check-out is before check-in'] })
 
@@ -264,6 +267,9 @@ reviewRoutes.put(
           where: { id: r.attendee.id },
           data: { stayStart: stay.start ? new Date(`${stay.start}T00:00:00Z`) : null, stayEnd: stay.end ? new Date(`${stay.end}T00:00:00Z`) : null },
         })
+      }
+      if (typeof photoMarketing === 'boolean') {
+        await tx.mediaAsset.updateMany({ where: { responseId: response.id, removedAt: null }, data: { publishConsent: photoMarketing } })
       }
       for (const rating of body.ratings ?? []) {
         if (!keys.has(rating.categoryKey)) continue
@@ -310,7 +316,9 @@ reviewRoutes.post(
         width: image.width,
         height: image.height,
         displayOrder: count,
-        publishConsent: true,
+        // Adding a photo shares it in the album; its use on the website and social media follows the
+        // guest's own Yes/No answer (off until they say yes).
+        publishConsent: response.consentPhotoMarketing === true,
       },
     })
     const shared = r.retreat.kind === 'itinerary' && r.retreat.rewardAlbumEnabled
@@ -474,11 +482,15 @@ reviewRoutes.post(
         where: { id: response.id },
         include: { media: { where: { removedAt: null } } },
       })
+      if (full.media.length > 0 && full.consentPhotoMarketing === null) {
+        throw new HttpError(400, 'Please answer whether the organiser can use your photos on their website and social media.', { photoMarketing: ['Choose yes or no'] })
+      }
       const scopes: Array<[string, boolean]> = [
         ['public_text', full.consentPublicText],
         ['first_name', full.consentFirstName],
         ['follow_up', full.consentFollowUp],
         ['marketing', full.consentMarketing],
+        ...(full.media.length > 0 ? [['photo_marketing', full.consentPhotoMarketing === true] as [string, boolean]] : []),
         ...full.media.map((m): [string, boolean] => [`photo:${m.id}`, m.publishConsent]),
       ]
       await tx.consentEvent.createMany({

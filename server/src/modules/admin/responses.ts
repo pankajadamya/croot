@@ -129,6 +129,7 @@ responsesRouter.get(
         firstName: r.consentFirstName,
         followUp: r.consentFollowUp,
         marketing: r.consentMarketing,
+        photoMarketing: r.consentPhotoMarketing,
         wordingVersion: r.consentWordingVersion,
         history: r.consents.map((c) => ({ scope: c.scope, granted: c.granted, actor: c.actor, wordingVersion: c.wordingVersion, at: c.createdAt })),
       },
