@@ -15,7 +15,8 @@ const base = {
 export const loginLimiter = rateLimit({ ...base, windowMs: 15 * 60_000, limit: 20 })
 /** Token validation: generous enough for autosave, tight enough to make guessing pointless. */
 export const tokenLimiter = rateLimit({ ...base, windowMs: 5 * 60_000, limit: 300 })
-export const uploadLimiter = rateLimit({ ...base, windowMs: 15 * 60_000, limit: 40 })
+/** Uploads are one request per file; generous enough for an organiser adding a whole album at once. */
+export const uploadLimiter = rateLimit({ ...base, windowMs: 15 * 60_000, limit: 120 })
 /** Anonymous notes: abuse control without any identity, keyed only by IP in memory (never stored). */
 export const anonymousLimiter = rateLimit({ ...base, windowMs: 60 * 60_000, limit: 10 })
 export const publicFormLimiter = rateLimit({ ...base, windowMs: 60 * 60_000, limit: 10 })

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { del, get, orgApi, patch, post, put } from '../../../lib/api'
+import { ApiError, del, get, orgApi, patch, post, put } from '../../../lib/api'
 import { formatDateTime } from '../../../lib/format'
 import { Field, Switch } from '../../../components/Controls'
 import { ErrorNotice, Loading } from '../../../components/States'
@@ -198,14 +198,38 @@ function ImageLibrary({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
   const queryClient = useQueryClient()
   const key = ['admin', orgSlug, 'media', retreat.id]
   const media = useQuery({ queryKey: key, queryFn: () => get<{ media: OrganiserMedia[] }>(`${orgApi(orgSlug)}/retreats/${retreat.id}/media`).then((r) => r.media) })
-  const upload = useMutation({
-    mutationFn: (file: File) => {
+  // Several files at once: uploaded one after another, so progress is clear and one bad file
+  // (wrong type, too large) doesn't stop the rest.
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
+  const [failures, setFailures] = useState<Array<{ name: string; message: string }>>([])
+  const [dragging, setDragging] = useState(false)
+  const [lastBatch, setLastBatch] = useState<number | null>(null)
+
+  async function uploadAll(files: File[]) {
+    const images = files.filter((f) => f.type.startsWith('image/') || /\.(jpe?g|png|webp)$/i.test(f.name))
+    const skipped = files.filter((f) => !images.includes(f)).map((f) => ({ name: f.name, message: 'Not an image' }))
+    setFailures(skipped)
+    setLastBatch(null)
+    if (!images.length) return
+    setProgress({ done: 0, total: images.length })
+    const failed: Array<{ name: string; message: string }> = [...skipped]
+    for (const [i, file] of images.entries()) {
       const data = new FormData()
       data.append('image', file)
-      return post(`${orgApi(orgSlug)}/retreats/${retreat.id}/media`, data)
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: key }),
-  })
+      try {
+        await post(`${orgApi(orgSlug)}/retreats/${retreat.id}/media`, data)
+      } catch (e) {
+        failed.push({ name: file.name, message: e instanceof ApiError ? e.message : 'Upload failed' })
+      }
+      setProgress({ done: i + 1, total: images.length })
+      // Show new images as they arrive rather than only at the end.
+      void queryClient.invalidateQueries({ queryKey: key })
+    }
+    setFailures(failed)
+    setLastBatch(images.length - (failed.length - skipped.length))
+    setProgress(null)
+  }
+  const uploading = progress !== null
 
   return (
     <section className="card" aria-labelledby="lib-title">
@@ -214,26 +238,66 @@ function ImageLibrary({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
         Images you provide for the public slideshow and the optional memory prompts beside the guest’s writing form. An image can be shown only once it has alt text and you’ve
         confirmed you have permission to use it. Guest photos are managed from each response instead.
       </p>
-      <div className="field">
-        <label htmlFor="lib-upload">Upload an image</label>
+      <div
+        className={`drop-zone ${dragging ? 'dragging' : ''}`}
+        onDragOver={(e) => {
+          e.preventDefault()
+          if (!uploading) setDragging(true)
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault()
+          setDragging(false)
+          if (!uploading) void uploadAll(Array.from(e.dataTransfer.files))
+        }}
+      >
+        <label htmlFor="lib-upload" style={{ fontWeight: 600 }}>
+          Upload images
+        </label>
         <span className="hint" id="lib-upload-hint">
-          JPEG, PNG or WebP. Location and camera details are removed.
+          Choose several at once, or drag them here. JPEG, PNG or WebP. Location and camera details are removed.
         </span>
         <input
           id="lib-upload"
           type="file"
+          multiple
           accept="image/jpeg,image/png,image/webp"
           aria-describedby="lib-upload-hint"
-          disabled={upload.isPending}
+          disabled={uploading}
           onChange={(e) => {
-            const file = e.target.files?.[0]
-            if (file) upload.mutate(file)
+            const files = Array.from(e.target.files ?? [])
             e.target.value = ''
+            if (files.length) void uploadAll(files)
           }}
         />
       </div>
-      {upload.isPending && <p role="status">Uploading…</p>}
-      <MutationError error={upload.error} />
+      {progress && (
+        <div role="status" aria-live="polite" style={{ marginTop: '0.75rem' }}>
+          <span className="small">
+            Uploading {Math.min(progress.done + 1, progress.total)} of {progress.total}…
+          </span>
+          <div className="upload-bar" aria-hidden="true">
+            <div style={{ width: `${(progress.done / progress.total) * 100}%` }} />
+          </div>
+        </div>
+      )}
+      {lastBatch !== null && lastBatch > 0 && (
+        <p className="notice ok small" role="status" style={{ marginTop: '0.75rem' }}>
+          {lastBatch} image{lastBatch === 1 ? '' : 's'} uploaded. Add alt text and confirm permission to show {lastBatch === 1 ? 'it' : 'them'}.
+        </p>
+      )}
+      {failures.length > 0 && (
+        <div className="notice error small" role="alert" style={{ marginTop: '0.75rem' }}>
+          {failures.length === 1 ? 'One file wasn’t uploaded:' : `${failures.length} files weren’t uploaded:`}
+          <ul style={{ margin: '0.3rem 0 0', paddingLeft: '1.2rem' }}>
+            {failures.map((f, i) => (
+              <li key={`${f.name}-${i}`}>
+                {f.name}: {f.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {media.isLoading && <Loading />}
       {media.error && <ErrorNotice error={media.error} />}
       {media.data && media.data.length === 0 && <p className="muted">No images yet.</p>}

@@ -1204,3 +1204,32 @@ table.data th {
   color: #1f1f1f;
   border-color: #c9cfc9;
 }
+
+/* ---------- multi-file upload ---------- */
+
+.drop-zone {
+  display: grid;
+  gap: 0.4rem;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.25rem;
+  background: var(--bg);
+  transition: border-color 0.15s, background 0.15s;
+}
+.drop-zone.dragging {
+  border-color: var(--button);
+  background: var(--sage);
+}
+.upload-bar {
+  height: 6px;
+  border-radius: 99px;
+  background: var(--border);
+  overflow: hidden;
+  margin-top: 0.35rem;
+  max-width: 420px;
+}
+.upload-bar > div {
+  height: 100%;
+  background: var(--button);
+  transition: width 0.2s;
+}
