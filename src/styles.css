@@ -2232,3 +2232,32 @@ ol.album-admin-grid {
 .review-item {
   align-items: start;
 }
+
+/* Review header: guest's name and the date it was sent, above their words. */
+.review-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+.review-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: var(--forest);
+  color: var(--canvas);
+  font-family: var(--serif);
+  font-size: 1.15rem;
+}
+.review-name {
+  display: block;
+  font-weight: 700;
+}
+.review-date {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--muted);
+}

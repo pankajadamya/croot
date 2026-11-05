@@ -92,7 +92,7 @@ function Detail({ orgSlug, r, refresh }: { orgSlug: string; r: ResponseDetailDat
         <Section id="sec-story" title="Public story" note="The guest’s own words. Organisers can’t edit them — use “Request changes” to ask the guest to revise.">
           {hasStory ? (
             <>
-              {story.title.trim() && <h3 style={{ margin: '0 0 0.5rem' }}>{story.title.trim()}</h3>}
+              {story.title?.trim() && <h3 style={{ margin: '0 0 0.5rem' }}>{story.title.trim()}</h3>}
               <blockquote className="guest-quote">{story.text}</blockquote>
               {story.submittedText !== null && story.submittedText !== story.text && (
                 <details>

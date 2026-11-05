@@ -124,6 +124,20 @@ export default function RetreatLanding() {
               {d.stories.map((s) => (
                 <li key={s.slug} className={`review-item ${s.photos?.length ? '' : 'no-photos'}`}>
                   <article className="review-text">
+                    {/* Who and when first, then the guest's own words. */}
+                    <header className="review-meta">
+                      <span className="review-avatar" aria-hidden="true">
+                        {(s.displayName ?? 'G').slice(0, 1).toUpperCase()}
+                      </span>
+                      <span>
+                        <span className="review-name">{s.displayName ?? 'A retreat guest'}</span>
+                        {s.postedAt && (
+                          <time className="review-date" dateTime={s.postedAt}>
+                            {formatDate(s.postedAt)}
+                          </time>
+                        )}
+                      </span>
+                    </header>
                     {s.title && <h3 className="review-title">{s.title}</h3>}
                     <div className="review-body">
                       {(s.text ?? s.excerpt)
@@ -134,15 +148,6 @@ export default function RetreatLanding() {
                           <p key={i}>{p}</p>
                         ))}
                     </div>
-                    <p className="review-by">
-                      — {s.displayName ?? 'A retreat guest'}
-                      {s.postedAt && (
-                        <>
-                          {' · '}
-                          <time dateTime={s.postedAt}>{formatDate(s.postedAt)}</time>
-                        </>
-                      )}
-                    </p>
                   </article>
                   {s.photos && s.photos.length > 0 && (
                     <div className={`review-photos count-${Math.min(s.photos.length, 4)}`}>
