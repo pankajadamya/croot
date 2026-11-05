@@ -1,14 +1,15 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ApiError, del, get, orgApi, patch, post, put } from '../../../lib/api'
+import { ApiError, get, orgApi, post, put } from '../../../lib/api'
 import { formatDateTime } from '../../../lib/format'
-import { Field, Switch } from '../../../components/Controls'
+import { Field } from '../../../components/Controls'
 import { ErrorNotice, Loading } from '../../../components/States'
 import { ThemeScope } from '../../../components/ThemeScope'
 import { fieldError, fromLocalInput, MutationError, toLocalInput } from '../adminUi'
 import type { ContentRevision, OrganiserMedia, Retreat } from '../types'
 import { useRetreatTheme } from './AppearanceTab'
-import { imageStatus, SlideshowSettings } from './SlideshowSettings'
+import { MediaEditor } from './MediaEditor'
+import { SlideshowSettings } from './SlideshowSettings'
 
 interface ContentState {
   draft: ContentRevision | null
@@ -236,8 +237,8 @@ function ImageLibrary({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
     <section className="card" aria-labelledby="lib-title">
       <h2 id="lib-title">Your images</h2>
       <p className="small muted">
-        Images you provide for the public slideshow and the optional memory prompts beside the guest’s writing form. An image can be shown only once it has alt text and you’ve
-        confirmed you have permission to use it. Guest photos are managed from each response instead.
+        Images you provide for the public slideshow and the optional memory prompts beside the guest’s writing form. An image can be shown once you’ve confirmed you have permission to
+        use it. Alt text is optional but helps guests who use screen readers. Guest photos are managed from each response instead.
       </p>
       <SlideshowSettings orgSlug={orgSlug} retreat={retreat} media={media.data ?? []} />
       <div
@@ -285,7 +286,7 @@ function ImageLibrary({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
       )}
       {lastBatch !== null && lastBatch > 0 && (
         <p className="notice ok small" role="status" style={{ marginTop: '0.75rem' }}>
-          {lastBatch} image{lastBatch === 1 ? '' : 's'} uploaded. Add alt text and confirm permission to show {lastBatch === 1 ? 'it' : 'them'}.
+          {lastBatch} image{lastBatch === 1 ? '' : 's'} uploaded. Confirm you have permission to show {lastBatch === 1 ? 'it' : 'them'}.
         </p>
       )}
       {failures.length > 0 && (
@@ -313,84 +314,5 @@ function ImageLibrary({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
         </ul>
       )}
     </section>
-  )
-}
-
-function MediaEditor({ orgSlug, media, onChanged }: { orgSlug: string; media: OrganiserMedia; onChanged: () => void }) {
-  const [f, setF] = useState({
-    altText: media.altText,
-    caption: media.caption,
-    credit: media.credit,
-    rightsConfirmed: media.rightsConfirmed,
-    displayOrder: String(media.displayOrder),
-    inHeroSlideshow: media.inHeroSlideshow,
-    inWritingSlideshow: media.inWritingSlideshow,
-  })
-  const [saved, setSaved] = useState(false)
-  const id = media.id
-  const save = useMutation({
-    mutationFn: () => patch(`${orgApi(orgSlug)}/media/${id}`, { ...f, displayOrder: Number(f.displayOrder) || 0 }),
-    onSuccess: () => {
-      setSaved(true)
-      onChanged()
-    },
-  })
-  const remove = useMutation({ mutationFn: () => del(`${orgApi(orgSlug)}/media/${id}`), onSuccess: onChanged })
-  const set = (k: keyof typeof f) => (v: string | boolean) => {
-    setSaved(false)
-    setF((x) => ({ ...x, [k]: v }))
-  }
-  const ready = f.rightsConfirmed && f.altText.trim().length > 0
-
-  return (
-    <div className="card tight">
-      <img src={media.previewUrl} alt={media.altText || 'Image without alt text yet'} loading="lazy" />
-      <div className="row small" style={{ margin: '0.5rem 0' }}>
-        <span className={`badge ${media.approved ? 'ok' : 'warn'}`}>{imageStatus(media)}</span>
-      </div>
-      <Field id={`alt-${id}`} label="Alt text" hint="Describe the image for people who can’t see it." error={fieldError(save.error, 'altText')}>
-        <input id={`alt-${id}`} type="text" value={f.altText} onChange={(e) => set('altText')(e.target.value)} aria-describedby={`alt-${id}-hint`} />
-      </Field>
-      <Field id={`cap-${id}`} label="Caption" error={fieldError(save.error, 'caption')}>
-        <input id={`cap-${id}`} type="text" value={f.caption} onChange={(e) => set('caption')(e.target.value)} />
-      </Field>
-      <Field id={`cred-${id}`} label="Credit" hint="Photographer or source" error={fieldError(save.error, 'credit')}>
-        <input id={`cred-${id}`} type="text" value={f.credit} onChange={(e) => set('credit')(e.target.value)} />
-      </Field>
-      <Field id={`ord-${id}`} label="Display order" hint="Lower numbers show first." error={fieldError(save.error, 'displayOrder')}>
-        <input id={`ord-${id}`} type="number" min={0} max={1000} value={f.displayOrder} onChange={(e) => set('displayOrder')(e.target.value)} />
-      </Field>
-      <div className="stack">
-        <Switch checked={f.rightsConfirmed} onChange={set('rightsConfirmed')} label="I have permission to publish this image" />
-        <Switch checked={f.inHeroSlideshow} onChange={set('inHeroSlideshow')} label="Include in the public slideshow" />
-        <Switch checked={f.inWritingSlideshow} onChange={set('inWritingSlideshow')} label="Include beside the guest’s review form" />
-      </div>
-      {!ready && (
-        <p className="small notice warn" style={{ marginTop: '0.5rem' }}>
-          Not shown yet: {[!f.altText.trim() && 'add alt text', !f.rightsConfirmed && 'confirm you have permission'].filter(Boolean).join(' and ')}, then Save.
-        </p>
-      )}
-      <MutationError error={save.error || remove.error} shownFields={['altText', 'caption', 'credit', 'displayOrder']} />
-      <div className="spread" style={{ marginTop: '0.75rem' }}>
-        <div className="row">
-          <button type="button" className="btn small" disabled={save.isPending} onClick={() => save.mutate()}>
-            {save.isPending ? 'Saving…' : 'Save'}
-          </button>
-          <span aria-live="polite" className="small">
-            {saved && 'Saved'}
-          </span>
-        </div>
-        <button
-          type="button"
-          className="btn ghost small"
-          disabled={remove.isPending}
-          onClick={() => {
-            if (window.confirm('Delete this image? It will be removed from any slideshow.')) remove.mutate()
-          }}
-        >
-          Delete
-        </button>
-      </div>
-    </div>
   )
 }

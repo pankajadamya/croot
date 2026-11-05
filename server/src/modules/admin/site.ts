@@ -248,9 +248,10 @@ siteRouter.patch(
     const body = parseBody(mediaPatch, req.body)
     const { rightsConfirmed, ...rest } = body
     const next = { ...media, ...rest, publishConsent: rightsConfirmed ?? media.publishConsent }
-    // The slideshow switches mean 'include when ready'. Only images with alt text and confirmed
-    // permission are approved, and every public query and /media request requires approval.
-    const ready = next.publishConsent && next.altText.trim().length > 0
+    // The slideshow switches mean 'include when ready'. An organiser image is approved once its
+    // permission is confirmed (alt text is recommended, not required); every public query and /media
+    // request requires approval.
+    const ready = next.publishConsent
     const updated = await prisma.mediaAsset.update({
       where: { id: media.id },
       data: { ...rest, publishConsent: next.publishConsent, moderation: ready ? 'approved' : 'pending' },

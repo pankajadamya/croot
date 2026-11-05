@@ -4,6 +4,7 @@ import { z } from 'zod'
 import type { Invitation, Prisma } from '@prisma/client'
 import { CONSENT_WORDING_VERSION, type FeedbackCategory } from '../../../shared/categories.js'
 import { firstName } from '../../../shared/slug.js'
+import { altFor } from '../lib/altText.js'
 import { audit } from '../lib/audit.js'
 import { env } from '../lib/env.js'
 import { HttpError, parseBody, route, text, uuidParam } from '../lib/http.js'
@@ -149,7 +150,7 @@ async function draftView(r: Review, req: Request) {
       // The anonymous page is addressed by public slugs only: no token or attendee key crosses over.
       anonymousPath: `/o/${r.retreat.organisation.slug}/r/${r.retreat.slug}/anonymous`,
       privacyNoticePath: `/o/${r.retreat.organisation.slug}/privacy?programme=${r.retreat.slug}`,
-      slideshow: slideshow.map((s) => ({ url: `/media/${s.id}`, alt: s.altText, caption: s.caption })),
+      slideshow: slideshow.map((s) => ({ url: `/media/${s.id}`, alt: altFor(s), caption: s.caption })),
     },
     response: response && {
       status: response.status,

@@ -6,10 +6,7 @@ import type { OrganiserMedia, Retreat } from '../types'
 
 /** What an organiser image still needs, or where it's showing. In words, never colour alone. */
 export function imageStatus(m: OrganiserMedia): string {
-  const noAlt = !m.altText.trim()
-  if (noAlt && !m.rightsConfirmed) return 'Not shown: needs alt text and permission'
-  if (noAlt) return 'Not shown: needs alt text'
-  if (!m.rightsConfirmed) return 'Not shown: needs permission'
+  if (!m.rightsConfirmed) return 'Not shown: confirm you have permission'
   const where = [m.inHeroSlideshow && 'public slideshow', m.inWritingSlideshow && 'guest form'].filter(Boolean)
   return where.length ? `Showing in: ${where.join(', ')}` : 'Ready, but not in a slideshow'
 }
@@ -50,7 +47,7 @@ export function SlideshowSettings({ orgSlug, retreat, media }: { orgSlug: string
         <strong>
           {ready.length} of {plural(media.length)} ready to show.
         </strong>{' '}
-        {media.length > ready.length && 'An image shows once it has alt text and you’ve confirmed you have permission to use it.'}
+        {media.length > ready.length && 'An image shows once you’ve confirmed you have permission to use it.'}
       </p>
       <MutationError error={update.error} />
     </div>

@@ -31,20 +31,32 @@ describe('retreat photo slideshows', () => {
     await prisma.retreat.update({ where: { id: retreat.id }, data: { writingSlideshowEnabled: true } })
     const { token } = await invite(org.id, retreat.id)
     const { agent, csrf } = await login(user.email)
-    const img = await organiserImage(org.id, retreat.id, { publishConsent: true })
+    const img = await organiserImage(org.id, retreat.id)
 
-    // Ticking is allowed without alt text (it means "include when ready").
+    // Ticking is allowed before permission is confirmed (it means "include when ready").
     const tick = await agent.patch(`/api/admin/orgs/alpha/media/${img.id}`).set('X-CSRF-Token', csrf).send({ inWritingSlideshow: true })
     expect(tick.status).toBe(200)
     expect(tick.body.media.approved).toBe(false)
     expect((await request(app).get(`/api/invites/${token}`)).body.retreat.slideshow).toEqual([])
     expect((await request(app).get(`/media/${img.id}`)).status).toBe(404)
 
-    // Alt text + permission → approved → shown.
-    const ready = await agent.patch(`/api/admin/orgs/alpha/media/${img.id}`).set('X-CSRF-Token', csrf).send({ altText: 'Sunrise over the valley' })
+    // Permission alone makes it ready: alt text is optional, with a fallback for screen readers.
+    const ready = await agent.patch(`/api/admin/orgs/alpha/media/${img.id}`).set('X-CSRF-Token', csrf).send({ rightsConfirmed: true })
     expect(ready.body.media.approved).toBe(true)
-    const view = await request(app).get(`/api/invites/${token}`)
-    expect(view.body.retreat.slideshow).toEqual([{ url: `/media/${img.id}`, alt: 'Sunrise over the valley', caption: '' }])
+    let view = await request(app).get(`/api/invites/${token}`)
+    expect(view.body.retreat.slideshow).toEqual([{ url: `/media/${img.id}`, alt: 'Retreat photo', caption: '' }])
+
+    // A caption is used as the alt text when there is none; real alt text wins.
+    await agent.patch(`/api/admin/orgs/alpha/media/${img.id}`).set('X-CSRF-Token', csrf).send({ caption: 'Morning practice' })
+    view = await request(app).get(`/api/invites/${token}`)
+    expect(view.body.retreat.slideshow[0].alt).toBe('Morning practice')
+    await agent.patch(`/api/admin/orgs/alpha/media/${img.id}`).set('X-CSRF-Token', csrf).send({ altText: 'Sunrise over the valley' })
+    view = await request(app).get(`/api/invites/${token}`)
+    expect(view.body.retreat.slideshow[0].alt).toBe('Sunrise over the valley')
+
+    // Withdrawing permission hides it again.
+    await agent.patch(`/api/admin/orgs/alpha/media/${img.id}`).set('X-CSRF-Token', csrf).send({ rightsConfirmed: false })
+    expect((await request(app).get(`/api/invites/${token}`)).body.retreat.slideshow).toEqual([])
   })
 
   it('shows nothing beside the form while the programme switch is off', async () => {

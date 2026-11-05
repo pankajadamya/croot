@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import type { PublicationRevision } from '@prisma/client'
+import { altFor } from '../lib/altText.js'
 import { HttpError, param, parseBody, route, text, uuidParam } from '../lib/http.js'
 import { prisma } from '../lib/prisma.js'
 import { livePublication } from '../lib/publication.js'
@@ -64,7 +65,7 @@ async function heroImages(retreatId: string) {
     where: { retreatId, kind: 'organiser', inHeroSlideshow: true, moderation: 'approved', publishConsent: true, removedAt: null },
     orderBy: { displayOrder: 'asc' },
   })
-  return media.map((m) => ({ url: `/media/${m.id}`, alt: m.altText, caption: m.caption, credit: m.credit, focalX: m.focalX, focalY: m.focalY }))
+  return media.map((m) => ({ url: `/media/${m.id}`, alt: altFor(m), caption: m.caption, credit: m.credit, focalX: m.focalX, focalY: m.focalY }))
 }
 
 publicRouter.get(
@@ -126,7 +127,7 @@ publicRouter.get(
         photos: live.photoIds
           .map((id) => byId.get(id))
           .filter((p) => p !== undefined)
-          .map((p) => ({ url: `/media/${p.id}`, alt: p.altText, caption: p.caption, width: p.width, height: p.height })),
+          .map((p) => ({ url: `/media/${p.id}`, alt: altFor(p, 'Photo shared by the guest'), caption: p.caption, width: p.width, height: p.height })),
       },
     })
   }),
