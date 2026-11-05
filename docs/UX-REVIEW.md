@@ -14,6 +14,17 @@ Priority key:
 
 ---
 
+## Decisions (5 November 2026)
+
+1. **Album photos are published once the organisation owner approves them.** Guests' album photos go through the same approval as story photos. As soon as the owner approves, they appear in the album straight away. The owner can still take any photo out later. Guest wording should say exactly this, for example: "Shared in the public album once the organiser approves it. They can take it out at any time." (This replaces finding 5 / Guest P1 "Album photos skip approval": the fix is to add approval *and* match the wording.)
+2. **The logo stays lowercase "croot", always set in a sans-serif typeface.** The current logo SVGs already use Arial/Helvetica. The work is to check every other place the name is drawn as a logo (share-kit images and any text wordmark) and make sure it uses sans-serif. Ordinary sentences can still say "Croot".
+3. **A public album is fine and intended.** It can be shared with friends and family; the "thank-you" framing just needs updating in the organiser wording.
+   - **Open point:** you described the album as "a unique public link that isn't guessable". Today it isn't. It lives at a predictable address, `/o/<organisation>/r/<retreat>/album`, and the retreat page links to it. Before the work starts, decide which you want:
+     - **(a)** Keep it as it is: public, predictable and linked from the retreat page.
+     - **(b)** Bring back a random, unguessable address, and stop linking it from the public page, so only people given the link can find it.
+
+---
+
 ## Fix these first
 
 | # | Problem | Journey | Why it hurts |
