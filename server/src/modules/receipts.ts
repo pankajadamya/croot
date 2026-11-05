@@ -131,9 +131,13 @@ receiptsRouter.get(
 receiptsRouter.post(
   '/:token/album/photos',
   uploadLimiter,
+  route(async (req, res, next) => {
+    res.locals.receipt = await resolveReceipt(req.params.token)
+    next()
+  }),
   albumUpload.single('photo'),
   route(async (req, res) => {
-    const response = await resolveReceipt(req.params.token)
+    const response = res.locals.receipt as Awaited<ReturnType<typeof resolveReceipt>>
     if (!req.file) throw new HttpError(400, 'Choose a photo to add')
     const asset = await addContribution(response.retreat, response, req.file.buffer)
     res.status(201).json({ id: asset.id })

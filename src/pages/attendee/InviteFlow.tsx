@@ -255,6 +255,15 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
     return () => window.clearTimeout(id)
   }, [draft, save, view?.editable])
 
+  // Back from signing in to open the private response page: open it.
+  const wantsReceipt = params.get('receipt') === '1'
+  const signedInHere = Boolean(view?.signIn.signedIn)
+  const sentAlready = view?.response?.status === 'submitted'
+  useEffect(() => {
+    if (wantsReceipt && signedInHere && sentAlready) void openReceipt()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantsReceipt, signedInHere, sentAlready])
+
   // Warn before leaving with unsaved text, including an anonymous note that hasn't been sent yet.
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
@@ -401,9 +410,16 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                 <RetreatPageLink href={view.retreat.publicPagePath} title={view.retreat.title} />
               </div>
               <div className="row">
-                <button className="btn" onClick={openReceipt}>
-                  Open my private response page
-                </button>
+                {view.signIn.signedIn ? (
+                  <button className="btn" onClick={openReceipt}>
+                    Open my private response page
+                  </button>
+                ) : (
+                  // The invitation link alone doesn't open it: someone may have forwarded the email.
+                  <Link className="btn" to={`/signin?next=${encodeURIComponent(`${location.pathname}?receipt=1`)}`}>
+                    Sign in to open my private response page
+                  </Link>
+                )}
                 {view.signIn.canReopen &&
                   (view.signIn.signedIn ? (
                     <button className="btn secondary" onClick={reopen} disabled={reopening}>

@@ -4,12 +4,10 @@ import type { Prisma } from '@prisma/client'
 import { defaultCategoriesFor } from '../../../../shared/categories.js'
 import { slugify } from '../../../../shared/slug.js'
 import { audit } from '../../lib/audit.js'
-import { env } from '../../lib/env.js'
 import { HttpError, parseBody, route, text, uuidParam } from '../../lib/http.js'
 import { prisma } from '../../lib/prisma.js'
 import { tenantRetreat } from '../../lib/tenant.js'
 import { requireCsrf, requireOrgMember, requireOwner, tenantOf } from '../../middleware/auth.js'
-import { issueSetupToken } from '../auth.js'
 import { attendeesRouter } from './attendees.js'
 import { privacyRouter } from './privacy.js'
 import { responsesRouter } from './responses.js'
@@ -87,13 +85,13 @@ const retreatSchema = z.object({
   amenities: z.array(text(80)).max(6).optional(),
   locationSummary: text(200).default(''),
   routeSummary: z.array(text(160)).max(4).default([]),
-  itineraryUrl: z.url().nullable().optional(),
-  retreatPageUrl: z.url().nullable().optional(),
+  itineraryUrl: z.url({ protocol: /^https?$/ }).nullable().optional(),
+  retreatPageUrl: z.url({ protocol: /^https?$/ }).nullable().optional(),
   organiserName: text(120).default(''),
   contactEmail: z.email().nullable().optional(),
   contactPhone: text(40).nullable().optional(),
   contactPublic: z.boolean().optional(),
-  privacyUrl: z.url().nullable().optional(),
+  privacyUrl: z.url({ protocol: /^https?$/ }).nullable().optional(),
   status: z.enum(['draft', 'collecting', 'closed', 'archived']).optional(),
   inviteOpensAt: z.coerce.date().nullable().optional(),
   inviteClosesAt: z.coerce.date().nullable().optional(),
@@ -104,7 +102,7 @@ const retreatSchema = z.object({
   heroSlideshowEnabled: z.boolean().optional(),
   showPublicRating: z.boolean().optional(),
   rewardAlbumEnabled: z.boolean().optional(),
-  rewardAlbumUrl: z.url().max(500).nullable().optional().or(z.literal('').transform(() => null)),
+  rewardAlbumUrl: z.url({ protocol: /^https?$/ }).max(500).nullable().optional().or(z.literal('').transform(() => null)),
   rewardAlbumNote: text(600).optional(),
   aggregateThreshold: z.number().int().min(3).max(50).optional(),
   feedbackCategories: z.array(categorySchema).max(20).optional(),
@@ -215,8 +213,9 @@ adminRouter.post(
     if (existing) throw new HttpError(409, 'That person is already a member')
     await prisma.membership.create({ data: { userId: user.id, organisationId: t.org.id, role: body.role } })
     await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'member.added', entityType: 'user', entityId: user.id, metadata: { role: body.role } })
-    const setupUrl = user.passwordHash ? null : `${env.WEB_ORIGIN}/admin/setup/${await issueSetupToken(user.id)}`
-    res.status(201).json({ setupUrl })
+    // No setup (password) link: it would let an owner take over any existing account by adding its
+    // address. The person signs in with their own email (a one-time code or Google) instead.
+    res.status(201).json({ setupUrl: null })
   }),
 )
 

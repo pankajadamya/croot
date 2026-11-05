@@ -14,7 +14,14 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   if (typeof err === 'object' && err && 'type' in err && (err as { type: string }).type === 'entity.too.large') {
     return res.status(413).json({ error: 'That request is too large.' })
   }
-  // Log without request bodies or tokens.
+  if (typeof err === 'object' && err && 'type' in err && (err as { type: string }).type === 'entity.parse.failed') {
+    return res.status(400).json({ error: 'That request could not be read.' })
+  }
+  // Log without request bodies or tokens; for unexpected errors, the message and stack only.
+  if (err instanceof Error) {
+    console.error(`Unhandled error on ${req.method} ${redactPath(req.originalUrl)}: ${err.name}: ${err.message}\n${err.stack ?? ''}`)
+    return res.status(500).json({ error: 'Something went wrong. Please try again.' })
+  }
   console.error(`Unhandled error on ${req.method} ${redactPath(req.originalUrl)}:`, err)
   res.status(500).json({ error: 'Something went wrong. Please try again.' })
 }

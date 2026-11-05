@@ -57,8 +57,9 @@ describe('invitations', () => {
     const { org, retreat } = await makeTenant('alpha')
     const { token } = await invite(org.id, retreat.id)
     await submitStory(token, '', {})
+    // Asking again with only the invitation link doesn't reveal the private link (see security.test.ts).
     const again = await request(app).post(`/api/invites/${token}/submit`).send({ revision: 0 })
-    expect(again.body.alreadySubmitted).toBe(true)
+    expect(again.status).toBe(401)
     expect(await prisma.response.count()).toBe(1)
   })
 })

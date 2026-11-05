@@ -7,7 +7,7 @@ import helmet from 'helmet'
 import { env, isProduction } from './lib/env.js'
 import { HttpError } from './lib/http.js'
 import { accessLog } from './lib/logger.js'
-import { poolStats, prisma } from './lib/prisma.js'
+import { prisma } from './lib/prisma.js'
 import { loadSession, requireCsrf, requireUser } from './middleware/auth.js'
 import { errorHandler } from './middleware/errors.js'
 import { accountRouter } from './modules/account.js'
@@ -55,7 +55,7 @@ export function createApp() {
   app.get('/health/ready', async (_req, res) => {
     try {
       await prisma.$queryRaw`SELECT 1`
-      res.json({ ok: true, db: 'up', pool: poolStats() })
+      res.json({ ok: true, db: 'up' })
     } catch {
       res.status(503).json({ ok: false, db: 'down' })
     }
@@ -90,7 +90,7 @@ export function createApp() {
   if (existsSync(dist)) {
     app.use(express.static(dist, { index: false, maxAge: '1h' }))
     app.get(/^(?!\/api\/|\/media\/|\/health\/).*/, (req: Request, res: Response) => {
-      if (/^\/(invite|response|admin|platform|interest|album)/.test(req.path)) {
+      if (/^\/(invite|response|admin|platform|interest|album|my-reviews|signin|organiser)/.test(req.path)) {
         res.set('X-Robots-Tag', 'noindex, nofollow')
       }
       res.set('Cache-Control', 'no-cache')

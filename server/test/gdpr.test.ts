@@ -2,6 +2,7 @@ import request from 'supertest'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { runRetention } from '../src/jobs/retention.js'
 import { hashPassword } from '../src/lib/password.js'
+import { testOutbox } from '../src/lib/mailer.js'
 import { closeDatabase, prisma } from '../src/lib/prisma.js'
 import { app, invite, login, makeTenant, resetDatabase } from './helpers.js'
 
@@ -17,11 +18,16 @@ async function submitted(token: string, story = 'A calm and kind week.', consent
 }
 
 describe('guest rights', () => {
-  it('keeps one private response link: asking again re-shows the same working link', async () => {
+  it('keeps one private response link: the signed-in guest asking again gets the same working link', async () => {
     const { org, retreat } = await makeTenant('alpha')
     const { token } = await invite(org.id, retreat.id, 'Ivy Guest', 'ivy@example.test')
     const first = await submitted(token)
-    const again = (await request(app).post(`/api/invites/${token}/submit`).send({ revision: 0 })).body.receiptToken
+    // The guest, signed in with the address they were invited on, gets the same link back.
+    const guest = request.agent(app)
+    await guest.post('/api/auth/code/request').send({ email: 'ivy@example.test' })
+    const code = /(\d{6})/.exec(testOutbox.at(-1)?.text ?? '')?.[1]
+    await guest.post('/api/auth/code/verify').send({ email: 'ivy@example.test', code })
+    const again = (await guest.post(`/api/invites/${token}/submit`).send({ revision: 0 })).body.receiptToken
     expect(again).toBe(first)
     expect((await request(app).get(`/api/responses/${first}`)).status).toBe(200)
   })

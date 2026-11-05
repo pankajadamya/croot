@@ -237,14 +237,16 @@ platformRouter.post(
     const body = parseBody(z.object({ name: text(120), slug: z.string().max(48).optional(), ownerEmail: z.email(), ownerName: text(120) }), req.body)
     const slug = await availableSlug(body.slug || body.name)
     const email = body.ownerEmail.toLowerCase()
-    const { org, user } = await prisma.$transaction(async (tx) => {
+    const { org, user, isNew } = await prisma.$transaction(async (tx) => {
       const org = await tx.organisation.create({ data: { slug, name: body.name, contactEmail: email } })
-      const user = (await tx.user.findUnique({ where: { email } })) ?? (await tx.user.create({ data: { email, name: body.ownerName } }))
+      const found = await tx.user.findUnique({ where: { email } })
+      const user = found ?? (await tx.user.create({ data: { email, name: body.ownerName } }))
       await tx.membership.create({ data: { userId: user.id, organisationId: org.id, role: 'owner' } })
       await audit({ organisationId: org.id, actorUserId: req.auth!.user.id, actorKind: 'platform', action: 'tenant.created', entityType: 'organisation', entityId: org.id }, tx)
-      return { org, user }
+      return { org, user, isNew: !found }
     })
-    const setupUrl = user.passwordHash ? null : `${env.WEB_ORIGIN}/admin/setup/${await issueSetupToken(user.id)}`
+    // A setup link only for an account made just now: never for an existing account (it could be anyone's).
+    const setupUrl = isNew && !user.isPlatformAdmin ? `${env.WEB_ORIGIN}/admin/setup/${await issueSetupToken(user.id)}` : null
     res.status(201).json({ organisation: { id: org.id, slug: org.slug, name: org.name }, setupUrl })
   }),
 )

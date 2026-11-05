@@ -90,7 +90,7 @@ async function availableSlug(wanted: string) {
 
 const createSchema = z.object({
   name: text(120).refine((v) => v.length >= 2, 'Enter your organisation’s name'),
-  websiteUrl: z.url().max(300).optional().or(z.literal('').transform(() => undefined)),
+  websiteUrl: z.url({ protocol: /^https?$/ }).max(300).optional().or(z.literal('').transform(() => undefined)),
   acceptTerms: z.literal(true, { error: 'Please accept the data processing terms' }),
 })
 

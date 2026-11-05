@@ -18,7 +18,7 @@ export const organiserDetailsSchema = z.object({
   contactName: text(120).refine((v) => v.length >= 2, 'Enter your full name'),
   phone: text(40).refine((v) => v === '' || /^[+()\d\s.-]{6,}$/.test(v), 'Enter a valid phone number').optional(),
   orgName: text(120).refine((v) => v.length >= 2, 'Enter your organisation or business name'),
-  websiteUrl: z.url().max(300).optional().or(z.literal('').transform(() => undefined)),
+  websiteUrl: z.url({ protocol: /^https?$/ }).max(300).optional().or(z.literal('').transform(() => undefined)),
   country: text(80).optional(),
   reviewKinds: z.array(z.enum(['itinerary', 'property'])).min(1, 'Choose at least one').max(2),
   volume: text(200).optional(),

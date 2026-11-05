@@ -77,10 +77,10 @@ export async function verifyCode(rawEmail: string, code: string): Promise<Verify
   const email = normaliseEmail(rawEmail)
   const row = await prisma.loginCode.findFirst({ where: { email, consumedAt: null }, orderBy: { createdAt: 'desc' } })
   if (!row || row.expiresAt < new Date() || row.attempts >= MAX_ATTEMPTS) return { ok: false }
-  if (!/^\d{6}$/.test(code) || !safeEqual(hmac(email, code), row.codeHash)) {
-    await prisma.loginCode.update({ where: { id: row.id }, data: { attempts: { increment: 1 } } })
-    return { ok: false }
-  }
+  // Claim one attempt first, atomically: concurrent guesses can't get past the limit.
+  const claimed = await prisma.loginCode.updateMany({ where: { id: row.id, attempts: { lt: MAX_ATTEMPTS } }, data: { attempts: { increment: 1 } } })
+  if (!claimed.count) return { ok: false }
+  if (!/^\d{6}$/.test(code) || !safeEqual(hmac(email, code), row.codeHash)) return { ok: false }
   // Single use, and race-safe: only one request can consume it.
   const consumed = await prisma.loginCode.updateMany({ where: { id: row.id, consumedAt: null }, data: { consumedAt: new Date() } })
   if (!consumed.count) return { ok: false }

@@ -1,0 +1,14 @@
+# Public retreat pages, stories and organiser pages may be indexed.
+# Everything personal (invitations, private response pages, albums, sign-in, admin) stays out.
+User-agent: *
+Disallow: /invite/
+Disallow: /response/
+Disallow: /album/
+Disallow: /interest/
+Disallow: /my-reviews
+Disallow: /signin
+Disallow: /organiser/
+Disallow: /admin
+Disallow: /platform
+Disallow: /api/
+Disallow: /media/

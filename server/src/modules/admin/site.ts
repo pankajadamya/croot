@@ -28,7 +28,7 @@ const contentSchema = z.object({
   headline: text(160),
   introParagraphs: z.array(text(800)).max(3),
   ctaLabel: text(60).default(''),
-  ctaUrl: z.union([z.url(), z.literal('')]).default(''),
+  ctaUrl: z.union([z.url({ protocol: /^https?$/ }), z.literal('')]).default(''),
 })
 
 siteRouter.get(

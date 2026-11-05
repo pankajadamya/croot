@@ -25,7 +25,7 @@ export interface ProcessedImage {
  * orientation in first so the stripped copies still display the right way up.
  */
 export async function processImage(input: Buffer): Promise<ProcessedImage> {
-  let meta: sharp.Metadata
+  let meta: Awaited<ReturnType<ReturnType<typeof sharp>["metadata"]>>
   try {
     meta = await sharp(input, { limitInputPixels: MAX_INPUT_PIXELS }).metadata()
   } catch {

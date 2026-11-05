@@ -454,6 +454,10 @@ reviewRoutes.post(
 
     // Idempotent: asking again after sending re-shows the same private link (it never changes).
     if (r.response?.status === 'submitted') {
+      // Anyone holding a forwarded invitation must not get the private link (it can erase and export).
+      if (!signedInAsGuest(req, r)) {
+        throw new HttpError(401, 'Sign in with the email address you were invited on to open your private response page.', { signInRequired: true })
+      }
       const receiptToken = receiptTokenFor(r.response.id)
       await prisma.response.update({ where: { id: r.response.id }, data: { receiptTokenHash: hashToken(receiptToken) } })
       return res.json({ receiptToken, alreadySubmitted: true })

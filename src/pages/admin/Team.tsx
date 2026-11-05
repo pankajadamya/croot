@@ -83,7 +83,7 @@ export default function Team() {
                   </td>
                   <td>{m.role === 'owner' ? 'Owner' : 'Organiser'}</td>
                   <td>
-                    {!m.active ? <span className="badge danger">Disabled</span> : m.hasPassword ? <span className="badge ok">Active</span> : <span className="badge warn">Setup pending</span>}
+                    {!m.active ? <span className="badge danger">Disabled</span> : m.lastLoginAt || m.hasPassword ? <span className="badge ok">Active</span> : <span className="badge warn">Not signed in yet</span>}
                   </td>
                   <td className="small">{m.lastLoginAt ? formatDateTime(m.lastLoginAt) : 'Never'}</td>
                   {isOwner && (
@@ -137,7 +137,7 @@ export default function Team() {
             <OneTimeLinkNotice title={`Setup link for ${setupUrl.name}`} url={setupUrl.url} onDismiss={() => setSetupUrl(null)} />
           ) : (
             <div className="notice ok" role="status">
-              {setupUrl.name} already has a Croot account and can sign in straight away.
+              {setupUrl.name} is on the team. They sign in with their email address ({form.email || 'the one you entered'}): we send them a one-time code, or they can use Google.
             </div>
           )}
         </div>

@@ -3,7 +3,19 @@ import { useCallback, useEffect, useState } from 'react'
 const VOTER_KEY = 'croot.visitor'
 let memoryVoter: string | null = null
 
-/** A random, anonymous id for this browser, so it can heart each photo once. Nothing else is kept. */
+/** This browser's visitor id if it has already voted; never creates one (viewing a page stores nothing). */
+export function existingVisitorId(): string | null {
+  if (memoryVoter) return memoryVoter
+  try {
+    const existing = window.localStorage.getItem(VOTER_KEY)
+    if (existing && /^[A-Za-z0-9_-]{22,64}$/.test(existing)) return existing
+  } catch {
+    /* storage blocked */
+  }
+  return null
+}
+
+/** A random, anonymous id for this browser, so it can heart each photo once. Created on the first tap. */
 export function visitorId() {
   try {
     const existing = window.localStorage.getItem(VOTER_KEY)
@@ -48,7 +60,9 @@ export function useHearts(pageUrl: string, photos: Array<{ id: string; hearts: n
   useEffect(() => {
     if (!api || !ids) return
     let live = true
-    postJson<{ hearted: string[] }>(`${api}/hearts/mine`, { voter: visitorId(), photoIds: ids.split(',') })
+    const voter = existingVisitorId()
+    if (!voter) return
+    postJson<{ hearted: string[] }>(`${api}/hearts/mine`, { voter, photoIds: ids.split(',') })
       .then((r) => live && setMine(new Set(r.hearted)))
       .catch(() => {})
     return () => {

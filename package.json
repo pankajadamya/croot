@@ -43,9 +43,9 @@
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router": "^7.9.4",
-    "sharp": "^0.34.4",
+    "sharp": "^0.35.5",
     "tsx": "^4.23.0",
-    "zod": "~4.4.3"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.15",

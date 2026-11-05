@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { postJson, visitorId } from './Hearts'
+import { existingVisitorId, postJson, visitorId } from './Hearts'
 
 /**
  * "Found this review helpful" for a set of published stories. Same one-per-browser visitor id as
@@ -12,9 +12,10 @@ export function useHelpful(stories: Array<{ slug: string; helpful: number }>) {
   const slugs = stories.map((s) => s.slug).join(',')
 
   useEffect(() => {
-    if (!slugs) return
+    const voter = existingVisitorId()
+    if (!slugs || !voter) return
     let live = true
-    postJson<{ helpful: string[] }>('/api/public/stories/helpful/mine', { voter: visitorId(), slugs: slugs.split(',') })
+    postJson<{ helpful: string[] }>('/api/public/stories/helpful/mine', { voter, slugs: slugs.split(',') })
       .then((r) => live && setMine(new Set(r.helpful)))
       .catch(() => {})
     return () => {

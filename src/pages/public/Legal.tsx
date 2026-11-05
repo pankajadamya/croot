@@ -64,7 +64,7 @@ function PlatformPrivacy() {
         <li>Sessions expire after inactivity and are deleted automatically. Audit records follow each organisation’s retention setting.</li>
       </ul>
       <h2>Sub-processors and transfers</h2>
-      <p>Hosting: {PLATFORM_OPERATOR.hosting}. Email delivery: our transactional email provider (Resend, to confirm). Optional sign-in: Google (only if you choose it). We do not use advertising, analytics or tracking services. Any change is announced to organisers in advance.</p>
+      <p>Hosting: {PLATFORM_OPERATOR.hosting}. Email delivery: Amazon Web Services (Amazon Simple Email Service). Optional sign-in: Google (only if you choose it). We do not use advertising, analytics or tracking services. Any change is announced to organisers in advance.</p>
       <h2>Your rights and complaints</h2>
       <p>
         You can access, correct, delete, restrict, object to or port your information by emailing us. You may also complain to the UK Information
@@ -114,7 +114,7 @@ function Cookies() {
           </thead>
           <tbody>
             <tr>
-              <td>croot_session</td>
+              <td>__Host-croot_session</td>
               <td>Keeps you signed in (strictly necessary)</td>
               <td>Up to 12 hours of inactivity</td>
             </tr>
@@ -132,9 +132,14 @@ function Cookies() {
         added, they will stay off guest pages and require consent first.
       </p>
       <p>
-        When you heart a photo in an album, your browser keeps a random visitor ID in its local storage (<code>croot.visitor</code>) so you can
-        heart each photo once and take it back. It isn’t a cookie, isn’t linked to you, and is used for nothing else; we store only a scrambled
-        form of it with each heart. Clearing your browser’s site data removes it.
+        The first time you heart a photo or mark a review as helpful, your browser keeps a random visitor ID in its local storage
+        (<code>croot.visitor</code>) so you can do each once and take it back. Just viewing a page stores nothing. It isn’t a cookie, isn’t
+        linked to you, and is used for nothing else; we store only a scrambled form of it with each vote. Clearing your browser’s site data
+        removes it.
+      </p>
+      <p>
+        While you write an anonymous note in a review form, its draft is kept in this tab’s session storage so a reload doesn’t lose it. It is
+        cleared when the note is sent or the tab is closed, and never leaves your browser until you send it.
       </p>
     </Shell>
   )
