@@ -58,7 +58,7 @@ export function HelpfulButton({ on, count, onToggle }: { on: boolean; count: num
   return (
     <div className="helpful-row">
       <span className="helpful-prompt" aria-live="polite">
-        {on ? 'Thanks, that helps other guests decide.' : count > 0 ? `${count} ${count === 1 ? 'person' : 'people'} found this helpful. Did you?` : 'Did this review help you?'}
+        {on ? 'Thanks, that helps other guests decide.' : 'Did this review help you?'}
       </span>
       <button type="button" className={`helpful-btn ${on ? 'on' : ''}`} aria-pressed={on} onClick={onToggle}>
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">

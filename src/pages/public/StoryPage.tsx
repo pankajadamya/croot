@@ -128,6 +128,11 @@ export default function StoryPage() {
               </div>
               <div className="row" style={{ marginTop: '1.25rem' }}>
                 <HelpfulButton on={helpful.voted(story.slug)} count={helpful.count({ slug: story.slug, helpful: story.helpful })} onToggle={() => void helpful.toggle({ slug: story.slug, helpful: story.helpful })} />
+                {helpful.message && (
+                  <p className="notice error small" role="alert" style={{ flexBasis: '100%', margin: 0 }}>
+                    {helpful.message}
+                  </p>
+                )}
                 <Link to={retreatPath} className="btn secondary small">
                   ← All stories from this retreat
                 </Link>

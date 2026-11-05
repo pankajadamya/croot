@@ -6,7 +6,7 @@ import { get } from '../../lib/api'
 import { formatDate } from '../../lib/format'
 import { RetreatDetails, type RetreatFacts } from '../../components/RetreatDetails'
 import { HeroSlideshow } from '../../components/HeroSlideshow'
-import { InterestDialog, InterestSignup } from '../../components/InterestSignup'
+import { InterestDialog } from '../../components/InterestSignup'
 import { HeartButton, useHearts } from '../../components/Hearts'
 import { HelpfulButton, useHelpful } from '../../components/Helpful'
 import { Stars, formatRating } from '../../components/Stars'
@@ -85,6 +85,26 @@ export function AlbumPromo({ album, title }: { album: PublicAlbum; title: string
   )
 }
 
+/** Copies a story's own address, to share it. */
+function CopyStoryLink({ slug }: { slug: string }) {
+  const [done, setDone] = useState(false)
+  const url = `${window.location.origin}/stories/${slug}`
+  return (
+    <button
+      type="button"
+      className="link-button"
+      onClick={() =>
+        void navigator.clipboard.writeText(url).then(
+          () => setDone(true),
+          () => window.prompt('Copy the story link:', url),
+        )
+      }
+    >
+      {done ? 'Link copied' : 'Copy link'}
+    </button>
+  )
+}
+
 export function SiteFooter({ retreat, orgSlug }: { retreat: RetreatFacts; orgSlug: string }) {
   return (
     <footer className="site-footer">
@@ -129,20 +149,9 @@ export default function RetreatLanding() {
       </a>
       <SiteHeader org={d.org} />
       <main id="main">
-        {/* Contact and practical details first, so they're easy to find. */}
-        {/* The photo album leads, with the retreat's details in a narrow card beside it. */}
-        <section className="container landing-top">
-          <RetreatDetails retreat={d.retreat} organiser={{ name: d.org.name, websiteUrl: d.org.websiteUrl ?? null, retreatsPath: `/o/${d.org.slug}`, onGetUpdates: () => setUpdatesOpen(true) }} />
-          <InterestDialog open={updatesOpen} onClose={() => setUpdatesOpen(false)} orgSlug={d.org.slug} orgName={d.org.name} retreatSlug={d.retreat.slug} />
-        </section>
-
-        {/* Photos on the left, the organiser's own words on the right (stacked on small screens). */}
-        <section className={`container landing-hero ${d.hero.length ? '' : 'no-photos'}`}>
-          {d.hero.length > 0 && (
-            <div className="landing-photos" aria-label="Retreat photos">
-              <HeroSlideshow slides={d.hero} />
-            </div>
-          )}
+        {/* Who and what first: the organiser's title, the rating and their own words, with the practical
+            details in a narrow card beside them. */}
+        <section className="container landing-intro">
           <div className="landing-opening">
             {/* Organiser-written opening, visually distinct from guest testimony. */}
             <p className="eyebrow">From {d.retreat.organiserName || d.org.name}</p>
@@ -153,11 +162,12 @@ export default function RetreatLanding() {
                 <strong>{formatRating(d.rating.average)}</strong>
                 <span className="muted">
                   from {d.rating.count} guest review{d.rating.count === 1 ? '' : 's'}
+                  {d.rating.count < 5 ? ' so far' : ''}
                 </span>
               </a>
             )}
             <div className="organiser-voice">
-              {d.content?.introParagraphs.map((p) => <p key={p}>{p}</p>)}
+              {d.content?.introParagraphs.map((para) => <p key={para}>{para}</p>)}
               {d.content?.ctaLabel && d.content.ctaUrl && (
                 <a className="btn" href={d.content.ctaUrl} target="_blank" rel="noopener noreferrer">
                   {d.content.ctaLabel}
@@ -165,24 +175,38 @@ export default function RetreatLanding() {
               )}
             </div>
           </div>
+          <aside className="landing-details" aria-label="Practical details">
+            <RetreatDetails
+              retreat={d.retreat}
+              organiser={{
+                name: d.org.name,
+                websiteUrl: d.org.websiteUrl ?? null,
+                retreatsPath: `/o/${d.org.slug}`,
+                onGetUpdates: () => setUpdatesOpen(true),
+                quietWebsite: Boolean(d.content?.ctaLabel && d.content.ctaUrl),
+              }}
+            />
+          </aside>
+          <InterestDialog open={updatesOpen} onClose={() => setUpdatesOpen(false)} orgSlug={d.org.slug} orgName={d.org.name} retreatSlug={d.retreat.slug} />
         </section>
 
-        <div className="container" id="next-retreat" style={{ marginTop: 'clamp(2rem, 5vw, 3rem)' }}>
-          <InterestSignup orgSlug={d.org.slug} orgName={d.org.name} retreatSlug={d.retreat.slug} />
-        </div>
+        {d.hero.length > 0 && (
+          <section className="container landing-gallery" aria-label="Retreat photos">
+            <HeroSlideshow slides={d.hero} />
+          </section>
+        )}
 
         {/* Guest reviews last, each with the photos that guest chose to publish. */}
         <section className="container landing-reviews" aria-labelledby="reviews-title">
           <div className="reviews-head">
             <h2 id="reviews-title">What guests are saying</h2>
-            {d.rating && (
-              <span className="rating-summary small-summary">
-                <Stars value={d.rating.average} />
-                <strong>{formatRating(d.rating.average)}</strong>
-                <span className="muted">· {d.rating.count} rated</span>
-              </span>
-            )}
+            <span className="small muted">Every review comes from a guest the organiser invited. Their words are never edited.</span>
           </div>
+          {(hearts.message || helpful.message) && (
+            <p className="notice error small" role="alert">
+              {hearts.message || helpful.message}
+            </p>
+          )}
           {d.stories.length === 0 ? (
             <p className="muted">No guest stories have been published yet.</p>
           ) : (
@@ -196,11 +220,13 @@ export default function RetreatLanding() {
                         {(s.displayName ?? 'G').slice(0, 1).toUpperCase()}
                       </span>
                       <span>
-                        <span className="review-name">{s.displayName ?? 'A retreat guest'}</span>
+                        <span className="review-name">
+                          {s.displayName ?? 'A retreat guest'} <span className="review-badge">Invited by the organiser</span>
+                        </span>
                         {s.postedAt && (
-                          <time className="review-date" dateTime={s.postedAt}>
-                            {formatDate(s.postedAt)}
-                          </time>
+                          <Link className="review-date" to={`/stories/${s.slug}`} title="Open this story on its own page">
+                            <time dateTime={s.postedAt}>{formatDate(s.postedAt)}</time>
+                          </Link>
                         )}
                       </span>
                     </header>
@@ -220,6 +246,10 @@ export default function RetreatLanding() {
                         ))}
                     </div>
                     <HelpfulButton on={helpful.voted(s.slug)} count={helpful.count({ slug: s.slug, helpful: s.helpful ?? 0 })} onToggle={() => void helpful.toggle({ slug: s.slug, helpful: s.helpful ?? 0 })} />
+                    <div className="review-links">
+                      <Link to={`/stories/${s.slug}`}>Open story →</Link>
+                      <CopyStoryLink slug={s.slug} />
+                    </div>
                   </article>
                   {s.photos && s.photos.length > 0 && (
                     <div className={`review-photos count-${Math.min(s.photos.length, 4)}`}>

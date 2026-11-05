@@ -94,7 +94,7 @@ function Fact({ icon, children }: { icon: keyof typeof ICONS; children: ReactNod
 }
 
 /** Compact facts panel, always open. Only confirmed facts; no invented session times. */
-export function RetreatDetails({ retreat, organiser }: { retreat: RetreatFacts; organiser?: { name: string; websiteUrl: string | null; retreatsPath?: string; onGetUpdates?: () => void } }) {
+export function RetreatDetails({ retreat, organiser }: { retreat: RetreatFacts; organiser?: { name: string; websiteUrl: string | null; retreatsPath?: string; onGetUpdates?: () => void; quietWebsite?: boolean } }) {
   const website = retreat.retreatPageUrl || organiser?.websiteUrl || null
   const itinerary = retreat.itineraryUrl && retreat.itineraryUrl !== website ? retreat.itineraryUrl : null
   const dates = retreat.kind === 'itinerary' ? formatRange(retreat.startDate, retreat.endDate) : ''
@@ -137,7 +137,7 @@ export function RetreatDetails({ retreat, organiser }: { retreat: RetreatFacts; 
       {(website || itinerary) && (
         <div className="rd-links">
           {website && (
-            <a className="btn rd-btn" href={website} rel="noopener noreferrer" target="_blank">
+            <a className={`btn rd-btn ${organiser?.quietWebsite ? 'secondary' : ''}`} href={website} rel="noopener noreferrer" target="_blank">
               <Icon name="globe" />
               Website
               <Icon name="external" size={15} />

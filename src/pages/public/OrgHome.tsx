@@ -38,16 +38,15 @@ export function OrgSite({ orgSlug }: { orgSlug: string }) {
   const data = q.data!
   return (
     <div className="calm">
+      <a href="#main" className="skip-link">
+        Skip to content
+      </a>
       <SiteHeader org={data.org} />
-      <main className="container" style={{ padding: '1.5rem 0 4rem' }}>
-        <p className="eyebrow">{data.org.name}</p>
+      <main id="main" className="container" style={{ padding: '1.5rem 0 3rem' }}>
         <h1>Retreats by {data.org.name}</h1>
         <p className="muted" style={{ maxWidth: '60ch' }}>
           Each page has the organiser’s own introduction and the stories guests have chosen to publish.
         </p>
-        <div style={{ margin: '1.5rem 0' }}>
-          <InterestSignup orgSlug={orgSlug} orgName={data.org.name} />
-        </div>
         {data.retreats.length === 0 ? (
           <p className="muted">Retreats will appear here once they’re open.</p>
         ) : (
@@ -55,16 +54,17 @@ export function OrgSite({ orgSlug }: { orgSlug: string }) {
             {data.retreats.map((r) => (
               <li key={r.slug}>
                 <Link to={`/o/${orgSlug}/r/${r.slug}`} className="retreat-tile">
-                  <div className="retreat-tile-image">
-                    {r.image ? (
+                  {/* With a photo, it leads; without one, the card is text-first rather than an empty frame. */}
+                  {r.image ? (
+                    <div className="retreat-tile-image">
                       <img src={r.image.url} alt="" loading="lazy" style={{ objectPosition: `${r.image.focalX * 100}% ${r.image.focalY * 100}%` }} />
-                    ) : (
-                      <span className="retreat-tile-placeholder" aria-hidden="true">
-                        {r.title.slice(0, 1)}
-                      </span>
-                    )}
-                    <span className="retreat-tile-kind">{REVIEW_KINDS[r.kind].short}</span>
-                  </div>
+                      <span className="retreat-tile-kind">{REVIEW_KINDS[r.kind].short}</span>
+                    </div>
+                  ) : (
+                    <div className="retreat-tile-band">
+                      <span className="retreat-tile-kind">{REVIEW_KINDS[r.kind].short}</span>
+                    </div>
+                  )}
                   <div className="retreat-tile-body">
                     <h2>{r.title}</h2>
                     <p className="retreat-tile-meta">
@@ -86,7 +86,20 @@ export function OrgSite({ orgSlug }: { orgSlug: string }) {
             ))}
           </ul>
         )}
+        <div style={{ marginTop: 'clamp(2rem, 5vw, 3rem)' }}>
+          <InterestSignup orgSlug={orgSlug} orgName={data.org.name} />
+        </div>
       </main>
+      <footer className="site-footer">
+        <div className="container spread small muted">
+          <span>Stories are published with each guest’s permission and shown exactly as they wrote them.</span>
+          <span className="row">
+            <Link to={`/o/${orgSlug}/privacy`}>Privacy</Link>
+            <Link to="/legal/cookies">Cookies</Link>
+            <span>Powered by Croot</span>
+          </span>
+        </div>
+      </footer>
     </div>
   )
 }

@@ -3643,3 +3643,63 @@ label:has(+ input.sr-only:focus-visible),
   background: rgba(219, 232, 214, 0.15);
   color: #dbe8d6;
 }
+
+/* ---------- retreat page: identity first ---------- */
+.landing-intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  gap: clamp(1.5rem, 4vw, 3rem);
+  align-items: start;
+  margin-top: clamp(1.5rem, 4vw, 2.5rem);
+}
+.landing-intro .landing-opening h1 {
+  margin-top: 0.25rem;
+}
+.landing-details .details-card {
+  position: static;
+}
+.landing-gallery {
+  margin-top: clamp(1.75rem, 4vw, 2.75rem);
+}
+.landing-gallery .hero-slides {
+  aspect-ratio: 16 / 9;
+  max-height: 72vh;
+}
+.review-badge {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--button) 10%, transparent);
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  vertical-align: middle;
+}
+a.review-date {
+  color: var(--muted);
+  text-decoration: none;
+}
+a.review-date:hover {
+  text-decoration: underline;
+}
+.review-links {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.75rem;
+  font-size: 0.92rem;
+}
+@media (max-width: 860px) {
+  .landing-intro {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .landing-gallery .hero-slides {
+    aspect-ratio: 4 / 3;
+  }
+}
+
+.retreat-tile-band {
+  position: relative;
+  height: 64px;
+  background: linear-gradient(135deg, var(--forest), color-mix(in srgb, var(--forest) 70%, #b47b62));
+}
