@@ -6,6 +6,7 @@ import { get } from '../../lib/api'
 import { formatDate } from '../../lib/format'
 import { RetreatDetails, type RetreatFacts } from '../../components/RetreatDetails'
 import { HeroSlideshow } from '../../components/HeroSlideshow'
+import { InterestSignup } from '../../components/InterestSignup'
 import { HeartButton, useHearts } from '../../components/Hearts'
 import { Stars, formatRating } from '../../components/Stars'
 import { ErrorNotice, Loading } from '../../components/States'
@@ -126,7 +127,7 @@ export default function RetreatLanding() {
         {/* The photo album leads, with the retreat's details in a narrow card beside it. */}
         <section className={`container landing-top ${d.album ? 'with-album' : ''}`}>
           {d.album && <AlbumPromo album={d.album} title={`Photos from ${d.retreat.title}`} />}
-          <RetreatDetails retreat={d.retreat} organiser={{ name: d.org.name, websiteUrl: d.org.websiteUrl ?? null, retreatsPath: `/o/${d.org.slug}` }} />
+          <RetreatDetails retreat={d.retreat} organiser={{ name: d.org.name, websiteUrl: d.org.websiteUrl ?? null, retreatsPath: `/o/${d.org.slug}`, interestAnchor: '#next-retreat' }} />
         </section>
 
         {/* Photos on the left, the organiser's own words on the right (stacked on small screens). */}
@@ -159,6 +160,10 @@ export default function RetreatLanding() {
             </div>
           </div>
         </section>
+
+        <div className="container" id="next-retreat" style={{ marginTop: 'clamp(2rem, 5vw, 3rem)' }}>
+          <InterestSignup orgSlug={d.org.slug} orgName={d.org.name} retreatSlug={d.retreat.slug} />
+        </div>
 
         {/* Guest reviews last, each with the photos that guest chose to publish. */}
         <section className="container landing-reviews" aria-labelledby="reviews-title">

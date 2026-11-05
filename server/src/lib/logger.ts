@@ -4,7 +4,7 @@ import type { NextFunction, Request, Response } from 'express'
  * Paths that carry bearer tokens. Their token segment is replaced before anything is logged, so
  * routine logs never contain a working invite, receipt or setup link.
  */
-const TOKEN_PATHS = /\/(invites|invite|responses|response|setup)\/[^/?#]+/g
+const TOKEN_PATHS = /\/(invites|invite|responses|response|setup|interest)\/[^/?#]+/g
 
 export function redactPath(path: string): string {
   return path.replace(TOKEN_PATHS, '/$1/[redacted]').replace(/\?.*$/, '')

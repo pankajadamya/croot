@@ -7,7 +7,8 @@ import { prisma } from '../lib/prisma.js'
 import { livePublication } from '../lib/publication.js'
 import { activeOrgBySlug, publicRetreat, publishedContent, publishedTheme, retreatFacts, tenantForHost } from '../lib/site.js'
 import { storage } from '../lib/storage.js'
-import { anonymousLimiter, heartLimiter } from '../middleware/rateLimits.js'
+import { anonymousLimiter, heartLimiter, publicFormLimiter } from '../middleware/rateLimits.js'
+import { confirmInterest, interestWording, registerInterest, unsubscribeInterest } from '../lib/interest.js'
 import { albumListing, albumPagePath, publicAlbumLink, sendAlbumPhoto, sendAlbumVideo } from '../lib/album.js'
 import { heartCounts, heartedBy, setHeart, voterSchema } from '../lib/hearts.js'
 
@@ -151,6 +152,55 @@ publicRouter.get(
     const retreat = await publicRetreat(org.id, param(req, 'retreatSlug'))
     res.set('Cache-Control', 'public, max-age=30')
     res.json(await albumListing(retreat, null, req.baseUrl + req.path, { pagePath: albumPagePath(org.slug, retreat.slug), publicView: true }))
+  }),
+)
+
+// ---------------------------------------------------------------------------------------------
+// "Tell me about the next retreat": double opt-in sign-ups (see lib/interest.ts).
+
+publicRouter.get(
+  '/orgs/:orgSlug/interest',
+  route(async (req, res) => {
+    const org = await activeOrgBySlug(param(req, 'orgSlug'))
+    res.json({ wording: interestWording(org.name) })
+  }),
+)
+
+publicRouter.post(
+  '/orgs/:orgSlug/interest',
+  publicFormLimiter,
+  route(async (req, res) => {
+    const org = await activeOrgBySlug(param(req, 'orgSlug'))
+    const body = parseBody(
+      z.object({
+        email: z.email('Enter a valid email address').max(200),
+        name: text(100).default(''),
+        retreatSlug: z.string().max(120).optional(),
+        consent: z.literal(true, 'Please tick the box to agree to updates'),
+      }),
+      req.body,
+    )
+    const retreat = body.retreatSlug ? await prisma.retreat.findUnique({ where: { organisationId_slug: { organisationId: org.id, slug: body.retreatSlug } }, select: { id: true } }) : null
+    await registerInterest({ organisationId: org.id, orgName: org.name, retreatId: retreat?.id ?? null, email: body.email, name: body.name })
+    res.set('Cache-Control', 'no-store')
+    // The same answer whether or not the address was already signed up.
+    res.status(202).json({ ok: true })
+  }),
+)
+
+publicRouter.post(
+  '/interest/:token/confirm',
+  route(async (req, res) => {
+    res.set('Cache-Control', 'no-store')
+    res.json(await confirmInterest(String(req.params.token)))
+  }),
+)
+
+publicRouter.post(
+  '/interest/:token/unsubscribe',
+  route(async (req, res) => {
+    res.set('Cache-Control', 'no-store')
+    res.json(await unsubscribeInterest(String(req.params.token)))
   }),
 )
 

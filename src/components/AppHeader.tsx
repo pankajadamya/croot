@@ -61,6 +61,7 @@ export function AppHeader({ session, orgSlug, orgName }: { session: Session; org
             </NavLink>
             <NavLink to={`/admin/${orgSlug}/team`}>Team</NavLink>
             <NavLink to={`/admin/${orgSlug}/privacy`}>Privacy</NavLink>
+            <NavLink to={`/admin/${orgSlug}/interest`}>Interested</NavLink>
             <NavLink to={`/admin/${orgSlug}/audit`}>Audit log</NavLink>
             {session.memberships.length > 1 && (
               <NavLink to="/admin" end>

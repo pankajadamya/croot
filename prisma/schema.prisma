@@ -83,6 +83,7 @@ model Organisation {
   domains     OrgDomain[]
   memberships Membership[]
   retreats    Retreat[]
+  interestSignups InterestSignup[]
 }
 
 /// Custom hostnames (e.g. reviews.balanceandbeyond.co.uk) mapped to a tenant's public site.
@@ -303,6 +304,7 @@ model Retreat {
   themes       ThemeRevision[]
   contents     ContentRevision[]
   anonymousNotes AnonymousNote[]
+  interestSignups InterestSignup[]
 
   @@unique([organisationId, slug])
   @@index([organisationId, status])
@@ -590,6 +592,27 @@ model PhotoHeart {
 
 /// Only the words, which retreat they're about and the day they arrived: no guest, response, invitation,
 /// category or time of day. The id is random, so it carries no order either.
+/// Someone who asked to hear about an organiser's next retreat. Only confirmed rows are emailed;
+/// unsubscribing deletes the row. `retreatId` is the page they signed up from.
+model InterestSignup {
+  id             String        @id @default(uuid()) @db.Uuid
+  organisationId String        @db.Uuid
+  retreatId      String?       @db.Uuid
+  email          String
+  name           String        @default("")
+  /// Hash of the token in their confirm and unsubscribe links.
+  tokenHash      String        @unique
+  /// The words they agreed to, as shown when they signed up.
+  consentWording String
+  confirmedAt    DateTime?
+  lastMailAt     DateTime?
+  createdAt      DateTime      @default(now())
+  organisation   Organisation  @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  retreat        Retreat?      @relation(fields: [retreatId], references: [id], onDelete: SetNull)
+
+  @@unique([organisationId, email])
+}
+
 model AnonymousNote {
   id             String   @id @default(uuid()) @db.Uuid
   organisationId String   @db.Uuid

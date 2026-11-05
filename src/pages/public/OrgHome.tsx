@@ -6,6 +6,7 @@ import { get } from '../../lib/api'
 import { formatRange } from '../../lib/format'
 import { ErrorNotice, Loading } from '../../components/States'
 import { SiteHeader } from './RetreatLanding'
+import { InterestSignup } from '../../components/InterestSignup'
 
 interface OrgPublic {
   org: { slug: string; name: string; websiteUrl?: string | null }
@@ -44,6 +45,9 @@ export function OrgSite({ orgSlug }: { orgSlug: string }) {
         <p className="muted" style={{ maxWidth: '60ch' }}>
           Each page has the organiser’s own introduction and the stories guests have chosen to publish.
         </p>
+        <div style={{ margin: '1.5rem 0' }}>
+          <InterestSignup orgSlug={orgSlug} orgName={data.org.name} />
+        </div>
         {data.retreats.length === 0 ? (
           <p className="muted">Retreats will appear here once they’re open.</p>
         ) : (

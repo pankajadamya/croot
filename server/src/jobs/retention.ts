@@ -20,7 +20,7 @@ const DAY = 86_400_000
 const monthsAgo = (now: Date, m: number) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - m, now.getUTCDate()))
 
 export async function runRetention(now = new Date()) {
-  const counts = { drafts: 0, nonResponders: 0, responsesErased: 0, responsesMinimised: 0, originals: 0, notes: 0, auditEvents: 0, sessions: 0, setupTokens: 0, invitations: 0, tenantRequests: 0, loginCodes: 0 }
+  const counts = { drafts: 0, nonResponders: 0, responsesErased: 0, responsesMinimised: 0, originals: 0, notes: 0, auditEvents: 0, sessions: 0, setupTokens: 0, invitations: 0, tenantRequests: 0, loginCodes: 0, interestUnconfirmed: 0 }
   const orgs = await prisma.organisation.findMany()
 
   for (const org of orgs) {
@@ -104,6 +104,9 @@ export async function runRetention(now = new Date()) {
     counts.notes += (await prisma.anonymousNote.deleteMany({ where: { organisationId: org.id, receivedOn: { lt: monthsAgo(now, org.anonymousNoteRetentionMonths) } } })).count
     counts.auditEvents += (await prisma.auditEvent.deleteMany({ where: { organisationId: org.id, createdAt: { lt: monthsAgo(now, org.auditRetentionMonths) } } })).count
   }
+
+  // Interest sign-ups never confirmed: gone after 30 days.
+  counts.interestUnconfirmed = (await prisma.interestSignup.deleteMany({ where: { confirmedAt: null, createdAt: { lt: new Date(now.getTime() - 30 * DAY) } } })).count
 
   // Platform housekeeping.
   counts.auditEvents += (await prisma.auditEvent.deleteMany({ where: { organisationId: null, createdAt: { lt: monthsAgo(now, 36) } } })).count

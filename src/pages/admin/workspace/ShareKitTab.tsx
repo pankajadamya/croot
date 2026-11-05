@@ -85,6 +85,7 @@ export function ShareKitTab({ orgSlug, retreat }: { orgSlug: string; retreat: Re
   const [previews, setPreviews] = useState<Array<{ url: string; blob: Blob; name: string }>>([])
   const [rendering, setRendering] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
+  const [zoom, setZoom] = useState<number | null>(null)
   const renderRun = useRef(0)
 
   const d = q.data
@@ -324,11 +325,14 @@ export function ShareKitTab({ orgSlug, retreat }: { orgSlug: string; retreat: Re
             </div>
             <div className={`kit-previews ${format}`}>
               {previews.map((p, i) => (
-                <a key={p.url} href={p.url} download={p.name} title="Download this image">
+                <button key={p.url} type="button" className="kit-preview" onClick={() => setZoom(i)} aria-label={`View slide ${i + 1} larger`}>
                   <img src={p.url} alt={`Slide ${i + 1}`} />
-                </a>
+                </button>
               ))}
             </div>
+            {zoom !== null && previews[zoom] && (
+              <SlideViewer previews={previews} index={zoom} onIndex={setZoom} onClose={() => setZoom(null)} />
+            )}
             <div className="row">
               {canShareFiles && (
                 <button type="button" className="btn" disabled={!previews.length || rendering} onClick={() => void share()}>
@@ -403,6 +407,67 @@ function PhotoPicker({
             {i < guestCount && <span className="kit-photo-tag">Guest</span>}
           </button>
         ))}
+      </div>
+    </div>
+  )
+}
+
+/** A slide at full size: arrow keys or the side buttons move between slides; Esc closes. */
+function SlideViewer({
+  previews,
+  index,
+  onIndex,
+  onClose,
+}: {
+  previews: Array<{ url: string; name: string }>
+  index: number
+  onIndex: (i: number) => void
+  onClose: () => void
+}) {
+  const closeRef = useRef<HTMLButtonElement>(null)
+  const count = previews.length
+  useEffect(() => {
+    const prev = document.activeElement as HTMLElement | null
+    closeRef.current?.focus()
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = ''
+      prev?.focus()
+    }
+  }, [])
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+      else if (e.key === 'ArrowRight') onIndex((index + 1) % count)
+      else if (e.key === 'ArrowLeft') onIndex((index - 1 + count) % count)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [index, count, onIndex, onClose])
+  const p = previews[index]
+  return (
+    <div className="kit-viewer" role="dialog" aria-modal="true" aria-label={`Slide ${index + 1} of ${count}`} onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <img src={p.url} alt={`Slide ${index + 1} of ${count}`} />
+      <button ref={closeRef} type="button" className="lightbox-close" onClick={onClose} aria-label="Close">
+        ✕
+      </button>
+      {count > 1 && (
+        <>
+          <button type="button" className="lightbox-edge left" onClick={() => onIndex((index - 1 + count) % count)} aria-label="Previous slide">
+            ‹
+          </button>
+          <button type="button" className="lightbox-edge right" onClick={() => onIndex((index + 1) % count)} aria-label="Next slide">
+            ›
+          </button>
+        </>
+      )}
+      <div className="kit-viewer-bar">
+        <span>
+          {index + 1} / {count}
+        </span>
+        <a className="btn secondary small" href={p.url} download={p.name}>
+          Download this image
+        </a>
       </div>
     </div>
   )

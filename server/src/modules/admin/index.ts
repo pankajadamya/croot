@@ -13,6 +13,7 @@ import { issueSetupToken } from '../auth.js'
 import { attendeesRouter } from './attendees.js'
 import { privacyRouter } from './privacy.js'
 import { responsesRouter } from './responses.js'
+import { interestRouter } from './interest.js'
 import { shareKitRouter } from './shareKit.js'
 import { siteRouter } from './site.js'
 
@@ -22,7 +23,7 @@ import { siteRouter } from './site.js'
  */
 export const adminRouter = Router({ mergeParams: true })
 adminRouter.use(requireOrgMember, requireCsrf)
-adminRouter.use(attendeesRouter, responsesRouter, siteRouter, privacyRouter, shareKitRouter)
+adminRouter.use(attendeesRouter, responsesRouter, siteRouter, privacyRouter, shareKitRouter, interestRouter)
 
 adminRouter.get(
   '/',

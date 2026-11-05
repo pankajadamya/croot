@@ -1,0 +1,84 @@
+import { Router } from 'express'
+import { z } from 'zod'
+import { audit } from '../../lib/audit.js'
+import { toCsv } from '../../lib/csv.js'
+import { HttpError, parseBody, route, text } from '../../lib/http.js'
+import { announcementMail } from '../../lib/interest.js'
+import { sendMail } from '../../lib/mailer.js'
+import { prisma } from '../../lib/prisma.js'
+import { hashToken, newToken } from '../../lib/tokens.js'
+import { tenantOf } from '../../middleware/auth.js'
+
+/** People who asked to hear about the next retreat: the list, an export, and an email to all of them. */
+export const interestRouter = Router({ mergeParams: true })
+
+interestRouter.get(
+  '/interest',
+  route(async (req, res) => {
+    const t = tenantOf(req)
+    const [people, pending, lastSent] = await Promise.all([
+      prisma.interestSignup.findMany({
+        where: { organisationId: t.org.id, confirmedAt: { not: null } },
+        orderBy: { confirmedAt: 'desc' },
+        select: { id: true, email: true, name: true, confirmedAt: true, retreat: { select: { title: true } } },
+      }),
+      prisma.interestSignup.count({ where: { organisationId: t.org.id, confirmedAt: null } }),
+      prisma.auditEvent.findFirst({ where: { organisationId: t.org.id, action: 'interest.emailed' }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } }),
+    ])
+    res.set('Cache-Control', 'no-store')
+    res.json({
+      people: people.map((p) => ({ id: p.id, email: p.email, name: p.name, confirmedAt: p.confirmedAt, from: p.retreat?.title ?? null })),
+      pending,
+      lastSentAt: lastSent?.createdAt ?? null,
+    })
+  }),
+)
+
+interestRouter.get(
+  '/interest.csv',
+  route(async (req, res) => {
+    const t = tenantOf(req)
+    const people = await prisma.interestSignup.findMany({
+      where: { organisationId: t.org.id, confirmedAt: { not: null } },
+      orderBy: { confirmedAt: 'desc' },
+      include: { retreat: { select: { title: true } } },
+    })
+    await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'interest.exported', entityType: 'organisation', entityId: t.org.id, metadata: { count: people.length } })
+    res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="interested-people.csv"', 'Cache-Control': 'no-store' })
+    res.send(
+      toCsv([
+        ['Email', 'Name', 'Signed up from', 'Confirmed', 'Agreed to'],
+        ...people.map((p) => [p.email, p.name, p.retreat?.title ?? '', p.confirmedAt?.toISOString() ?? '', p.consentWording]),
+      ]),
+    )
+  }),
+)
+
+const NOTIFY_GAP_MS = 10 * 60 * 1000
+
+/** Emails everyone confirmed. Each message has its own unsubscribe link. */
+interestRouter.post(
+  '/interest/notify',
+  route(async (req, res) => {
+    const t = tenantOf(req)
+    const body = parseBody(z.object({ subject: text(150).refine((s) => s.length >= 3, 'Add a subject'), message: text(5000).refine((s) => s.length >= 10, 'Write a little more') }), req.body)
+    const last = await prisma.auditEvent.findFirst({ where: { organisationId: t.org.id, action: 'interest.emailed' }, orderBy: { createdAt: 'desc' } })
+    if (last && Date.now() - last.createdAt.getTime() < NOTIFY_GAP_MS) throw new HttpError(429, 'You emailed everyone a few minutes ago. Please wait a little before sending again.')
+    const people = await prisma.interestSignup.findMany({ where: { organisationId: t.org.id, confirmedAt: { not: null } } })
+    let sent = 0
+    let failed = 0
+    for (const p of people) {
+      // A fresh token per mail, so this message's unsubscribe link works (older links stop working).
+      const token = newToken(24)
+      await prisma.interestSignup.update({ where: { id: p.id }, data: { tokenHash: hashToken(token), lastMailAt: new Date() } })
+      try {
+        await sendMail(announcementMail(p.email, t.org.name, token, body.subject, body.message))
+        sent++
+      } catch {
+        failed++
+      }
+    }
+    await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'interest.emailed', entityType: 'organisation', entityId: t.org.id, metadata: { sent, failed, subject: body.subject } })
+    res.json({ sent, failed })
+  }),
+)

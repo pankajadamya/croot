@@ -19,7 +19,7 @@ export interface RetreatFacts {
 }
 
 /** Compact facts panel, always open. Only confirmed facts; no invented session times. */
-export function RetreatDetails({ retreat, organiser }: { retreat: RetreatFacts; organiser?: { name: string; websiteUrl: string | null; retreatsPath?: string } }) {
+export function RetreatDetails({ retreat, organiser }: { retreat: RetreatFacts; organiser?: { name: string; websiteUrl: string | null; retreatsPath?: string; interestAnchor?: string } }) {
   const orgSite = organiser?.websiteUrl && organiser.websiteUrl !== retreat.retreatPageUrl ? organiser.websiteUrl : null
   return (
     <section className="details-card" aria-label={retreat.kind === 'property' ? 'About the property' : 'Retreat details'}>
@@ -79,6 +79,7 @@ export function RetreatDetails({ retreat, organiser }: { retreat: RetreatFacts; 
           {retreat.contact?.email && <a href={`mailto:${retreat.contact.email}`}>Contact the organiser</a>}
           {retreat.contact?.phone && <a href={`tel:${retreat.contact.phone.replace(/\s+/g, '')}`}>{retreat.contact.phone}</a>}
           {organiser?.retreatsPath && <Link to={organiser.retreatsPath}>More retreats by {organiser.name} →</Link>}
+          {organiser?.interestAnchor && <a href={organiser.interestAnchor}>Notify me about the next retreat</a>}
         </div>
       </div>
     </section>

@@ -3153,3 +3153,93 @@ ol.album-admin-grid {
 .kit-story .kit-photos {
   max-width: 100%;
 }
+
+/* "Hear about the next retreat" sign-up. */
+.interest {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: clamp(1.25rem, 3vw, 2rem);
+}
+.interest-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.interest-head h2 {
+  margin: 0 0 0.25rem;
+  font-size: clamp(1.3rem, 2.4vw, 1.7rem);
+}
+.interest-head p {
+  margin: 0;
+}
+.interest-form {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: 1.1rem;
+}
+.interest-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 0.9rem;
+}
+.interest-consent {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  cursor: pointer;
+}
+.interest-consent input {
+  margin-top: 0.3rem;
+}
+@media (max-width: 640px) {
+  .interest-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Share kit: previews open large. */
+.kit-preview {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+  border-radius: 8px;
+}
+.kit-preview:focus-visible {
+  outline: 3px solid var(--button);
+  outline-offset: 3px;
+}
+.kit-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 3.5rem 4.5rem 4.5rem;
+  background: rgba(8, 18, 17, 0.92);
+}
+.kit-viewer > img {
+  max-width: 100%;
+  max-height: calc(100vh - 8rem);
+  object-fit: contain;
+  border-radius: 10px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.kit-viewer-bar {
+  position: absolute;
+  inset: auto 0 1rem 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  color: #ffffff;
+}
+@media (max-width: 640px) {
+  .kit-viewer {
+    padding: 3.5rem 0.75rem 4.5rem;
+  }
+}

@@ -15,6 +15,7 @@ const Receipt = lazy(() => import('./pages/attendee/Receipt'))
 const InviteAlbumPage = lazy(() => import('./pages/attendee/AlbumPage'))
 const ReceiptAlbumPage = lazy(() => import('./pages/attendee/AlbumPage').then((m) => ({ default: m.ReceiptAlbumPage })))
 const SignedInAlbumPage = lazy(() => import('./pages/attendee/AlbumPage').then((m) => ({ default: m.SignedInAlbumPage })))
+const InterestLink = lazy(() => import('./pages/public/InterestLink'))
 const PublicAlbumPage = lazy(() => import('./pages/attendee/AlbumPage').then((m) => ({ default: m.PublicAlbumPage })))
 
 const SignIn = lazy(() => import('./pages/SignIn'))
@@ -30,6 +31,7 @@ const RetreatWorkspace = lazy(() => import('./pages/admin/RetreatWorkspace'))
 const ResponseDetail = lazy(() => import('./pages/admin/ResponseDetail'))
 const Team = lazy(() => import('./pages/admin/Team'))
 const Audit = lazy(() => import('./pages/admin/Audit'))
+const Interested = lazy(() => import('./pages/admin/Interested'))
 const PlatformConsole = lazy(() => import('./pages/platform/PlatformConsole'))
 
 export function App() {
@@ -40,6 +42,8 @@ export function App() {
         <Route path="/o/:orgSlug" element={<OrgHome />} />
         <Route path="/o/:orgSlug/r/:retreatSlug" element={<RetreatLanding />} />
         <Route path="/o/:orgSlug/r/:retreatSlug/album" element={<PublicAlbumPage />} />
+        <Route path="/interest/:token" element={<InterestLink action="confirm" />} />
+        <Route path="/interest/:token/unsubscribe" element={<InterestLink action="unsubscribe" />} />
         <Route path="/stories/:slug" element={<StoryPage />} />
         <Route path="/o/:orgSlug/privacy" element={<PrivacyNotice />} />
         <Route path="/legal/:doc" element={<Legal />} />
@@ -65,6 +69,7 @@ export function App() {
         <Route path="/admin/:orgSlug/responses/:responseId" element={<ResponseDetail />} />
         <Route path="/admin/:orgSlug/team" element={<Team />} />
         <Route path="/admin/:orgSlug/audit" element={<Audit />} />
+        <Route path="/admin/:orgSlug/interest" element={<Interested />} />
         <Route path="/admin/:orgSlug/privacy" element={<AdminPrivacy />} />
         <Route path="/platform" element={<PlatformConsole />} />
 

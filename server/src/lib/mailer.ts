@@ -7,7 +7,7 @@ export interface Mail {
   text: string
   html: string
   /** Becomes an SES message tag, so delivery events can be broken down by kind of mail. */
-  category: 'login_code' | 'organiser'
+  category: 'login_code' | 'organiser' | 'interest'
 }
 
 let ses: SESv2Client | undefined

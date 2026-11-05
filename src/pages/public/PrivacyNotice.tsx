@@ -119,6 +119,11 @@ export default function PrivacyNotice() {
                 <td>Your consent, per photo, which you can withdraw at any time</td>
               </tr>
               <tr>
+                <td>Email (and first name, if given) when you ask to hear about the next retreat</td>
+                <td>To tell you about future retreats</td>
+                <td>Your consent, confirmed from an email; withdraw by unsubscribing</td>
+              </tr>
+              <tr>
                 <td>Anonymous notes</td>
                 <td>To hear concerns you’d rather not attach your name to</td>
                 <td>Legitimate interests. Stored without your name, email or link, and with only the date (no time), so it can be deleted on schedule.</td>
@@ -157,6 +162,7 @@ export default function PrivacyNotice() {
           </li>
           <li>Original photo files: deleted {c.originalPhotoRetentionDays} days after you send them. We keep only web copies with location and camera details removed.</li>
           <li>Anonymous notes: deleted {c.anonymousNoteRetentionMonths} months after they’re sent.</li>
+          <li>Next-retreat updates: deleted as soon as you unsubscribe, or after 30 days if you never confirm.</li>
         </ul>
 
         <h2>Your rights</h2>
