@@ -548,7 +548,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
               <p className="welcome-intro">
                 Share what your time {isProperty ? 'at' : 'on'} {view.retreat.title} meant to you, in your own words.
               </p>
-              <p className="welcome-time">About 10–15 minutes <span aria-hidden="true">·</span> Every question is optional</p>
+              <p className="welcome-time">About 5–10 minutes <span aria-hidden="true">·</span> Every question is optional</p>
               {view.stay && (
                 <fieldset className="stay-dates">
                   <legend>When did you stay?</legend>
