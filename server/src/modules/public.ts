@@ -146,7 +146,7 @@ publicRouter.get(
     res.set('Cache-Control', 'public, max-age=30')
     const response = await prisma.response.findUnique({
       where: { publicSlug: slug },
-      select: { id: true, retreatId: true, retreat: { include: { organisation: { select: { slug: true, name: true, status: true } } } } },
+      select: { id: true, retreatId: true, retreat: { include: { organisation: { select: { slug: true, name: true, status: true, websiteUrl: true } } } } },
     })
     const live = response ? await livePublication(response.id) : null
     const retreat = response?.retreat
@@ -156,12 +156,50 @@ publicRouter.get(
     }
     const photos = await prisma.mediaAsset.findMany({ where: { id: { in: live.photoIds }, publishConsent: true, moderation: 'approved', removedAt: null } })
     const byId = new Map(photos.map((p) => [p.id, p]))
+    const submitted = await prisma.response.findUnique({ where: { id: response.id }, select: { submittedAt: true } })
+
+    // When the guest shared no photos, the viewer uses the organiser's own public retreat photos (in a
+    // shuffled order). Never the thank-you album: that is private to guests who reviewed.
+    const retreatPhotos = (
+      await prisma.mediaAsset.findMany({
+        where: { retreatId: retreat.id, kind: 'organiser', moderation: 'approved', publishConsent: true, removedAt: null },
+        orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+        take: 30,
+      })
+    )
+      .map((m) => ({ m, k: Math.random() }))
+      .sort((a, b) => a.k - b.k)
+      .slice(0, 8)
+      .map(({ m }) => ({ url: `/media/${m.id}`, alt: altFor(m), caption: m.caption, credit: m.credit, focalX: m.focalX, focalY: m.focalY }))
+
+    // "Up next": the retreat's other published stories, newest first.
+    const others = (await liveStories(retreat.id)).filter((s) => s.publicSlug !== slug).slice(0, 6)
+    const otherPhotoIds = others.map((s) => s.photoIds[0]).filter(Boolean)
+    const otherPhotos = new Map(
+      (await prisma.mediaAsset.findMany({ where: { id: { in: otherPhotoIds }, publishConsent: true, moderation: 'approved', removedAt: null } })).map((m) => [m.id, m]),
+    )
+    const more = others.map((s, i) => {
+      const own = s.photoIds[0] ? otherPhotos.get(s.photoIds[0]) : undefined
+      return {
+        slug: s.publicSlug,
+        title: s.title,
+        excerpt: s.excerpt,
+        displayName: s.displayName,
+        postedAt: s.postedAt,
+        overallRating: retreat.showPublicRating ? s.overallRating : null,
+        image: own ? `/media/${own.id}` : (retreatPhotos[i % Math.max(retreatPhotos.length, 1)]?.url ?? null),
+      }
+    })
+
     res.json({
-      org: { slug: retreat.organisation.slug, name: retreat.organisation.name },
+      org: { slug: retreat.organisation.slug, name: retreat.organisation.name, websiteUrl: retreat.organisation.websiteUrl },
       retreat: retreatFacts(retreat),
       theme: await publishedTheme(retreat.id),
+      retreatPhotos,
+      more,
       story: {
         slug,
+        postedAt: submitted?.submittedAt ?? live.createdAt,
         title: live.title,
         text: live.storyText,
         excerpt: live.excerpt,

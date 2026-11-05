@@ -1,20 +1,25 @@
-import { Stars } from '../../components/Stars'
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
 import type { ThemeTokens } from '../../../shared/themes'
 import { ApiError, get } from '../../lib/api'
+import { formatDate } from '../../lib/format'
 import { RetreatDetails, type RetreatFacts } from '../../components/RetreatDetails'
 import { Loading } from '../../components/States'
+import { Stars } from '../../components/Stars'
+import { StoryViewer, type ViewerSlide } from '../../components/StoryViewer'
 import { ThemeScope } from '../../components/ThemeScope'
 import { SiteFooter, SiteHeader } from './RetreatLanding'
 
 interface StoryPublic {
-  org: { slug: string; name: string }
+  org: { slug: string; name: string; websiteUrl?: string | null }
   retreat: RetreatFacts
   theme: ThemeTokens
+  retreatPhotos: Array<{ url: string; alt: string; caption: string; credit: string; focalX: number; focalY: number }>
+  more: Array<{ slug: string; title: string | null; excerpt: string; displayName: string | null; postedAt: string; overallRating: number | null; image: string | null }>
   story: {
     slug: string
+    postedAt: string
     title: string | null
     text: string
     excerpt: string
@@ -24,39 +29,22 @@ interface StoryPublic {
   }
 }
 
-/** Gentle reveal on scroll; content is fully present without it (reduced motion / no JS). */
-function useReveal() {
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const root = ref.current
-    if (!root) return
-    const items = Array.from(root.querySelectorAll<HTMLElement>('.reveal:not(.visible)'))
-    const show = (el: Element) => el.classList.add('visible')
-    if (!('IntersectionObserver' in window)) return items.forEach(show)
-    // Anything already on screen is shown at once; the rest fades in as it scrolls into view.
-    const io = new IntersectionObserver((entries) => entries.forEach((e) => e.isIntersecting && (show(e.target), io.unobserve(e.target))), {
-      rootMargin: '0px 0px -10% 0px',
-    })
-    for (const el of items) {
-      if (el.getBoundingClientRect().top < window.innerHeight) show(el)
-      else io.observe(el)
-    }
-    // Safety net: guest words must never stay hidden if the observer does not fire.
-    const fallback = window.setTimeout(() => items.forEach(show), 1500)
-    return () => {
-      io.disconnect()
-      window.clearTimeout(fallback)
-    }
-  })
-  return ref
+function Avatar({ name }: { name: string | null }) {
+  return (
+    <span className="story-avatar" aria-hidden="true">
+      {(name ?? 'G').slice(0, 1).toUpperCase()}
+    </span>
+  )
 }
+
+const short = (s: string, n: number) => (s.length > n ? `${s.slice(0, n).trimEnd()}…` : s)
 
 export default function StoryPage() {
   const { slug = '' } = useParams()
   const q = useQuery({ queryKey: ['public-story', slug], queryFn: () => get<StoryPublic>(`/api/public/stories/${slug}`), retry: false })
-  const ref = useReveal()
   useEffect(() => {
-    if (q.data) document.title = `${q.data.story.displayName ? `${q.data.story.displayName}’s story` : 'A guest story'} · ${q.data.retreat.title}`
+    if (q.data) document.title = `${q.data.story.title ?? (q.data.story.displayName ? `${q.data.story.displayName}’s story` : 'A guest story')} · ${q.data.retreat.title}`
+    window.scrollTo({ top: 0 })
   }, [q.data])
 
   if (q.isLoading) return <Loading />
@@ -72,59 +60,102 @@ export default function StoryPage() {
       </main>
     )
   }
-  const { org, retreat, theme, story } = q.data!
+  const { org, retreat, theme, story, retreatPhotos, more } = q.data!
   const paragraphs = story.text.split(/\n{2,}|\r\n\r\n/).filter((p) => p.trim())
   const retreatPath = `/o/${org.slug}/r/${retreat.slug}`
+  const name = story.displayName ?? 'A retreat guest'
+
+  // The guest's own photos first; without any, the organiser's photos from the retreat.
+  const own = story.photos.length > 0
+  const slides: ViewerSlide[] = own
+    ? story.photos.map((p) => ({ url: p.url, alt: p.alt || `Photo shared by ${name}`, caption: p.caption }))
+    : retreatPhotos.map((p) => ({ url: p.url, alt: p.alt, caption: p.caption, focalX: p.focalX, focalY: p.focalY }))
+
+  const byline = (
+    <div className="story-byline">
+      <Avatar name={story.displayName} />
+      <span>
+        <span className="story-byline-name">{name}</span>
+        <span className="story-byline-sub">
+          <time dateTime={story.postedAt}>{formatDate(story.postedAt)}</time> · {own ? 'their photos' : 'photos from the retreat'}
+        </span>
+      </span>
+    </div>
+  )
 
   return (
     <ThemeScope tokens={theme}>
-      <a href="#main" className="skip-link">
+      <a href="#story-text" className="skip-link">
         Skip to story
       </a>
       <SiteHeader org={org} />
-      <main id="main" ref={ref}>
-        <article>
-          <header className="chapter" style={{ paddingTop: '2rem' }}>
-            <div className="narrow">
-              <p className="eyebrow">Guest story · {retreat.title}</p>
-              <p className="serif reveal" style={{ fontSize: 'clamp(1.6rem, 3.5vw, 2.6rem)', lineHeight: 1.3 }}>
-                “{story.excerpt}”
-              </p>
-              <p className="muted">{story.displayName ? `Written by ${story.displayName}` : 'Written by a retreat guest'}</p>
-              {story.overallRating ? <p style={{ margin: 0 }}><Stars value={story.overallRating} size={20} /></p> : null}
-            </div>
-          </header>
-          <section className="narrow" aria-labelledby="full-story">
-            <h1 id="full-story" style={{ fontSize: '1.4rem' }}>
-              {story.title || 'In their words'}
-            </h1>
-            <div className="guest-voice">
-              {paragraphs.map((p, i) => (
-                <p key={i} className="reveal" style={{ whiteSpace: 'pre-line' }}>
-                  {p}
-                </p>
-              ))}
-            </div>
-          </section>
-          {story.photos.length > 0 && (
-            <section className="container chapter" aria-label="Photos shared by the guest">
-              <div className="photo-grid">
-                {story.photos.map((p) => (
-                  <figure key={p.url} className="reveal" style={{ margin: 0 }}>
-                    <img src={p.url} alt={p.alt || 'Photo shared by the guest'} width={p.width} height={p.height} loading="lazy" style={{ height: 'auto' }} />
-                    {p.caption && <figcaption className="small muted">{p.caption}</figcaption>}
-                  </figure>
+      <main id="main">
+        <div className="story-theatre">
+          <div className={`container story-layout ${slides.length ? '' : 'no-media'}`}>
+            {slides.length > 0 && (
+              <div className="story-media">
+                <StoryViewer slides={slides} overlay={byline} label={own ? `Photos shared by ${name}` : `Photos from ${retreat.title}`} />
+              </div>
+            )}
+
+            <article className="story-panel" aria-labelledby="story-heading">
+              <div className="story-panel-head">
+                <Avatar name={story.displayName} />
+                <span>
+                  <span className="story-byline-name">{name}</span>
+                  <span className="muted small">
+                    <time dateTime={story.postedAt}>{formatDate(story.postedAt)}</time> · <Link to={retreatPath}>{retreat.title}</Link>
+                  </span>
+                </span>
+              </div>
+              {story.overallRating ? (
+                <div style={{ marginTop: '0.9rem' }}>
+                  <Stars value={story.overallRating} size={22} />
+                </div>
+              ) : null}
+              {/* Without a title the words speak for themselves; the heading stays for screen readers. */}
+              <h1 id="story-heading" className={story.title ? 'story-heading' : 'sr-only'}>
+                {story.title ?? `${name}’s story`}
+              </h1>
+              {!story.title && <div style={{ height: '0.9rem' }} aria-hidden="true" />}
+              <div id="story-text" className="story-words">
+                {paragraphs.map((p, i) => (
+                  <p key={i}>{p}</p>
                 ))}
               </div>
-            </section>
-          )}
-        </article>
-        <section className="narrow chapter stack" aria-label="About the retreat">
-          <p className="eyebrow">From the organiser</p>
-          <RetreatDetails retreat={retreat} />
-          <Link to={retreatPath} className="btn secondary">
-            ← All stories from this retreat
-          </Link>
+              <div className="row" style={{ marginTop: '1.25rem' }}>
+                <Link to={retreatPath} className="btn secondary small">
+                  ← All stories from this retreat
+                </Link>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        {more.length > 0 && (
+          <section className="container story-more" aria-labelledby="more-title">
+            <h2 id="more-title">More stories from {retreat.title}</h2>
+            <ul className="up-next">
+              {more.map((m) => (
+                <li key={m.slug}>
+                  <Link to={`/stories/${m.slug}`} className="up-next-card">
+                    <div className="up-next-thumb">{m.image ? <img src={m.image} alt="" loading="lazy" /> : <span aria-hidden="true">“</span>}</div>
+                    <div className="up-next-body">
+                      <span className="up-next-title">{m.title ?? `“${short(m.excerpt, 80)}”`}</span>
+                      <span className="small muted">
+                        {m.displayName ?? 'A retreat guest'} · {formatDate(m.postedAt)}
+                      </span>
+                      {m.overallRating ? <Stars value={m.overallRating} size={14} /> : null}
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        <section className="container story-about" aria-label="About the retreat">
+          <RetreatDetails retreat={retreat} organiser={{ name: org.name, websiteUrl: org.websiteUrl ?? null, retreatsPath: `/o/${org.slug}` }} />
         </section>
       </main>
       <SiteFooter retreat={retreat} orgSlug={org.slug} />
