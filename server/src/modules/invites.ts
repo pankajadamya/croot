@@ -4,7 +4,7 @@ import { z } from 'zod'
 import type { Invitation, Prisma } from '@prisma/client'
 import { CONSENT_WORDING_VERSION, type FeedbackCategory } from '../../../shared/categories.js'
 import { firstName } from '../../../shared/slug.js'
-import { addContribution, albumListing, albumSummary, sendAlbumPhoto, sendTeaser, setAlbumSharing } from '../lib/album.js'
+import { addContribution, albumListing, albumPagePath, albumSummary, sendAlbumPhoto, sendTeaser, setAlbumSharing } from '../lib/album.js'
 import { altFor } from '../lib/altText.js'
 import { audit } from '../lib/audit.js'
 import { env } from '../lib/env.js'
@@ -363,7 +363,7 @@ reviewRoutes.get(
   route(async (req, res) => {
     const r = current(res)
     res.set('Cache-Control', 'no-store')
-    res.json(await albumListing(r.retreat, r.response, req.baseUrl))
+    res.json(await albumListing(r.retreat, r.response, req.baseUrl, { pagePath: albumPagePath(r.retreat.organisation.slug, r.retreat.slug) }))
   }),
 )
 

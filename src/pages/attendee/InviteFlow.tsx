@@ -831,7 +831,7 @@ function PhotoManager({
                 <Switch
                   checked={Boolean(p.albumConsent)}
                   onChange={(v) => void change(p, { albumConsent: v })}
-                  label="Also share in the group photo album"
+                  label="Also share publicly in the retreat photo album"
                   description={CONSENT_WORDING.albumPhoto}
                 />
               )}

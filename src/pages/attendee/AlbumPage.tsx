@@ -16,7 +16,7 @@ interface AlbumPhoto {
   mine: boolean
 }
 interface AlbumListing {
-  shareUrl: string
+  pageUrl: string
   title: string
   note: string | null
   url: string | null
@@ -74,7 +74,7 @@ function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { ba
   }
 
   async function share() {
-    const url = new URL(album.shareUrl, window.location.origin).toString()
+    const url = new URL(album.pageUrl, window.location.origin).toString()
     const data = { title: `Photo album · ${album.title}`, url }
     try {
       if (navigator.share && navigator.canShare?.(data)) {
@@ -145,7 +145,7 @@ function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { ba
           <div className="album-contribute">
             <div>
               <h2>Add your photos</h2>
-              <p>Share your own moments with the group. Anyone with the album link can see them, so only add photos the people in them would be happy to share.</p>
+              <p>Share your own moments. Photos you add here are public: anyone can see them in this album, which is linked from the retreat’s public page. Only add photos the people in them would be happy to share publicly.</p>
             </div>
             <label className="album-btn" htmlFor="album-add">
               {uploading ? `Adding ${Math.min(uploading.done + 1, uploading.total)} of ${uploading.total}…` : 'Add photos'}
@@ -299,17 +299,11 @@ export function SignedInAlbumPage() {
 }
 
 /** /album/:token: the album's share link. Anyone with it can view, no sign-in. */
-export function SharedAlbumPage() {
-  const { token = '' } = useParams()
-  useEffect(() => {
-    // Keep the private link out of search engines.
-    const meta = document.createElement('meta')
-    meta.name = 'robots'
-    meta.content = 'noindex, nofollow'
-    document.head.appendChild(meta)
-    return () => meta.remove()
-  }, [])
-  return <AlbumView base={`/api/albums/${token}`} listPath={`/api/albums/${token}`} />
+/** /o/:orgSlug/r/:retreatSlug/album: the album's public page. Anyone can view it, no sign-in. */
+export function PublicAlbumPage() {
+  const { orgSlug = '', retreatSlug = '' } = useParams()
+  const api = `/api/public/orgs/${orgSlug}/retreats/${retreatSlug}/album`
+  return <AlbumView base={api} listPath={api} backTo={`/o/${orgSlug}/r/${retreatSlug}`} backLabel="Back to the retreat" />
 }
 
 export default InviteAlbumPage

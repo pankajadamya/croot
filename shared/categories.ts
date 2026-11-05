@@ -78,11 +78,12 @@ export function storyPromptsFor(kind: ReviewKind): string[] {
 /** Bump whenever consent wording shown to guests changes; each ConsentEvent records it. */
 // v2: group-album photo sharing now reaches anyone with the album's share link, not only fellow reviewers.
 // v3: publishing the story includes its title and the guest's overall star rating.
-export const CONSENT_WORDING_VERSION = '2026-11-v3'
+// v4: photos shared in the album are public (the album is linked from the public retreat page).
+export const CONSENT_WORDING_VERSION = '2026-11-v4'
 
 export const CONSENT_WORDING = {
   publicText: 'You may publish my written story, with its title and my overall star rating, on the retreat review site.',
-  albumPhoto: 'Seen by fellow guests and anyone they or the organiser give the album link to (no sign-in needed). Not on the review site. You can stop sharing at any time.',
+  albumPhoto: 'Shared publicly: anyone can see it in the retreat’s photo album, which is open without signing in and linked from the public retreat page. You can stop sharing at any time.',
   firstName: 'You may show my first name with my story.',
   followUp: 'You may contact me about my private feedback.',
   marketing: 'You may reuse my story or photos in social media or advertising (separate from the website).',

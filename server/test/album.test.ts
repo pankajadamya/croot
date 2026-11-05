@@ -119,39 +119,31 @@ describe('thank-you photo album (itinerary retreats)', () => {
     expect((await request(app).get(`/media/${shared}`)).status).toBe(404)
   })
 
-  it('can be viewed by anyone with the share link, without signing in or reviewing, until the link is replaced', async () => {
+  it('is a public page of the retreat: anyone can view it without signing in, linked from the retreat page', async () => {
     const { agent, csrf, retreat, token, photoId } = await albumSetup()
-    const manage = await agent.get(`/api/admin/orgs/alpha/retreats/${retreat.id}/album`)
-    const shareUrl = manage.body.shareUrl as string
-    expect(shareUrl).toMatch(/^\/album\/[\w-]{20,}$/)
-    const shareToken = shareUrl.split('/').pop()
+    const pageUrl = `/o/alpha/r/${retreat.slug}/album`
+    expect((await agent.get(`/api/admin/orgs/alpha/retreats/${retreat.id}/album`)).body.pageUrl).toBe(pageUrl)
 
-    // No cookies, no review: the guest's own link is still locked, but the share link opens it.
-    expect((await request(app).get(`/api/invites/${token}/album`)).status).toBe(403)
-    const shared = await request(app).get(`/api/albums/${shareToken}`)
-    expect(shared.status).toBe(200)
-    expect(shared.body).toMatchObject({ canContribute: false, shareUrl })
-    expect(shared.body.photos.map((p: { id: string }) => p.id)).toEqual([photoId])
-    expect((await request(app).get(shared.body.photos[0].url)).status).toBe(200)
-    // View only, and still never on the public media route.
-    expect((await request(app).post(`/api/albums/${shareToken}/album/photos`).attach('photo', await png(), 'x.png')).status).toBe(404)
-    expect((await request(app).get(`/media/${photoId}`)).status).toBe(404)
+    // The retreat page links to it, with its title photo.
+    const page = () => request(app).get(`/api/public/orgs/alpha/retreats/${retreat.slug}`)
+    const link = (await page()).body.album
+    expect(link).toMatchObject({ url: pageUrl, count: 1 })
+    expect((await request(app).get(link.cover)).status).toBe(200)
 
-    // Guests who reviewed see the same link.
-    const draft = await request(app).put(`/api/invites/${token}/draft`).send({ revision: 0, keepText: 'x' })
-    await request(app).post(`/api/invites/${token}/submit`).send({ revision: draft.body.revision })
-    expect((await request(app).get(`/api/invites/${token}/album`)).body.shareUrl).toBe(shareUrl)
+    // No cookies, no review: the album page and its photos are open; adding photos is not.
+    const album = await request(app).get(`/api/public/orgs/alpha/retreats/${retreat.slug}/album`)
+    expect(album.status).toBe(200)
+    expect(album.body).toMatchObject({ canContribute: false, pageUrl })
+    expect(album.body.photos.map((p: { id: string }) => p.id)).toEqual([photoId])
+    expect((await request(app).get(album.body.photos[0].url)).status).toBe(200)
+    expect((await request(app).post(`/api/public/orgs/alpha/retreats/${retreat.slug}/album/photos`).attach('photo', await png(), 'x.png')).status).toBe(404)
+    // Contributing still needs a sent review.
+    expect((await request(app).post(`/api/invites/${token}/album/photos`).attach('photo', await png(), 'x.png')).status).toBe(403)
 
-    // A new link stops the old one.
-    const reset = await agent.post(`/api/admin/orgs/alpha/retreats/${retreat.id}/album/share-link`).set('X-CSRF-Token', csrf).send({})
-    expect(reset.body.shareUrl).not.toBe(shareUrl)
-    expect((await request(app).get(`/api/albums/${shareToken}`)).status).toBe(404)
-    expect((await request(app).get(`/api/albums/${shareToken}/album/${photoId}`)).status).toBe(404)
-    expect((await request(app).get(`/api${reset.body.shareUrl.replace('/album/', '/albums/')}`)).status).toBe(200)
-
-    // Switching the album off closes the link too.
+    // Switching the album off takes the page and the link down.
     await agent.patch(`/api/admin/orgs/alpha/retreats/${retreat.id}`).set('X-CSRF-Token', csrf).send({ rewardAlbumEnabled: false })
-    expect((await request(app).get(`/api${reset.body.shareUrl.replace('/album/', '/albums/')}`)).status).toBe(404)
+    expect((await page()).body.album).toBeNull()
+    expect((await request(app).get(`/api/public/orgs/alpha/retreats/${retreat.slug}/album`)).status).toBe(404)
   })
 
   it('does not let a guest who has not sent a review add photos', async () => {

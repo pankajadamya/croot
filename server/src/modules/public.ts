@@ -8,6 +8,7 @@ import { livePublication } from '../lib/publication.js'
 import { activeOrgBySlug, publicRetreat, publishedContent, publishedTheme, retreatFacts, tenantForHost } from '../lib/site.js'
 import { storage } from '../lib/storage.js'
 import { anonymousLimiter } from '../middleware/rateLimits.js'
+import { albumListing, albumPagePath, publicAlbumLink, sendAlbumPhoto } from '../lib/album.js'
 
 /**
  * Public projections only. Every response here is built from PublicationRevision snapshots and
@@ -114,6 +115,7 @@ publicRouter.get(
     res.json({
       org: { slug: org.slug, name: org.name, websiteUrl: org.websiteUrl },
       retreat: retreatFacts(retreat),
+      album: await publicAlbumLink(retreat, org.slug),
       rating,
       theme,
       content,
@@ -136,6 +138,26 @@ publicRouter.get(
           .map((m) => ({ url: `/media/${m.id}`, alt: altFor(m, 'Photo shared by the guest'), caption: m.caption })),
       })),
     })
+  }),
+)
+
+// The retreat's photo album: public, view only (adding photos is for guests who reviewed).
+publicRouter.get(
+  '/orgs/:orgSlug/retreats/:retreatSlug/album',
+  route(async (req, res) => {
+    const org = await activeOrgBySlug(param(req, 'orgSlug'))
+    const retreat = await publicRetreat(org.id, param(req, 'retreatSlug'))
+    res.set('Cache-Control', 'public, max-age=30')
+    res.json(await albumListing(retreat, null, req.baseUrl + req.path, { pagePath: albumPagePath(org.slug, retreat.slug), publicView: true }))
+  }),
+)
+
+publicRouter.get(
+  '/orgs/:orgSlug/retreats/:retreatSlug/album/:photoId',
+  route(async (req, res) => {
+    const org = await activeOrgBySlug(param(req, 'orgSlug'))
+    const retreat = await publicRetreat(org.id, param(req, 'retreatSlug'))
+    await sendAlbumPhoto(res, retreat, null, uuidParam(req, 'photoId'), true)
   }),
 )
 
@@ -197,6 +219,7 @@ publicRouter.get(
       theme: await publishedTheme(retreat.id),
       retreatPhotos,
       more,
+      album: await publicAlbumLink(retreat, retreat.organisation.slug),
       story: {
         slug,
         postedAt: submitted?.submittedAt ?? live.createdAt,

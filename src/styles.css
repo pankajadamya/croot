@@ -2663,3 +2663,90 @@ ol.album-admin-grid {
     transition: none;
   }
 }
+
+/* Public pages: a link to the retreat's photo album, led by its title photo. */
+.album-promo {
+  position: relative;
+  display: block;
+  min-height: clamp(220px, 32vw, 360px);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  color: #ffffff;
+  text-decoration: none;
+  background: var(--forest);
+}
+.album-promo-cover {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.8s ease;
+}
+.album-promo:hover .album-promo-cover {
+  transform: scale(1.04);
+}
+.album-promo-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(10, 26, 25, 0.82) 0%, rgba(10, 26, 25, 0.45) 55%, rgba(10, 26, 25, 0.1) 100%);
+}
+.album-promo-text {
+  position: relative;
+  display: grid;
+  gap: 0.5rem;
+  max-width: 34rem;
+  padding: clamp(1.5rem, 4vw, 2.75rem);
+}
+.album-promo-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #dbe8d6;
+}
+.album-promo-title {
+  font-family: var(--serif);
+  font-size: clamp(1.6rem, 3.4vw, 2.6rem);
+  line-height: 1.15;
+}
+.album-promo-cta {
+  justify-self: start;
+  margin-top: 0.5rem;
+  padding: 0.6rem 1.2rem;
+  border-radius: 999px;
+  background: #f8f5ef;
+  color: var(--forest);
+  font-weight: 700;
+}
+.album-promo:focus-visible {
+  outline: 3px solid var(--button);
+  outline-offset: 3px;
+}
+.album-promo-strip {
+  position: absolute;
+  right: clamp(1rem, 3vw, 2rem);
+  bottom: clamp(1rem, 3vw, 2rem);
+  display: flex;
+  gap: 0.5rem;
+}
+.album-promo-strip img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+}
+@media (max-width: 700px) {
+  .album-promo-strip {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .album-promo-cover {
+    transition: none;
+  }
+  .album-promo:hover .album-promo-cover {
+    transform: none;
+  }
+}

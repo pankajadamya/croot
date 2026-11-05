@@ -11,7 +11,15 @@ import { ErrorNotice, Loading } from '../../components/States'
 import type { ShowcaseStory } from '../../components/StoryShowcase'
 import { ThemeScope } from '../../components/ThemeScope'
 
+export interface PublicAlbum {
+  url: string
+  count: number
+  cover: string
+  preview: string[]
+}
+
 export interface RetreatPublic {
+  album?: PublicAlbum | null
   org: { slug: string; name: string; websiteUrl?: string | null }
   retreat: RetreatFacts
   rating: { average: number; count: number } | null
@@ -48,6 +56,27 @@ export function siteLabel(url: string) {
   } catch {
     return 'Website'
   }
+}
+
+export function AlbumPromo({ album, title }: { album: PublicAlbum; title: string }) {
+  return (
+    <a className="album-promo" href={album.url}>
+      <img className="album-promo-cover" src={album.cover} alt="" loading="lazy" />
+      <span className="album-promo-shade" aria-hidden="true" />
+      <span className="album-promo-text">
+        <span className="album-promo-eyebrow">Photo album · {album.count} photo{album.count === 1 ? '' : 's'}</span>
+        <span className="album-promo-title">{title}</span>
+        <span className="album-promo-cta">View the album →</span>
+      </span>
+      {album.preview.length > 0 && (
+        <span className="album-promo-strip" aria-hidden="true">
+          {album.preview.map((u) => (
+            <img key={u} src={u} alt="" loading="lazy" />
+          ))}
+        </span>
+      )}
+    </a>
+  )
 }
 
 export function SiteFooter({ retreat, orgSlug }: { retreat: RetreatFacts; orgSlug: string }) {
@@ -124,6 +153,12 @@ export default function RetreatLanding() {
             </div>
           </div>
         </section>
+
+        {d.album && (
+          <section className="container" style={{ marginTop: 'clamp(2rem, 5vw, 3rem)' }} aria-label="Photo album">
+            <AlbumPromo album={d.album} title={`Photos from ${d.retreat.title}`} />
+          </section>
+        )}
 
         {/* Guest reviews last, each with the photos that guest chose to publish. */}
         <section className="container landing-reviews" aria-labelledby="reviews-title">
