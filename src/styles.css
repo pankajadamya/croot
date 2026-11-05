@@ -549,17 +549,14 @@ table.data th {
 
 .flow {
   display: grid;
-  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-  min-height: 100vh;
-}
-.flow-welcome {
   grid-template-columns: minmax(0, 46fr) minmax(0, 54fr);
+  min-height: 100vh;
 }
 .flow-welcome .flow-main {
   padding-inline: clamp(1rem, 3vw, 3rem);
 }
 @media (min-width: 861px) and (max-width: 1300px) {
-  .flow-welcome {
+  .flow {
     grid-template-columns: minmax(0, 42fr) minmax(0, 58fr);
   }
 }
