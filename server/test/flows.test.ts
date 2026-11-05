@@ -170,6 +170,17 @@ describe('anonymous notes', () => {
     expect((await request(app).post(`/api/public/notes/${retreat.id}`).send({ message: 'Too late?' })).status).toBe(409)
   })
 
+  it('shows the organiser’s website on their public pages, set by an owner', async () => {
+    const { user, retreat } = await makeTenant('alpha')
+    const { agent, csrf } = await login(user.email)
+    expect((await agent.patch('/api/admin/orgs/alpha/profile').set('X-CSRF-Token', csrf).send({ websiteUrl: 'javascript:alert(1)' })).status).toBe(400)
+    expect((await agent.patch('/api/admin/orgs/alpha/profile').set('X-CSRF-Token', csrf).send({ websiteUrl: 'https://alpha.example' })).status).toBe(200)
+    expect((await request(app).get(`/api/public/orgs/alpha/retreats/${retreat.slug}`)).body.org.websiteUrl).toBe('https://alpha.example')
+    expect((await request(app).get('/api/public/orgs/alpha')).body.org.websiteUrl).toBe('https://alpha.example')
+    await agent.patch('/api/admin/orgs/alpha/profile').set('X-CSRF-Token', csrf).send({ websiteUrl: '' })
+    expect((await request(app).get('/api/public/orgs/alpha')).body.org.websiteUrl).toBeNull()
+  })
+
   it('points guests to the retreat’s public page once they have sent their review', async () => {
     const { org, retreat } = await makeTenant('alpha')
     const { token } = await invite(org.id, retreat.id)

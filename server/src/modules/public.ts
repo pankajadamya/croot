@@ -34,7 +34,7 @@ publicRouter.get(
       orderBy: [{ startDate: { sort: 'desc', nulls: 'first' } }, { createdAt: 'desc' }],
       select: { slug: true, kind: true, title: true, startDate: true, endDate: true, locationSummary: true },
     })
-    res.json({ org: { slug: org.slug, name: org.name }, retreats })
+    res.json({ org: { slug: org.slug, name: org.name, websiteUrl: org.websiteUrl }, retreats })
   }),
 )
 
@@ -89,7 +89,7 @@ publicRouter.get(
     )
     res.set('Cache-Control', 'public, max-age=30')
     res.json({
-      org: { slug: org.slug, name: org.name },
+      org: { slug: org.slug, name: org.name, websiteUrl: org.websiteUrl },
       retreat: retreatFacts(retreat),
       theme,
       content,

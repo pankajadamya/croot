@@ -16,7 +16,7 @@ export async function tenantForHost(req: Request) {
 }
 
 export async function activeOrgBySlug(slug: string) {
-  const org = await prisma.organisation.findUnique({ where: { slug }, select: { id: true, slug: true, name: true, status: true } })
+  const org = await prisma.organisation.findUnique({ where: { slug }, select: { id: true, slug: true, name: true, status: true, websiteUrl: true } })
   if (!org || org.status !== 'active') throw new HttpError(404, 'Not found')
   return org
 }

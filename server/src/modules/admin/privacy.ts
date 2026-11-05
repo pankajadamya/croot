@@ -73,6 +73,35 @@ privacyRouter.patch(
   }),
 )
 
+// The organisation's public profile: its own website, linked from every public retreat page.
+privacyRouter.get(
+  '/profile',
+  route(async (req, res) => {
+    const t = tenantOf(req)
+    res.json(await prisma.organisation.findUniqueOrThrow({ where: { id: t.org.id }, select: { name: true, websiteUrl: true } }))
+  }),
+)
+
+const profileSchema = z.object({
+  websiteUrl: z
+    .url({ protocol: /^https?$/, error: 'Enter a full web address, starting with https://' })
+    .max(300)
+    .nullable()
+    .or(z.literal('').transform(() => null)),
+})
+
+privacyRouter.patch(
+  '/profile',
+  requireOwner,
+  route(async (req, res) => {
+    const t = tenantOf(req)
+    const body = parseBody(profileSchema, req.body)
+    const org = await prisma.organisation.update({ where: { id: t.org.id }, data: body, select: { name: true, websiteUrl: true } })
+    await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'organisation.profile_updated', entityType: 'organisation', entityId: t.org.id, metadata: { fields: Object.keys(body) } })
+    res.json(org)
+  }),
+)
+
 /** Answer a guest's access request on their behalf (e.g. received by email). */
 privacyRouter.get(
   '/attendees/:attendeeId/export',

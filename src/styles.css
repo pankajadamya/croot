@@ -2101,3 +2101,14 @@ ol.album-admin-grid {
     aspect-ratio: 4 / 3;
   }
 }
+
+.site-header-link {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.site-header-nav {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  align-items: center;
+}

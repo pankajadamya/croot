@@ -3,6 +3,8 @@ import { ErrorNotice, Loading } from '../../components/States'
 import { AdminShell } from './AdminShell'
 import { KindBadge, programmeDates, RETREAT_STATUS_LABELS, useOrgSummary } from './adminUi'
 import type { RetreatStats } from './types'
+import { useAuth } from '../../lib/auth'
+import { OrgWebsite } from './OrgWebsite'
 
 const STAT_LABELS: Array<[keyof RetreatStats, string]> = [
   ['attendees', 'Invited'],
@@ -16,6 +18,7 @@ const STAT_LABELS: Array<[keyof RetreatStats, string]> = [
 export default function OrgDashboard() {
   const { orgSlug = '' } = useParams()
   const summary = useOrgSummary(orgSlug)
+  const { session } = useAuth()
 
   return (
     <AdminShell orgSlug={orgSlug}>
@@ -32,6 +35,8 @@ export default function OrgDashboard() {
               New programme
             </Link>
           </div>
+
+          <OrgWebsite orgSlug={orgSlug} canEdit={session?.user.isPlatformAdmin || session?.memberships.find((m) => m.slug === orgSlug)?.role === 'owner'} />
 
           {summary.data.openChangeRequests > 0 && (
             <div className="notice warn" role="status">

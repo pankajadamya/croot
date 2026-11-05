@@ -10,7 +10,7 @@ import type { ShowcaseStory } from '../../components/StoryShowcase'
 import { ThemeScope } from '../../components/ThemeScope'
 
 export interface RetreatPublic {
-  org: { slug: string; name: string }
+  org: { slug: string; name: string; websiteUrl?: string | null }
   retreat: RetreatFacts
   theme: ThemeTokens
   content: { headline: string; introParagraphs: string[]; ctaLabel: string; ctaUrl: string } | null
@@ -18,15 +18,33 @@ export interface RetreatPublic {
   stories: ShowcaseStory[]
 }
 
-export function SiteHeader({ org }: { org: { slug: string; name: string } }) {
+export function SiteHeader({ org }: { org: { slug: string; name: string; websiteUrl?: string | null } }) {
   return (
     <header className="container site-header spread">
       <Link to={`/o/${org.slug}`} className="brand" style={{ color: 'var(--text)' }}>
         {org.name}
       </Link>
-      <span className="small muted">Guest stories</span>
+      <nav className="site-header-nav" aria-label={org.name}>
+        <Link className="site-header-link" to={`/o/${org.slug}`}>
+          All retreats
+        </Link>
+        {org.websiteUrl && (
+          <a className="site-header-link" href={org.websiteUrl} target="_blank" rel="noopener noreferrer">
+            {siteLabel(org.websiteUrl)} ↗<span className="sr-only"> (opens in a new tab)</span>
+          </a>
+        )}
+      </nav>
     </header>
   )
+}
+
+/** "balanceandbeyond.co.uk" from "https://www.balanceandbeyond.co.uk/…". */
+export function siteLabel(url: string) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return 'Website'
+  }
 }
 
 export function SiteFooter({ retreat, orgSlug }: { retreat: RetreatFacts; orgSlug: string }) {
@@ -70,7 +88,7 @@ export default function RetreatLanding() {
       <main id="main">
         {/* Contact and practical details first, so they're easy to find. */}
         <section className="container landing-top">
-          <RetreatDetails retreat={d.retreat} />
+          <RetreatDetails retreat={d.retreat} organiser={{ name: d.org.name, websiteUrl: d.org.websiteUrl ?? null, retreatsPath: `/o/${d.org.slug}` }} />
         </section>
 
         {/* Photos on the left, the organiser's own words on the right (stacked on small screens). */}
