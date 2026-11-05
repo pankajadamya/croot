@@ -8,8 +8,8 @@ import { livePublication } from '../lib/publication.js'
 import { activeOrgBySlug, publicRetreat, publishedContent, publishedTheme, retreatFacts, tenantForHost } from '../lib/site.js'
 import { storage } from '../lib/storage.js'
 import { anonymousLimiter, heartLimiter } from '../middleware/rateLimits.js'
-import { albumListing, albumPagePath, assertAlbumPhoto, publicAlbumLink, sendAlbumPhoto, sendAlbumVideo } from '../lib/album.js'
-import { heartedBy, setHeart, voterSchema } from '../lib/hearts.js'
+import { albumListing, albumPagePath, publicAlbumLink, sendAlbumPhoto, sendAlbumVideo } from '../lib/album.js'
+import { heartCounts, heartedBy, setHeart, voterSchema } from '../lib/hearts.js'
 
 /**
  * Public projections only. Every response here is built from PublicationRevision snapshots and
@@ -109,6 +109,7 @@ publicRouter.get(
         })
       ).map((m) => [m.id, m]),
     )
+    const reviewHearts = await heartCounts([...visible.keys()])
     // The average of the overall ratings on published reviews (guests agreed to publish them with their story).
     const rated = retreat.showPublicRating ? stories.map((s) => s.overallRating).filter((n): n is number => typeof n === 'number') : []
     const rating = rated.length ? { average: Math.round((rated.reduce((a, b) => a + b, 0) / rated.length) * 10) / 10, count: rated.length } : null
@@ -136,7 +137,7 @@ publicRouter.get(
           .map((id) => visible.get(id))
           .filter((m): m is NonNullable<typeof m> => Boolean(m))
           .slice(0, 6)
-          .map((m) => ({ url: `/media/${m.id}`, alt: altFor(m, 'Photo shared by the guest'), caption: m.caption })),
+          .map((m) => ({ id: m.id, url: `/media/${m.id}`, alt: altFor(m, 'Photo shared by the guest'), caption: m.caption, hearts: reviewHearts.get(m.id) ?? 0 })),
       })),
     })
   }),
@@ -153,6 +154,23 @@ publicRouter.get(
   }),
 )
 
+/** Photos visitors can heart: the album's, and those on the retreat's published reviews. */
+async function heartableIds(retreat: Awaited<ReturnType<typeof publicRetreat>>) {
+  const ids = new Set<string>()
+  if (retreat.kind === 'itinerary' && retreat.rewardAlbumEnabled) {
+    for (const p of (await albumListing(retreat, null, '', { pagePath: '', publicView: true })).photos) ids.add(p.id)
+  }
+  if (retreat.publicReviewsEnabled) {
+    const reviewPhotoIds = (await liveStories(retreat.id)).flatMap((s) => s.photoIds)
+    const shown = await prisma.mediaAsset.findMany({
+      where: { id: { in: reviewPhotoIds }, retreatId: retreat.id, publishConsent: true, moderation: 'approved', removedAt: null },
+      select: { id: true },
+    })
+    for (const m of shown) ids.add(m.id)
+  }
+  return ids
+}
+
 // Hearts. The visitor id travels in the body (never the URL); see lib/hearts.ts for the abuse controls.
 publicRouter.post(
   '/orgs/:orgSlug/retreats/:retreatSlug/album/hearts/mine',
@@ -161,9 +179,9 @@ publicRouter.post(
     const org = await activeOrgBySlug(param(req, 'orgSlug'))
     const retreat = await publicRetreat(org.id, param(req, 'retreatSlug'))
     const { voter, photoIds } = parseBody(z.object({ voter: voterSchema, photoIds: z.array(z.uuid()).max(500) }), req.body)
-    const albumIds = (await albumListing(retreat, null, '', { pagePath: '', publicView: true })).photos.map((p) => p.id)
+    const allowed = await heartableIds(retreat)
     res.set('Cache-Control', 'no-store')
-    res.json({ hearted: await heartedBy(voter, photoIds.filter((id) => albumIds.includes(id))) })
+    res.json({ hearted: await heartedBy(voter, photoIds.filter((id) => allowed.has(id))) })
   }),
 )
 
@@ -175,7 +193,7 @@ publicRouter.post(
     const retreat = await publicRetreat(org.id, param(req, 'retreatSlug'))
     const photoId = uuidParam(req, 'photoId')
     const { voter, on } = parseBody(z.object({ voter: voterSchema, on: z.boolean() }), req.body)
-    await assertAlbumPhoto(retreat, photoId)
+    if (!(await heartableIds(retreat)).has(photoId)) throw new HttpError(404, 'Photo not found')
     const count = await setHeart(photoId, voter, on, req.ip)
     res.set('Cache-Control', 'no-store')
     res.json({ hearts: count, hearted: on })

@@ -223,6 +223,14 @@ describe('anonymous notes', () => {
     expect(hidden.body.rating).toBeNull()
     expect(hidden.body.stories[0].overallRating).toBeNull()
     expect((await request(app).get(latest.photos[0].url)).status).toBe(200)
+
+    // Visitors can heart a review's photos, like album photos.
+    expect(latest.photos[0]).toMatchObject({ id: photoId, hearts: 0 })
+    const voter = 'review-visitor-abcdefghijklmnopqrstuvwxyz'
+    const hearted = await request(app).post(`/api/public/orgs/alpha/retreats/${retreat.slug}/album/${photoId}/heart`).send({ voter, on: true })
+    expect(hearted.body).toEqual({ hearts: 1, hearted: true })
+    const again = await request(app).get(`/api/public/orgs/alpha/retreats/${retreat.slug}`)
+    expect(again.body.stories[0].photos[0].hearts).toBe(1)
   })
 
   it('points guests to the retreat’s public page once they have sent their review', async () => {

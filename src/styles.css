@@ -2997,3 +2997,52 @@ ol.album-admin-grid {
   outline-offset: -2px;
   border-radius: 6px;
 }
+
+/* Review photo thumbnails, with a heart like the album's. */
+.review-photo {
+  position: relative;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.review-photo img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+}
+.review-photos.count-1 .review-photo img {
+  aspect-ratio: 4 / 3;
+}
+.review-photos.count-3 .review-photo.first {
+  grid-column: 1 / -1;
+}
+.review-photos.count-3 .review-photo.first img {
+  aspect-ratio: 2 / 1;
+}
+.review-photo .heart-btn.tile,
+.album-mosaic .heart-btn.tile {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  width: auto;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 4px;
+  background: none;
+  backdrop-filter: none;
+  border-radius: 0;
+  color: #ffffff;
+  line-height: 1;
+}
+.review-photo .heart-btn.tile svg {
+  width: 22px;
+  height: 22px;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.7));
+}
+.review-photo .heart-btn.tile span {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}

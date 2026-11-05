@@ -7,7 +7,7 @@ export interface ShowcaseStory {
   excerptIsFull: boolean
   displayName: string | null
   photo: { url: string } | null
-  photos?: Array<{ url: string; alt: string; caption: string }>
+  photos?: Array<{ id: string; url: string; alt: string; caption: string; hearts: number }>
   title?: string | null
   text?: string
   postedAt?: string

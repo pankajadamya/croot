@@ -6,6 +6,7 @@ import { get } from '../../lib/api'
 import { formatDate } from '../../lib/format'
 import { RetreatDetails, type RetreatFacts } from '../../components/RetreatDetails'
 import { HeroSlideshow } from '../../components/HeroSlideshow'
+import { HeartButton, useHearts } from '../../components/Hearts'
 import { Stars, formatRating } from '../../components/Stars'
 import { ErrorNotice, Loading } from '../../components/States'
 import type { ShowcaseStory } from '../../components/StoryShowcase'
@@ -100,6 +101,9 @@ export default function RetreatLanding() {
     queryKey: ['public-retreat', orgSlug, retreatSlug],
     queryFn: () => get<RetreatPublic>(`/api/public/orgs/${orgSlug}/retreats/${retreatSlug}`),
   })
+  // Hearts on the review photos (same one-per-browser rules as the album).
+  const reviewPhotos = (q.data?.stories ?? []).flatMap((s) => s.photos ?? [])
+  const hearts = useHearts('', reviewPhotos, `/api/public/orgs/${orgSlug}/retreats/${retreatSlug}/album`)
   useEffect(() => {
     if (q.data) document.title = `${q.data.retreat.title} · Guest stories · ${q.data.org.name}`
   }, [q.data])
@@ -208,7 +212,10 @@ export default function RetreatLanding() {
                   {s.photos && s.photos.length > 0 && (
                     <div className={`review-photos count-${Math.min(s.photos.length, 4)}`}>
                       {s.photos.slice(0, 4).map((p, i) => (
-                        <img key={p.url} src={p.url} alt={p.alt} loading="lazy" className={i === 0 ? 'first' : ''} />
+                        <div key={p.url} className={`review-photo ${i === 0 ? 'first' : ''}`}>
+                          <img src={p.url} alt={p.alt} loading="lazy" />
+                          {hearts.enabled && <HeartButton on={hearts.hearted(p.id)} count={hearts.count(p)} onToggle={() => void hearts.toggle(p)} />}
+                        </div>
                       ))}
                     </div>
                   )}

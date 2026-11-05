@@ -138,13 +138,6 @@ export async function sendAlbumVideo(req: ExpressRequest, res: ExpressResponse, 
   await streamVideo(req, res, item.videoKey, item.mime, 'public, max-age=3600')
 }
 
-/** Is this photo in the retreat's album (so it can be hearted)? */
-export async function assertAlbumPhoto(retreat: RetreatLike, photoId: string) {
-  if (!available(retreat)) throw new HttpError(404, 'There is no photo album for this retreat')
-  const photo = await prisma.mediaAsset.findFirst({ where: { ...albumWhere(retreat.id), id: photoId }, select: { id: true } })
-  if (!photo) throw new HttpError(404, 'Photo not found')
-}
-
 async function photoOf(retreatId: string, photoId: string) {
   const photo = await prisma.mediaAsset.findFirst({ where: { ...albumWhere(retreatId), id: photoId } })
   if (!photo) throw new HttpError(404, 'Photo not found')

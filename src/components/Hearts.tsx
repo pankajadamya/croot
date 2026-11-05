@@ -24,7 +24,7 @@ function visitorId() {
 }
 
 /** "/o/:org/r/:retreat/album" → its public API base. */
-function heartsApi(pageUrl: string) {
+export function heartsApi(pageUrl: string) {
   const m = pageUrl.match(/^\/o\/([^/]+)\/r\/([^/]+)\/album$/)
   return m ? `/api/public/orgs/${m[1]}/retreats/${m[2]}/album` : null
 }
@@ -38,8 +38,8 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 }
 
 /** Heart state for an album: counts, which ones this visitor hearted, and a toggle. */
-export function useHearts(pageUrl: string, photos: Array<{ id: string; hearts: number }>) {
-  const api = heartsApi(pageUrl)
+export function useHearts(pageUrl: string, photos: Array<{ id: string; hearts: number }>, apiBase?: string) {
+  const api = apiBase ?? heartsApi(pageUrl)
   const [mine, setMine] = useState<Set<string>>(new Set())
   const [counts, setCounts] = useState<Record<string, number>>({})
   const [message, setMessage] = useState<string | null>(null)
