@@ -53,14 +53,20 @@ export function useHelpful(stories: Array<{ slug: string; helpful: number }>) {
   return { voted: (slug: string) => mine.has(slug), count, toggle, message }
 }
 
+/** The button with a gentle question beside it, and a thank-you once voted. */
 export function HelpfulButton({ on, count, onToggle }: { on: boolean; count: number; onToggle: () => void }) {
   return (
-    <button type="button" className={`helpful-btn ${on ? 'on' : ''}`} aria-pressed={on} onClick={onToggle}>
-      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-        <path d="M7 10v10H4.5A1.5 1.5 0 0 1 3 18.5v-7A1.5 1.5 0 0 1 4.5 10H7zm0 0 4-6.5c.6-1 2.1-.9 2.6.2.2.5.2 1 .1 1.5L13 9h5.6c1.4 0 2.4 1.3 2 2.7l-1.9 6.6A2.4 2.4 0 0 1 16.4 20H7" />
-      </svg>
-      <span>{on ? 'You found this helpful' : 'Helpful'}</span>
-      {count > 0 && <span className="helpful-count">{count}</span>}
-    </button>
+    <div className="helpful-row">
+      <span className="helpful-prompt" aria-live="polite">
+        {on ? 'Thanks, that helps other guests decide.' : count > 0 ? `${count} ${count === 1 ? 'person' : 'people'} found this helpful. Did you?` : 'Did this review help you?'}
+      </span>
+      <button type="button" className={`helpful-btn ${on ? 'on' : ''}`} aria-pressed={on} onClick={onToggle}>
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+          <path d="M7 10v10H4.5A1.5 1.5 0 0 1 3 18.5v-7A1.5 1.5 0 0 1 4.5 10H7zm0 0 4-6.5c.6-1 2.1-.9 2.6.2.2.5.2 1 .1 1.5L13 9h5.6c1.4 0 2.4 1.3 2 2.7l-1.9 6.6A2.4 2.4 0 0 1 16.4 20H7" />
+        </svg>
+        <span>{on ? 'Helpful' : 'Yes, helpful'}</span>
+        {count > 0 && <span className="helpful-count">{count}</span>}
+      </button>
+    </div>
   )
 }
