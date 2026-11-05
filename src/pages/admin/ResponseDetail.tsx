@@ -6,6 +6,7 @@ import { formatDate, formatDateTime } from '../../lib/format'
 import { isVerbatimExcerpt } from '../../../shared/excerpt'
 import { firstName } from '../../../shared/slug'
 import { SCALE_LABELS } from '../../../shared/categories'
+import { Stars } from '../../components/Stars'
 import { Field } from '../../components/Controls'
 import { ErrorNotice, Loading } from '../../components/States'
 import { AdminShell } from './AdminShell'
@@ -105,7 +106,15 @@ function Detail({ orgSlug, r, refresh }: { orgSlug: string; r: ResponseDetailDat
             <p className="muted">No public story — this guest sent private feedback only.</p>
           )}
           <p>
-            <strong>Overall rating:</strong> {story.overallRating ? `${story.overallRating} of 5 (${SCALE_LABELS[story.overallRating]})` : 'Not given'}
+            <strong>Overall rating:</strong>{' '}
+            {story.overallRating ? (
+              <span className="rating-cell">
+                <Stars value={story.overallRating} />
+                <span className="muted small">{SCALE_LABELS[story.overallRating]}</span>
+              </span>
+            ) : (
+              'Not given'
+            )}
           </p>
         </Section>
 
@@ -127,7 +136,10 @@ function Detail({ orgSlug, r, refresh }: { orgSlug: string; r: ResponseDetailDat
                       {x.notApplicable ? (
                         <span className="badge neutral">Not applicable</span>
                       ) : x.score ? (
-                        `${x.score} — ${SCALE_LABELS[x.score]}`
+                        <span className="rating-cell">
+                          <Stars value={x.score} />
+                          <span className="muted small">{SCALE_LABELS[x.score]}</span>
+                        </span>
                       ) : (
                         <span className="muted">Not answered</span>
                       )}

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { get, orgApi } from '../../../lib/api'
 import { ErrorNotice, Loading } from '../../../components/States'
+import { Stars, formatRating } from '../../../components/Stars'
 import type { Retreat } from '../types'
 
 interface Insights {
@@ -53,7 +54,7 @@ export function InsightsTab({ orgSlug, retreat }: { orgSlug: string; retreat: Re
               <thead>
                 <tr>
                   <th scope="col">Category</th>
-                  <th scope="col">Average (1–5)</th>
+                  <th scope="col">Average</th>
                   <th scope="col">Answered</th>
                   <th scope="col">Not applicable</th>
                   <th scope="col">Spread</th>
@@ -65,7 +66,16 @@ export function InsightsTab({ orgSlug, retreat }: { orgSlug: string; retreat: Re
                     <th scope="row" style={{ textTransform: 'none', letterSpacing: 0, fontSize: '0.9rem', color: 'var(--text)' }}>
                       {c.label}
                     </th>
-                    <td>{c.mean ?? '—'}</td>
+                    <td>
+                      {c.mean != null ? (
+                        <span className="rating-cell">
+                          <Stars value={Number(c.mean)} />
+                          <span className="small">{formatRating(Number(c.mean))}</span>
+                        </span>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
                     <td>{c.answered}</td>
                     <td>{c.notApplicable}</td>
                     <td>

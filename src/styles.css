@@ -2408,3 +2408,10 @@ ol.album-admin-grid {
     transform: none;
   }
 }
+
+.rating-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
