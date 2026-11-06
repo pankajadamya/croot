@@ -15,7 +15,7 @@ export const isImageFile = (f: File) => f.type.startsWith('image/') || /\.(jpe?g
  *  - iPhone HEIC photos (sent as-is by some phones and browsers) become high-quality JPEGs here,
  *    because the server can't read HEIC. The converter loads only when it's needed.
  *  - A file over the size limit is scaled to 4K in the browser first, instead of being refused.
- * Everything else is sent untouched; the server makes the stored 4K copy and the web copy.
+ * Everything else is sent untouched; the server makes the web copy (the only copy it keeps).
  */
 export async function prepareImage(file: File): Promise<File> {
   let out = file

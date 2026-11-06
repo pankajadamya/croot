@@ -300,7 +300,6 @@ reviewRoutes.post(
     const image = await processImage(req.file.buffer, req.body.takenAt)
     const id = crypto.randomUUID()
     const prefix = `org/${r.retreat.organisationId}/retreat/${r.retreat.id}/guest/${id}`
-    await storage.put(`${prefix}/original`, image.original, image.originalMime)
     await storage.put(`${prefix}/web.webp`, image.derivative, 'image/webp')
     const asset = await prisma.mediaAsset.create({
       data: {
@@ -309,10 +308,10 @@ reviewRoutes.post(
         retreatId: r.retreat.id,
         responseId: response.id,
         kind: 'guest',
-        originalKey: `${prefix}/original`,
+        originalKey: null, // only the web copy is kept
         derivativeKey: `${prefix}/web.webp`,
-        mime: image.originalMime,
-        sizeBytes: image.original.length,
+        mime: 'image/webp',
+        sizeBytes: image.derivative.length,
         width: image.width,
         height: image.height,
         takenAt: image.takenAt,

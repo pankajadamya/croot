@@ -251,13 +251,12 @@ siteRouter.post(
     const inAlbumAlready = (await prisma.mediaAsset.findMany({
       where: { retreatId: retreat.id, removedAt: null, OR: [{ kind: 'album' }, { kind: 'organiser', inAlbum: true }] },
       select: { width: true, height: true, sizeBytes: true, videoKey: true },
-    })).some((m) => sameFileKey(m) === sameFileKey({ width: image.width, height: image.height, sizeBytes: image.original.length }))
+    })).some((m) => sameFileKey(m) === sameFileKey({ width: image.width, height: image.height, sizeBytes: image.derivative.length }))
     if (kind === 'album' && inAlbumAlready) throw new HttpError(409, 'That photo is already in the album')
     const joinsAlbum = kind === 'organiser' ? !inAlbumAlready && (await albumHasPhotoRoom(retreat.id)) : true
     // A new image joins the slideshow while it has room; past MAX_SLIDESHOW it waits in "Your images".
     const joinsSlideshow = kind === 'organiser' && (await slideshowCount(retreat.id)) < MAX_SLIDESHOW
     const prefix = `org/${t.org.id}/retreat/${retreat.id}/${kind}/${id}`
-    await storage.put(`${prefix}/original`, image.original, image.originalMime)
     await storage.put(`${prefix}/web.webp`, image.derivative, 'image/webp')
     const count = await prisma.mediaAsset.count({ where: { retreatId: retreat.id, kind, removedAt: null } })
     const m = await prisma.mediaAsset.create({
@@ -266,10 +265,10 @@ siteRouter.post(
         organisationId: t.org.id,
         retreatId: retreat.id,
         kind,
-        originalKey: `${prefix}/original`,
+        originalKey: null, // only the web copy is kept
         derivativeKey: `${prefix}/web.webp`,
-        mime: image.originalMime,
-        sizeBytes: image.original.length,
+        mime: 'image/webp',
+        sizeBytes: image.derivative.length,
         width: image.width,
         height: image.height,
         takenAt: image.takenAt,

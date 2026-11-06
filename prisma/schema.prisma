@@ -76,7 +76,7 @@ model Organisation {
   nonResponderRetentionDays   Int @default(180)
   /// Submitted responses: private feedback is deleted after this many months. Unpublished responses are deleted entirely.
   responseRetentionMonths     Int @default(24)
-  /// Original uploads are deleted this many days after submission; only metadata-stripped copies remain.
+  /// No longer used (v1.5): photos keep no original copy at all, only the web copy.
   originalPhotoRetentionDays  Int @default(30)
   anonymousNoteRetentionMonths Int @default(24)
   auditRetentionMonths        Int @default(36)
@@ -555,9 +555,10 @@ model MediaAsset {
   retreatId      String           @db.Uuid
   responseId     String?          @db.Uuid
   kind           MediaKind
-  /// Private original — never served publicly.
-  originalKey    String
-  /// Metadata-stripped web derivative.
+  /// Videos: the video file (the same as videoKey). Photos keep no second copy, so null (photos
+  /// uploaded before v1.5 had a private 4K copy here; the retention job deletes those).
+  originalKey    String?
+  /// Metadata-stripped web copy: the only copy of a photo that is stored (a video's poster).
   derivativeKey  String
   /// When it was taken (EXIF or the video's creation time), read before metadata is stripped. Null if unknown.
   takenAt        DateTime?
@@ -588,7 +589,7 @@ model MediaAsset {
   videoKey           String?
   durationSec        Float?
   removedAt      DateTime?
-  /// When the private original was deleted under the retention policy (originalKey is then stale).
+  /// When an old private 4K copy was deleted (see originalKey).
   originalPurgedAt DateTime?
   createdAt      DateTime         @default(now())
 

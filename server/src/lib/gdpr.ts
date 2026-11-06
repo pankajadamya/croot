@@ -10,8 +10,8 @@ import { removeObjects } from './storageCleanup.js'
  * person's name, email or words: only that an erasure happened, and by whom.
  */
 
-function mediaKeys(media: Array<{ originalKey: string; derivativeKey: string; originalPurgedAt: Date | null }>) {
-  return media.flatMap((m) => (m.originalPurgedAt ? [m.derivativeKey] : [m.originalKey, m.derivativeKey]))
+function mediaKeys(media: Array<{ originalKey: string | null; derivativeKey: string; originalPurgedAt: Date | null }>) {
+  return media.flatMap((m) => [m.originalPurgedAt ? null : m.originalKey, m.derivativeKey])
 }
 
 /** Everything held about one guest, in a portable, machine-readable form. Never includes anonymous notes. */
@@ -127,6 +127,6 @@ export async function eraseOrganisation(organisationId: string, actorUserId: str
   await audit({ actorUserId, actorKind: 'platform', action: 'tenant.erased', entityType: 'organisation', entityId: organisationId, metadata: { slug: org.slug, files: media.length } })
 }
 
-export async function purgeObjects(keys: string[]) {
+export async function purgeObjects(keys: Array<string | null | undefined>) {
   await removeObjects(keys)
 }

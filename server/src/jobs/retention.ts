@@ -2,6 +2,7 @@ import { audit } from '../lib/audit.js'
 import { eraseAttendee, purgeObjects } from '../lib/gdpr.js'
 import { retryPendingDeletions } from '../lib/storageCleanup.js'
 import { prisma } from '../lib/prisma.js'
+import { storage } from '../lib/storage.js'
 import { livePublication } from '../lib/publication.js'
 
 /**
@@ -11,7 +12,7 @@ import { livePublication } from '../lib/publication.js'
  *   3. submitted responses           → after responseRetentionMonths: unpublished ones are erased;
  *                                      published ones keep only the published story, and private
  *                                      feedback, unpublished photos and the email address are deleted
- *   4. original photo uploads        → deleted after originalPhotoRetentionDays (web copies remain)
+ *   4. private 4K copies kept beside photos before v1.5 → deleted (only web copies are stored now)
  *   5. anonymous notes (by the date they arrived; no time is kept), audit events → deleted after their retention period
  * plus platform housekeeping: expired sessions, spent setup links, old invitations and access requests.
  *
@@ -80,24 +81,27 @@ export async function runRetention(now = new Date()) {
         prisma.attendee.update({ where: { id: r.attendeeId }, data: { email: `retained-${r.attendeeId}@invalid`, stayStart: null, stayEnd: null } }),
         prisma.invitation.deleteMany({ where: { attendeeId: r.attendeeId } }),
       ])
-      await purgeObjects(unpublished.flatMap((m) => (m.originalPurgedAt ? [m.derivativeKey] : [m.originalKey, m.derivativeKey])))
+      await purgeObjects(unpublished.flatMap((m) => [m.originalPurgedAt ? null : m.originalKey, m.derivativeKey]))
       await audit({ organisationId: org.id, actorKind: 'system', action: 'retention.response_minimised', entityType: 'response', entityId: r.id })
       counts.responsesMinimised++
     }
 
-    // 4. Original uploads: keep only metadata-stripped web copies.
-    const originals = await prisma.mediaAsset.findMany({
-      where: {
-        organisationId: org.id,
-        kind: 'guest',
-        originalPurgedAt: null,
-        response: { submittedAt: { lt: new Date(now.getTime() - org.originalPhotoRetentionDays * DAY) } },
-      },
-      select: { id: true, originalKey: true },
+    // 4. Photos uploaded before v1.5 also kept a private 4K copy, which nothing ever read: delete it.
+    //    The photo's recorded size becomes its web copy's, as for new uploads (duplicate checks compare
+    //    sizes). Videos keep originalKey: for them it is the video file. In batches, so a big backlog
+    //    is worked through over a few runs.
+    const kept = await prisma.mediaAsset.findMany({
+      where: { organisationId: org.id, videoKey: null, originalKey: { not: null } },
+      select: { id: true, originalKey: true, derivativeKey: true, originalPurgedAt: true },
+      take: 500,
     })
-    for (const m of originals) {
-      await purgeObjects([m.originalKey])
-      await prisma.mediaAsset.update({ where: { id: m.id }, data: { originalPurgedAt: now } })
+    for (const m of kept) {
+      if (!m.originalPurgedAt) await purgeObjects([m.originalKey])
+      const size = await storage.size(m.derivativeKey)
+      await prisma.mediaAsset.update({
+        where: { id: m.id },
+        data: { originalKey: null, originalPurgedAt: m.originalPurgedAt ?? now, mime: 'image/webp', ...(size ? { sizeBytes: size } : {}) },
+      })
       counts.originals++
     }
 

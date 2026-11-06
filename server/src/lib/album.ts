@@ -288,7 +288,6 @@ export async function addContribution(retreat: RetreatLike, response: ResponseLi
   const image = await processImage(file, takenAtHint)
   const id = crypto.randomUUID()
   const prefix = `org/${retreat.organisationId}/retreat/${retreat.id}/guest/${id}`
-  await storage.put(`${prefix}/original`, image.original, image.originalMime)
   await storage.put(`${prefix}/web.webp`, image.derivative, 'image/webp')
   const asset = await prisma.mediaAsset.create({
     data: {
@@ -297,10 +296,10 @@ export async function addContribution(retreat: RetreatLike, response: ResponseLi
       retreatId: retreat.id,
       responseId: response.id,
       kind: 'guest',
-      originalKey: `${prefix}/original`,
+      originalKey: null, // only the web copy is kept
       derivativeKey: `${prefix}/web.webp`,
-      mime: image.originalMime,
-      sizeBytes: image.original.length,
+      mime: 'image/webp',
+      sizeBytes: image.derivative.length,
       width: image.width,
       height: image.height,
       takenAt: image.takenAt,

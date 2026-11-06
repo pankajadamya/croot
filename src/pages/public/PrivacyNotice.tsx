@@ -18,7 +18,6 @@ interface NoticeData {
     draftRetentionDays: number
     nonResponderRetentionDays: number
     responseRetentionMonths: number
-    originalPhotoRetentionDays: number
     anonymousNoteRetentionMonths: number
     updatedAt: string
   }
@@ -167,7 +166,7 @@ export default function PrivacyNotice() {
             Sent responses: private feedback is deleted after {c.responseRetentionMonths} months. A story you agreed to publish stays published until
             you withdraw it; everything else about you is deleted at that point.
           </li>
-          <li>Original photo files: deleted {c.originalPhotoRetentionDays} days after you send them. We keep only web copies with location and camera details removed, and the date and time each photo was taken (to order the album).</li>
+          <li>Photos: the file you upload isn’t kept. We keep only a web copy, made as it arrives, with location and camera details removed, and the date and time each photo was taken (to order the album). It’s deleted with your response, or when you remove the photo.</li>
           <li>Anonymous notes: deleted {c.anonymousNoteRetentionMonths} months after they’re sent.</li>
           <li>Next-retreat updates: deleted as soon as you unsubscribe, or after 30 days if you never confirm.</li>
         </ul>

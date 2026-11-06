@@ -28,10 +28,9 @@ describe('time taken', () => {
     expect(up.body.media.takenAt).toBe('2026-10-24T00:22:28.000Z')
 
     const row = await prisma.mediaAsset.findUniqueOrThrow({ where: { id: up.body.media.id } })
-    for (const key of [row.originalKey, row.derivativeKey]) {
-      const meta = await sharp((await storage.get(key))!).metadata()
-      expect(meta.exif).toBeUndefined()
-    }
+    expect(row.originalKey).toBeNull() // only the web copy is stored
+    const meta = await sharp((await storage.get(row.derivativeKey))!).metadata()
+    expect(meta.exif).toBeUndefined()
   })
 
   it('uses the browser’s reading when the file lost its EXIF (a converted iPhone photo), if it is sensible', async () => {

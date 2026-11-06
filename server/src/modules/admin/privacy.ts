@@ -22,7 +22,6 @@ const PRIVACY_FIELDS = {
   draftRetentionDays: true,
   nonResponderRetentionDays: true,
   responseRetentionMonths: true,
-  originalPhotoRetentionDays: true,
   anonymousNoteRetentionMonths: true,
   auditRetentionMonths: true,
 } as const

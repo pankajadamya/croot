@@ -26,7 +26,6 @@ export const RETENTION_LIMITS = {
   draftRetentionDays: { min: 7, max: 365, label: 'Unsent drafts', unit: 'days' },
   nonResponderRetentionDays: { min: 30, max: 730, label: 'Guests who never respond', unit: 'days' },
   responseRetentionMonths: { min: 3, max: 84, label: 'Private feedback and unpublished responses', unit: 'months' },
-  originalPhotoRetentionDays: { min: 1, max: 365, label: 'Original photo uploads', unit: 'days' },
   anonymousNoteRetentionMonths: { min: 1, max: 84, label: 'Anonymous notes', unit: 'months' },
   auditRetentionMonths: { min: 12, max: 120, label: 'Audit log', unit: 'months' },
 } as const

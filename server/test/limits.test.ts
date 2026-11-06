@@ -54,21 +54,21 @@ describe('album limits', () => {
 })
 
 describe('stored image size', () => {
-  it('keeps a high-quality copy of at most 4K and a lighter web copy, without metadata', async () => {
+  it('keeps only a web copy of at most 2560px, without metadata; the uploaded file itself is not kept', async () => {
     const big = await sharp({ create: { width: 6000, height: 4000, channels: 3, background: '#335544' } })
       .jpeg()
       .withMetadata({ exif: { IFD0: { Make: 'PhoneCo' } } })
       .toBuffer()
     const out = await processImage(big)
-    const kept = await sharp(out.original).metadata()
-    expect([kept.width, kept.height, kept.format]).toEqual([3840, 2560, 'jpeg'])
-    expect(kept.exif).toBeUndefined()
-    expect(out.originalMime).toBe('image/jpeg')
+    expect(Object.keys(out).sort()).toEqual(['derivative', 'height', 'takenAt', 'width'])
+    const web = await sharp(out.derivative).metadata()
+    expect([web.width, web.height, web.format]).toEqual([2560, 1707, 'webp'])
+    expect(web.exif).toBeUndefined()
     expect([out.width, out.height]).toEqual([2560, 1707])
 
     // Small images aren't enlarged.
     const input = await png()
     const small = await processImage(input)
-    expect((await sharp(small.original).metadata()).width).toBe((await sharp(input).metadata()).width)
+    expect((await sharp(small.derivative).metadata()).width).toBe((await sharp(input).metadata()).width)
   })
 })
