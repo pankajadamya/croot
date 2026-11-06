@@ -49,7 +49,7 @@ describe('announcement emails', () => {
     })
     const owner = await login('alpha@owner.test')
     const send = () => owner.agent.post('/api/admin/orgs/alpha/interest/notify').set('X-CSRF-Token', owner.csrf).send({ subject: 'News', message: 'Our next retreat is open.' })
-    expect((await send()).body).toEqual({ sent: 1, failed: 0 })
+    expect((await send()).body).toMatchObject({ sent: 1, failed: 0 })
     const first = testOutbox.at(-1)!
     await prisma.auditEvent.deleteMany() // skip the "not twice in a row" pause
     await send()

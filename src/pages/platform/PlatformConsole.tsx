@@ -42,6 +42,7 @@ interface Tenant {
   retreatCount: number
   memberCount: number
   ownerEmails: string[]
+  email: { paused: boolean; dailyLimit: number | null; limit: number; sentToday: number; bouncesWeek: number; complaintsWeek: number }
 }
 
 interface Created {
@@ -272,6 +273,10 @@ function Tenants() {
   const queryClient = useQueryClient()
   const orgs = useQuery({ queryKey: ORGS_KEY, queryFn: () => get<{ orgs: Tenant[] }>('/api/platform/orgs').then((r) => r.orgs) })
   const refresh = () => queryClient.invalidateQueries({ queryKey: ORGS_KEY })
+  const setEmail = useMutation({
+    mutationFn: (v: { id: string; paused?: boolean; dailyLimit?: number | null }) => post(`/api/platform/orgs/${v.id}/email`, v),
+    onSuccess: refresh,
+  })
   const setStatus = useMutation({
     mutationFn: (v: { id: string; status: Tenant['status'] }) => post(`/api/platform/orgs/${v.id}/status`, { status: v.status }),
     onSuccess: refresh,
@@ -288,7 +293,7 @@ function Tenants() {
   return (
     <section className="card" aria-labelledby="pf-tenants">
       <h2 id="pf-tenants">Organisations</h2>
-      <MutationError error={setStatus.error || removeDomain.error || erase.error} />
+      <MutationError error={setStatus.error || removeDomain.error || erase.error || setEmail.error} />
       {orgs.isLoading && <Loading />}
       {orgs.error && <ErrorNotice error={orgs.error} />}
       {orgs.data && orgs.data.length === 0 && <p className="muted">No organisations yet.</p>}
@@ -300,6 +305,7 @@ function Tenants() {
                 <th scope="col">Organisation</th>
                 <th scope="col">Status</th>
                 <th scope="col">Size</th>
+                <th scope="col">Guest email</th>
                 <th scope="col">Custom domains</th>
               </tr>
             </thead>
@@ -355,6 +361,49 @@ function Tenants() {
                     {o.retreatCount} {o.retreatCount === 1 ? 'programme' : 'programmes'}
                     <div>
                       {o.memberCount} {o.memberCount === 1 ? 'member' : 'members'}
+                    </div>
+                  </td>
+                  <td className="small">
+                    {o.email.paused ? <span className="badge warn">Paused</span> : <span>{o.email.sentToday} of {o.email.limit} today</span>}
+                    {(o.email.bouncesWeek > 0 || o.email.complaintsWeek > 0) && (
+                      <div style={{ color: 'var(--danger, #b3261e)' }}>
+                        This week: {o.email.bouncesWeek} bounced, {o.email.complaintsWeek} spam
+                      </div>
+                    )}
+                    <div className="row" style={{ gap: '0.3rem', marginTop: '0.35rem' }}>
+                      <button
+                        type="button"
+                        className="btn secondary small"
+                        disabled={setEmail.isPending}
+                        onClick={() => {
+                          if (o.email.paused) setEmail.mutate({ id: o.id, paused: false })
+                          else
+                            void confirm({
+                              title: `Pause email from ${o.name}?`,
+                              message: 'Invitations and announcements stop until you turn it back on. Their team sees why. Sign-in codes still work.',
+                              confirmLabel: 'Pause email',
+                              danger: true,
+                            }).then((ok) => ok && setEmail.mutate({ id: o.id, paused: true }))
+                        }}
+                      >
+                        {o.email.paused ? 'Resume email' : 'Pause email'}
+                      </button>
+                      <label className="sr-only" htmlFor={`limit-${o.id}`}>Daily email limit for {o.name}</label>
+                      <input
+                        id={`limit-${o.id}`}
+                        type="number"
+                        min={1}
+                        max={100000}
+                        placeholder={`${o.email.limit} a day`}
+                        defaultValue={o.email.dailyLimit ?? ''}
+                        title="Daily limit (empty: the platform default)"
+                        style={{ width: '7rem', minHeight: 32 }}
+                        onBlur={(e) => {
+                          const v = e.target.value.trim()
+                          const next = v === '' ? null : Math.round(Number(v))
+                          if (next !== o.email.dailyLimit && (next === null || next >= 1)) setEmail.mutate({ id: o.id, dailyLimit: next })
+                        }}
+                      />
                     </div>
                   </td>
                   <td>

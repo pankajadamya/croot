@@ -87,6 +87,8 @@ export interface AttendeeRowView {
   id: string
   name: string
   email: string
+  /** The address bounced or its owner reported spam: Croot won't email it until corrected. */
+  emailProblem?: 'bounced' | 'complained' | null
   state: InviteState
   stayStart?: string | null
   stayEnd?: string | null

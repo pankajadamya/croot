@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { sendOrgMail } from '../../lib/emailGuard.js'
 import { z } from 'zod'
 import { audit } from '../../lib/audit.js'
 import { toCsv } from '../../lib/csv.js'
@@ -78,17 +79,22 @@ interestRouter.post(
     const people = await prisma.interestSignup.findMany({ where: { organisationId: t.org.id, confirmedAt: { not: null } } })
     let sent = 0
     let failed = 0
+    let stopped: string | null = null
     for (const p of people) {
       // The same unsubscribe link in every email, so older ones keep working.
       await prisma.interestSignup.update({ where: { id: p.id }, data: { lastMailAt: new Date() } })
       try {
-        await sendMail(announcementMail(p.email, t.org, unsubscribeTokenFor(p.id), body.subject, body.message))
+        await sendOrgMail(t.org.id, announcementMail(p.email, t.org, unsubscribeTokenFor(p.id), body.subject, body.message))
         sent++
-      } catch {
+      } catch (e) {
+        if (e instanceof HttpError && (e.status === 429 || e.message.includes('paused'))) {
+          stopped = e.message
+          break
+        }
         failed++
       }
     }
     await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'interest.emailed', entityType: 'organisation', entityId: t.org.id, metadata: { sent, failed, subject: body.subject } })
-    res.json({ sent, failed })
+    res.json({ sent, failed, stopped })
   }),
 )

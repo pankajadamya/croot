@@ -49,6 +49,10 @@ model Organisation {
   slug         String             @unique
   name         String
   status       OrganisationStatus @default(active)
+  /// An admin can pause all guest-facing email from this organisation (lib/emailGuard.ts).
+  emailPaused     Boolean  @default(false)
+  /// Guest-facing emails a day; null means the platform default (ORG_DAILY_EMAIL_LIMIT).
+  dailyEmailLimit Int?
   contactEmail String?
   websiteUrl   String?
 
@@ -732,4 +736,38 @@ model PendingStorageDeletion {
   lastError String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+enum EmailProblem {
+  bounced
+  complained
+}
+
+/// An address never mailed again: SES reported a permanent bounce or a spam complaint.
+model EmailSuppression {
+  email     String       @id
+  reason    EmailProblem
+  detail    String       @default("")
+  createdAt DateTime     @default(now())
+}
+
+/// Guest-facing email an organisation sent (for its daily limit, and to tie SES feedback to it).
+model EmailSend {
+  id             String   @id @default(uuid()) @db.Uuid
+  organisationId String   @db.Uuid
+  category       String
+  messageId      String?  @unique
+  sentAt         DateTime @default(now())
+
+  @@index([organisationId, sentAt])
+}
+
+/// A bounce or complaint, per organisation when known (admins' spike alert).
+model EmailFeedback {
+  id             String       @id @default(uuid()) @db.Uuid
+  organisationId String?      @db.Uuid
+  kind           EmailProblem
+  createdAt      DateTime     @default(now())
+
+  @@index([organisationId, createdAt])
 }

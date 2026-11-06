@@ -4920,3 +4920,7 @@ a.review-date:hover {
   cursor: grab;
   touch-action: manipulation;
 }
+.email-problem {
+  color: var(--danger, #b3261e);
+  margin-top: 0.3rem;
+}

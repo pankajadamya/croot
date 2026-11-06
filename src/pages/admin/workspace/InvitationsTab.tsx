@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router'
-import { del, get, orgApi, post } from '../../../lib/api'
+import { del, get, orgApi, patch, post } from '../../../lib/api'
 import { formatDate, formatDateTime } from '../../../lib/format'
 import { Field } from '../../../components/Controls'
 import { ErrorNotice, Loading } from '../../../components/States'
@@ -107,9 +107,12 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
   // Croot emails the links itself; copying them is the fallback.
   const [sentNote, setSentNote] = useState<string | null>(null)
   const emailAll = useMutation({
-    mutationFn: () => post<{ sent: number; failed: string[] }>(`${base}/invites/email-all`),
+    mutationFn: () => post<{ sent: number; failed: string[]; stopped?: string | null; notYet?: number }>(`${base}/invites/email-all`),
     onSuccess: (r) => {
-      setSentNote(`Emailed ${r.sent} invitation${r.sent === 1 ? '' : 's'}.${r.failed.length ? ` Couldn’t email: ${r.failed.join(', ')}.` : ''}`)
+      setSentNote(
+        `Emailed ${r.sent} invitation${r.sent === 1 ? '' : 's'}.${r.failed.length ? ` Couldn’t email: ${r.failed.join(', ')}.` : ''}` +
+          (r.stopped ? ` ${r.notYet ?? 0} not sent yet: ${r.stopped}` : ''),
+      )
       refresh()
     },
   })
@@ -252,6 +255,7 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
                     <td>
                       {a.responseId ? <Link to={`/admin/${orgSlug}/responses/${a.responseId}`}>{a.name}</Link> : a.name}
                       <div className="small muted">{a.email}</div>
+                      {a.emailProblem && <EmailProblem orgSlug={orgSlug} attendee={a} onFixed={refresh} />}
                     </td>
                     {isProperty && (
                       <td className="small">
@@ -505,6 +509,37 @@ function AddAttendee({ orgSlug, retreat, onDone }: { orgSlug: string; retreat: R
       <button className="btn secondary" type="submit" disabled={add.isPending}>
         {add.isPending ? 'Adding…' : 'Add guest'}
       </button>
+    </form>
+  )
+}
+
+/** A guest's address bounced (or they reported spam): say so, and let the organiser correct it. */
+function EmailProblem({ orgSlug, attendee, onFixed }: { orgSlug: string; attendee: AttendeeRowView; onFixed: () => void }) {
+  const [email, setEmail] = useState(attendee.email)
+  const fix = useMutation({
+    mutationFn: () => patch<{ attendee: { emailProblem: string | null } }>(`${orgApi(orgSlug)}/attendees/${attendee.id}`, { email }),
+    onSuccess: onFixed,
+  })
+  if (attendee.emailProblem === 'complained') {
+    return <div className="small email-problem">They reported our email as spam, so Croot won’t email them again. Share their link another way.</div>
+  }
+  return (
+    <form
+      className="small email-problem"
+      onSubmit={(e) => {
+        e.preventDefault()
+        fix.mutate()
+      }}
+    >
+      <span>Email bounced: this address doesn’t accept email. Check it with {attendee.name || 'them'}.</span>
+      <span className="row" style={{ gap: '0.35rem', marginTop: '0.3rem' }}>
+        <label className="sr-only" htmlFor={`fix-${attendee.id}`}>Correct email address for {attendee.name}</label>
+        <input id={`fix-${attendee.id}`} type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={{ minHeight: 32, maxWidth: '16rem' }} />
+        <button type="submit" className="btn secondary small" disabled={fix.isPending || email.trim().toLowerCase() === attendee.email}>
+          Correct address
+        </button>
+      </span>
+      <MutationError error={fix.error} />
     </form>
   )
 }

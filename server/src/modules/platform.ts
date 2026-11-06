@@ -215,9 +215,16 @@ platformRouter.get(
         memberships: { where: { role: 'owner' }, select: { user: { select: { email: true } } }, orderBy: { createdAt: 'asc' } },
       },
     })
+    // Email health per organisation: today's sends against its limit, and the last week's feedback.
+    const day = new Date(Date.now() - 24 * 3600_000)
+    const week = new Date(Date.now() - 7 * 24 * 3600_000)
+    const sentToday = new Map((await prisma.emailSend.groupBy({ by: ['organisationId'], where: { sentAt: { gt: day } }, _count: { _all: true } })).map((r) => [r.organisationId, r._count._all]))
+    const feedback = await prisma.emailFeedback.groupBy({ by: ['organisationId', 'kind'], where: { createdAt: { gt: week } }, _count: { _all: true } })
+    const fb = (id: string, kind: 'bounced' | 'complained') => feedback.find((f) => f.organisationId === id && f.kind === kind)?._count._all ?? 0
     res.json({
       orgs: orgs.map((o) => ({
         id: o.id,
+        email: { paused: o.emailPaused, dailyLimit: o.dailyEmailLimit, limit: o.dailyEmailLimit ?? env.ORG_DAILY_EMAIL_LIMIT, sentToday: sentToday.get(o.id) ?? 0, bouncesWeek: fb(o.id, 'bounced'), complaintsWeek: fb(o.id, 'complained') },
         slug: o.slug,
         name: o.name,
         status: o.status,
@@ -254,6 +261,21 @@ platformRouter.post(
       console.error('new owner email failed:', (e as Error).message)
     }
     res.status(201).json({ organisation: { id: org.id, slug: org.slug, name: org.name }, setupUrl: null, emailed, newAccount: isNew })
+  }),
+)
+
+/** An organisation's guest email: pause it, or set its own daily limit (null: the platform default). */
+platformRouter.post(
+  '/orgs/:id/email',
+  route(async (req, res) => {
+    const id = uuidParam(req, 'id')
+    const body = parseBody(z.object({ paused: z.boolean().optional(), dailyLimit: z.number().int().min(1).max(100000).nullable().optional() }), req.body)
+    await prisma.organisation.update({
+      where: { id },
+      data: { ...(body.paused !== undefined ? { emailPaused: body.paused } : {}), ...(body.dailyLimit !== undefined ? { dailyEmailLimit: body.dailyLimit } : {}) },
+    })
+    await audit({ organisationId: id, actorUserId: req.auth!.user.id, actorKind: 'platform', action: 'tenant.email_settings', entityType: 'organisation', entityId: id, metadata: body })
+    res.json({ ok: true })
   }),
 )
 

@@ -43,7 +43,7 @@ describe('register interest in the next retreat', () => {
     // The organiser emails everyone; each email has a working unsubscribe link.
     testOutbox.length = 0
     const sent = await agent.post('/api/admin/orgs/alpha/interest/notify').set('X-CSRF-Token', csrf).send({ subject: 'Next retreat open', message: 'Our 2027 retreat is open for booking.' })
-    expect(sent.body).toEqual({ sent: 1, failed: 0 })
+    expect(sent.body).toMatchObject({ sent: 1, failed: 0 })
     expect(testOutbox[0].text).toContain('Unsubscribe:')
     // Not twice in a row.
     expect((await agent.post('/api/admin/orgs/alpha/interest/notify').set('X-CSRF-Token', csrf).send({ subject: 'Again', message: 'Another message here.' })).status).toBe(429)

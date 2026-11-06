@@ -342,7 +342,7 @@ describe('emailed invitations', () => {
     await prisma.retreat.update({ where: { id: retreat.id }, data: { status: 'collecting' } })
 
     const sent = await agent.post(`/api/admin/orgs/alpha/retreats/${retreat.id}/invites/email-all`).set('X-CSRF-Token', csrf).send({})
-    expect(sent.body).toEqual({ sent: 2, failed: [] })
+    expect(sent.body).toMatchObject({ sent: 2, failed: [] })
     const mail = testOutbox.find((m) => m.to === 'ana@example.test')!
     expect(mail).toMatchObject({ category: 'invitation', subject: expect.stringContaining(retreat.title) })
     const token = mail.text.match(/\/invite\/([\w-]+)/)![1]

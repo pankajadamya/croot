@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { PROCESSING_TERMS_VERSION } from '../../../shared/legal.js'
 import { route } from '../lib/http.js'
+import { normaliseEmail, suppressedAmong } from '../lib/emailGuard.js'
 import { prisma } from '../lib/prisma.js'
 import { requireUser } from '../middleware/auth.js'
 
@@ -23,6 +24,9 @@ export interface AttentionItem {
 }
 
 const MIN_ANONYMOUS_NOTES = 3
+/** An organisation's bounces in a day that count as a spike (with at least this share of its sends). */
+const SPIKE_BOUNCES = 3
+const SPIKE_BOUNCE_RATE = 0.05
 const MAX_PER_KIND = 20
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 const excerpt = (s: string, n = 140) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s)
@@ -105,6 +109,22 @@ export async function organisationAttention(org: { id: string; slug: string; nam
       items.push({ id: `story-photos:${g.responseId}`, scope, title: `${plural(g._count._all, 'photo')} to approve for a published story`, detail: retreat.title, href: `${base}/responses/${g.responseId}` })
     }
 
+    // Guests whose email address bounced or complained: they won't get invitations or reminders.
+    const guests = await prisma.attendee.findMany({ where: { organisationId: org.id, retreatId: retreat.id }, select: { name: true, email: true } })
+    const problems = await suppressedAmong(guests.map((g) => g.email))
+    const bad = guests.filter((g) => problems.has(normaliseEmail(g.email)))
+    if (bad.length) {
+      const names = bad.slice(0, 3).map((g) => g.name || g.email).join(', ') + (bad.length > 3 ? ' and others' : '')
+      items.push({
+        id: `bounced:${retreat.id}`,
+        scope,
+        title: bad.length === 1 ? `${names}’s email isn’t reaching them` : `${plural(bad.length, 'guest email')} aren’t reaching them`,
+        detail: `${bad.length > 1 ? `${names}. ` : ''}Check the address with them and correct it. ${retreat.title}.`,
+        href: `${ws}/invitations`,
+        urgent: true,
+      })
+    }
+
     // Anonymous notes this person hasn't seen (shown only once a few have arrived).
     const notes = await prisma.anonymousNote.count({ where: { organisationId: org.id, retreatId: retreat.id } })
     const unseen = notes >= MIN_ANONYMOUS_NOTES ? notes - (seen[retreat.id] ?? 0) : 0
@@ -130,6 +150,31 @@ export async function platformAttention() {
   if (requests) items.push({ id: 'platform:requests', scope, title: `${plural(requests, 'organiser request')} to review`, href: '/platform#pf-requests', urgent: true })
   const pendingOrgs = await prisma.organisation.count({ where: { status: 'pending' } })
   if (pendingOrgs) items.push({ id: 'platform:orgs', scope, title: `${plural(pendingOrgs, 'organisation')} waiting for approval`, href: '/platform#pf-tenants' })
+  // An organisation whose mail is bouncing or being marked as spam harms delivery for everyone.
+  const since = new Date(Date.now() - 24 * 3600_000)
+  const feedback = await prisma.emailFeedback.groupBy({ by: ['organisationId', 'kind'], where: { createdAt: { gt: since }, organisationId: { not: null } }, _count: { _all: true } })
+  const perOrg = new Map<string, { bounced: number; complained: number }>()
+  for (const f of feedback) {
+    const row = perOrg.get(f.organisationId!) ?? { bounced: 0, complained: 0 }
+    row[f.kind] += f._count._all
+    perOrg.set(f.organisationId!, row)
+  }
+  for (const [organisationId, n] of perOrg) {
+    const sent = await prisma.emailSend.count({ where: { organisationId, sentAt: { gt: since } } })
+    const bounceRate = sent ? n.bounced / sent : 0
+    // A spike: any complaint, or several bounces making up a noticeable share of the day's sends.
+    if (n.complained === 0 && !(n.bounced >= SPIKE_BOUNCES && bounceRate >= SPIKE_BOUNCE_RATE)) continue
+    const org = await prisma.organisation.findUnique({ where: { id: organisationId }, select: { name: true, emailPaused: true } })
+    if (!org || org.emailPaused) continue
+    items.push({
+      id: `platform:email:${organisationId}`,
+      scope,
+      title: `${org.name}: email problems in the last day`,
+      detail: [n.bounced ? plural(n.bounced, 'bounce') : null, n.complained ? plural(n.complained, 'spam complaint') : null].filter(Boolean).join(', ') + ` from ${plural(sent, 'email')} sent. Consider pausing its email.`,
+      href: '/platform#pf-tenants',
+      urgent: true,
+    })
+  }
   const failing = await prisma.pendingStorageDeletion.count({ where: { attempts: { gte: 3 } } })
   if (failing) {
     items.push({ id: 'platform:storage', scope, title: `${plural(failing, 'file')} could not be deleted`, detail: 'Storage deletions are still failing after several retries. Check the object storage.', href: '/platform', urgent: true })

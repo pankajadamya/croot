@@ -22,6 +22,7 @@ import { mediaRouter, publicRouter } from './modules/public.js'
 import { sharedAlbumsRouter } from './modules/sharedAlbums.js'
 import { receiptsRouter } from './modules/receipts.js'
 import { attentionRouter } from './modules/attention.js'
+import { sesWebhookRouter } from './modules/sesWebhook.js'
 
 export function createApp() {
   const app = express()
@@ -69,6 +70,8 @@ export function createApp() {
   })
 
   app.use('/media', mediaRouter)
+  // Amazon SES bounces and complaints (via SNS): before the JSON parser, verified by signature.
+  app.use('/api/webhooks', sesWebhookRouter)
 
   const api = express.Router()
   api.use(express.json({ limit: '600kb' }))

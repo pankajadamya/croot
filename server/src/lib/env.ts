@@ -60,6 +60,13 @@ const envSchema = z.object({
   SES_ACCESS_KEY_ID: z.string().optional().default(''),
   SES_SECRET_ACCESS_KEY: z.string().optional().default(''),
   SES_CONFIGURATION_SET: z.string().optional().default(''),
+  /**
+   * The SNS topic SES publishes bounces and complaints to (the configuration set's event destination).
+   * Only notifications from this topic, signed by AWS, are accepted (modules/sesWebhook.ts). Empty: off.
+   */
+  SES_FEEDBACK_TOPIC_ARN: z.string().optional().default(''),
+  /** Guest-facing emails one organisation may send a day, unless an admin sets its own limit. */
+  ORG_DAILY_EMAIL_LIMIT: z.coerce.number().int().min(1).max(100000).default(200),
   RESEND_API_KEY: z.string().optional().default(''),
   /** Google sign-in (OAuth 2.0 / OpenID Connect). Both empty = Google sign-in hidden. */
   GOOGLE_CLIENT_ID: z.string().optional().default(''),

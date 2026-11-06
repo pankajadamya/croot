@@ -1,6 +1,7 @@
 import { authSecret, env } from './env.js'
 import { HttpError } from './http.js'
-import { type Mail, sendMail } from './mailer.js'
+import { sendOrgMail } from './emailGuard.js'
+import { type Mail } from './mailer.js'
 import { prisma } from './prisma.js'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { hashToken, newToken } from './tokens.js'
@@ -97,7 +98,8 @@ export async function registerInterest(opts: { organisationId: string; orgName: 
   }
   if (existing) await prisma.interestSignup.update({ where: { id: existing.id }, data })
   else await prisma.interestSignup.create({ data: { ...data, organisationId: opts.organisationId, email } })
-  await sendMail(confirmMail(email, opts.orgName, token))
+  // Counts against the organisation's daily limit; a refusal (paused, over the limit) isn't shown to the visitor.
+  await sendOrgMail(opts.organisationId, confirmMail(email, opts.orgName, token)).catch((e) => console.warn('interest confirmation not sent:', (e as Error).message))
 }
 
 async function byToken(token: string) {

@@ -1,5 +1,6 @@
 import { SendEmailCommand, SESv2Client } from '@aws-sdk/client-sesv2'
 import { env } from './env.js'
+import { prisma } from './prisma.js'
 
 export interface Mail {
   to: string
@@ -27,23 +28,35 @@ function sesClient() {
 
 /** Messages captured in tests instead of being sent. */
 export const testOutbox: Mail[] = []
+/** Recipients skipped because they're suppressed (tests). */
+export const suppressedSkips: string[] = []
 
 /**
  * Transactional email. "console" is for local development only (production refuses to start with
  * it, see env.ts); "resend" calls the Resend HTTP API. Bodies are never logged in production.
+ * Returns the provider's message id (null when nothing was sent).
  */
-export async function sendMail(mail: Mail): Promise<void> {
-  if (env.NODE_ENV === 'test') {
-    testOutbox.push(mail)
-    return
+export async function sendMail(mail: Mail): Promise<string | null> {
+  // Tests: captured at once (some mail is sent without waiting, and tests read the outbox straight
+  // after the request), then taken back out if the address turns out to be suppressed.
+  if (env.NODE_ENV === 'test') testOutbox.push(mail)
+  // An address that bounced for good or complained is never mailed again (lib/emailGuard.ts).
+  const suppressed = await prisma.emailSuppression.findUnique({ where: { email: mail.to.trim().toLowerCase() }, select: { reason: true } })
+  if (suppressed) {
+    if (env.NODE_ENV === 'test') {
+      testOutbox.splice(testOutbox.indexOf(mail), 1)
+      suppressedSkips.push(mail.to)
+    } else console.warn(`email (${mail.category}) not sent: the address is suppressed (${suppressed.reason})`)
+    return null
   }
+  if (env.NODE_ENV === 'test') return `test-${testOutbox.length}-${Date.now()}`
   if (env.EMAIL_PROVIDER === 'console') {
     console.log(`\n[dev email] to=${mail.to} subject="${mail.subject}"\n${mail.text}\n`)
-    return
+    return null
   }
   if (env.EMAIL_PROVIDER === 'ses') {
     // SendEmail throws on every rejection (sandbox recipient, unverified sender, throttling).
-    await sesClient().send(
+    const sent = await sesClient().send(
       new SendEmailCommand({
         FromEmailAddress: env.EMAIL_FROM,
         Destination: { ToAddresses: [mail.to] },
@@ -58,7 +71,7 @@ export async function sendMail(mail: Mail): Promise<void> {
         ...(env.SES_CONFIGURATION_SET ? { ConfigurationSetName: env.SES_CONFIGURATION_SET } : {}),
       }),
     )
-    return
+    return sent.MessageId ?? null
   }
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -66,6 +79,7 @@ export async function sendMail(mail: Mail): Promise<void> {
     body: JSON.stringify({ from: env.EMAIL_FROM, to: [mail.to], subject: mail.subject, text: mail.text, html: mail.html, ...(mail.headers ? { headers: mail.headers } : {}) }),
   })
   if (!res.ok) throw new Error(`Email provider returned ${res.status}`)
+  return ((await res.json().catch(() => null)) as { id?: string } | null)?.id ?? null
 }
 
 const escape = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)

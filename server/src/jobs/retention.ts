@@ -21,7 +21,7 @@ const DAY = 86_400_000
 const monthsAgo = (now: Date, m: number) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - m, now.getUTCDate()))
 
 export async function runRetention(now = new Date()) {
-  const counts = { drafts: 0, nonResponders: 0, responsesErased: 0, responsesMinimised: 0, originals: 0, notes: 0, auditEvents: 0, sessions: 0, setupTokens: 0, invitations: 0, tenantRequests: 0, loginCodes: 0, interestUnconfirmed: 0, storageRetried: 0, storageStillFailing: 0 }
+  const counts = { drafts: 0, nonResponders: 0, responsesErased: 0, responsesMinimised: 0, originals: 0, notes: 0, auditEvents: 0, sessions: 0, setupTokens: 0, invitations: 0, tenantRequests: 0, loginCodes: 0, interestUnconfirmed: 0, storageRetried: 0, storageStillFailing: 0, emailSends: 0, emailFeedback: 0 }
   const orgs = await prisma.organisation.findMany()
 
   for (const org of orgs) {
@@ -122,6 +122,11 @@ export async function runRetention(now = new Date()) {
       where: { OR: [{ status: 'declined', reviewedAt: { lt: monthsAgo(now, 6) } }, { status: 'approved', reviewedAt: { lt: monthsAgo(now, 24) } }] },
     })
   ).count
+  // Email send and feedback records (daily limits, spike alerts) are only needed for 90 days. The
+  // suppression list itself is kept: those addresses must never be mailed again.
+  const ninetyDays = new Date(now.getTime() - 90 * 24 * 3600_000)
+  counts.emailSends = (await prisma.emailSend.deleteMany({ where: { sentAt: { lt: ninetyDays } } })).count
+  counts.emailFeedback = (await prisma.emailFeedback.deleteMany({ where: { createdAt: { lt: ninetyDays } } })).count
   // Files whose deletion failed earlier: try again until they're gone.
   const retried = await retryPendingDeletions()
   counts.storageRetried = retried.deleted

@@ -1,11 +1,12 @@
 import { Router } from 'express'
+import { normaliseEmail, sendOrgMail, suppressedAmong } from '../../lib/emailGuard.js'
 import { z } from 'zod'
 import { audit } from '../../lib/audit.js'
 import { parseAttendeeCsv } from '../../lib/csv.js'
 import { env } from '../../lib/env.js'
 import { HttpError, parseBody, route, text, uuidParam } from '../../lib/http.js'
 import { issueInvitation } from '../../lib/invites.js'
-import { invitationEmail, sendMail } from '../../lib/mailer.js'
+import { invitationEmail } from '../../lib/mailer.js'
 import { firstName } from '../../../../shared/slug.js'
 import { prisma } from '../../lib/prisma.js'
 import { tenantAttendee, tenantRetreat } from '../../lib/tenant.js'
@@ -35,6 +36,7 @@ attendeesRouter.get(
       },
     })
     const now = new Date()
+    const problems = await suppressedAmong(attendees.map((a) => a.email))
     res.json({
       attendees: attendees.map((a) => {
         const inv = a.invitations[0]
@@ -52,6 +54,8 @@ attendeesRouter.get(
           id: a.id,
           name: a.name,
           email: a.email,
+          // bounced / complained: SES reported it; Croot won't email it until the address is corrected.
+          emailProblem: problems.get(normaliseEmail(a.email)) ?? null,
           stayStart: a.stayStart,
           stayEnd: a.stayEnd,
           state,
@@ -164,7 +168,8 @@ async function emailInvite(org: OrgForMail, retreat: RetreatForMail, attendee: {
   const origin = await siteOrigin(orgId)
   if (retreat.status !== 'collecting') throw new HttpError(409, 'Start collecting reviews first, so the links work.')
   const { token, invitation } = await prisma.$transaction((tx) => issueInvitation(tx, { organisationId: orgId, attendeeId: attendee.id, ttlDays: retreat.inviteTtlDays }))
-  await sendMail(
+  await sendOrgMail(
+    orgId,
     invitationEmail({
       to: attendee.email,
       firstName: firstName(attendee.name),
@@ -210,16 +215,22 @@ attendeesRouter.post(
     })
     let sent = 0
     const failed: string[] = []
+    let stopped: string | null = null
     for (const a of attendees) {
       try {
         await emailInvite(t.org, retreat, a)
         sent++
-      } catch {
+      } catch (e) {
+        // Over today's limit, or email paused: the rest wait; say why instead of failing each one.
+        if (e instanceof HttpError && (e.status === 429 || e.message.includes('paused'))) {
+          stopped = e.message
+          break
+        }
         failed.push(a.email)
       }
     }
-    await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'invitation.bulk_emailed', entityType: 'retreat', entityId: retreat.id, metadata: { sent, failed: failed.length } })
-    res.json({ sent, failed })
+    await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'invitation.bulk_emailed', entityType: 'retreat', entityId: retreat.id, metadata: { sent, failed: failed.length, stopped: Boolean(stopped) } })
+    res.json({ sent, failed, stopped, notYet: attendees.length - sent - failed.length })
   }),
 )
 
@@ -251,6 +262,24 @@ attendeesRouter.post(
     await prisma.invitation.updateMany({ where: { attendeeId: attendee.id, revokedAt: null }, data: { revokedAt: new Date() } })
     await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'invitation.revoked', entityType: 'attendee', entityId: attendee.id })
     res.json({ ok: true })
+  }),
+)
+
+/** Corrects a guest's email address (say, after it bounced). Their private link keeps working. */
+attendeesRouter.patch(
+  '/attendees/:attendeeId',
+  route(async (req, res) => {
+    const t = tenantOf(req)
+    const attendee = await tenantAttendee(t.org.id, uuidParam(req, 'attendeeId'))
+    const body = parseBody(z.object({ email: z.email().max(320) }), req.body)
+    const email = normaliseEmail(body.email)
+    if (email !== attendee.email && (await prisma.attendee.findUnique({ where: { retreatId_email: { retreatId: attendee.retreatId, email } } }))) {
+      throw new HttpError(409, 'Another guest on this programme already has that address', { email: ['Already used by another guest'] })
+    }
+    const updated = await prisma.attendee.update({ where: { id: attendee.id }, data: { email } })
+    await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'attendee.email_corrected', entityType: 'attendee', entityId: attendee.id })
+    const problem = (await suppressedAmong([email])).get(email) ?? null
+    res.json({ attendee: { id: updated.id, email: updated.email, emailProblem: problem } })
   }),
 )
 
