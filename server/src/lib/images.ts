@@ -1,4 +1,5 @@
 import sharp from 'sharp'
+import { readCaptureTime, sensibleTime } from '../../../shared/captureTime.js'
 import { HttpError } from './http.js'
 
 const ALLOWED_FORMATS = new Set(['jpeg', 'png', 'webp', 'heif', 'avif'])
@@ -35,6 +36,8 @@ export function imageQueueState() {
 }
 
 export interface ProcessedImage {
+  /** When the photo was taken, from its EXIF (else the browser's reading of the original), or null. */
+  takenAt: Date | null
   original: Buffer
   originalMime: string
   derivative: Buffer
@@ -50,11 +53,17 @@ export interface ProcessedImage {
  * sharp drops EXIF/GPS/camera metadata unless asked to keep it, and `.rotate()` bakes the EXIF
  * orientation in first so the stripped copies still display the right way up.
  */
-export function processImage(input: Buffer): Promise<ProcessedImage> {
-  return withImageSlot(() => decodeAndResize(input))
+export function processImage(input: Buffer, takenAtHint?: unknown): Promise<ProcessedImage> {
+  return withImageSlot(async () => {
+    const image = await decodeAndResize(input)
+    // Read before anything is thrown away; only the time is kept. The browser sends its own reading
+    // (takenAtHint) when it had to convert the photo first (HEIC, or too large), which loses EXIF.
+    const taken = readCaptureTime(input) ?? sensibleTime(takenAtHint)
+    return { ...image, takenAt: taken ? new Date(taken) : null }
+  })
 }
 
-async function decodeAndResize(input: Buffer): Promise<ProcessedImage> {
+async function decodeAndResize(input: Buffer): Promise<Omit<ProcessedImage, 'takenAt'>> {
   let meta: Awaited<ReturnType<ReturnType<typeof sharp>["metadata"]>>
   try {
     meta = await sharp(input, { limitInputPixels: MAX_INPUT_PIXELS }).metadata()

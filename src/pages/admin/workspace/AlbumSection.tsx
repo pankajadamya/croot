@@ -8,7 +8,7 @@ import type { OrganiserMedia, Retreat } from '../types'
 import { AlbumGrid } from './AlbumGrid'
 import { videoPoster } from '../../../lib/videoPoster'
 import { UploadZone } from '../../../components/UploadZone'
-import { IMAGE_ACCEPT, isImageFile, MAX_UPLOAD_MB, prepareImage } from '../../../lib/prepareImage'
+import { IMAGE_ACCEPT, isImageFile, MAX_UPLOAD_MB, prepareImage, captureTimeOf } from '../../../lib/prepareImage'
 import { useConfirm } from '../../../components/ConfirmDialog'
 import { FILM_MUSIC, type FilmMusic } from '../../../../shared/film'
 
@@ -100,6 +100,7 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
           await post(`${orgApi(orgSlug)}/retreats/${retreat.id}/album/videos`, data)
         } else {
           data.append('image', await prepareImage(file))
+          data.append('takenAt', await captureTimeOf(file))
           data.append('rightsConfirmed', 'true')
           await post(`${orgApi(orgSlug)}/retreats/${retreat.id}/media?album=1`, data)
         }
@@ -240,7 +241,7 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
       <UploadZone
         id="album-upload"
         title="Add photos or videos"
-        hint={`Photos up to ${MAX_UPLOAD_MB} MB · videos up to ${MAX_VIDEO_MB} MB · camera and location details removed`}
+        hint={`Photos up to ${MAX_UPLOAD_MB} MB · videos up to ${MAX_VIDEO_MB} MB · location and camera details removed; only the time taken is kept`}
         accept={`${IMAGE_ACCEPT},video/mp4,video/quicktime,video/webm`}
         busy={Boolean(progress)}
         busyLabel={progress ? `Uploading ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…` : undefined}

@@ -1,4 +1,5 @@
 import { open } from 'node:fs/promises'
+import { sensibleTime } from '../../../shared/captureTime.js'
 import type { Request, Response } from 'express'
 import { HttpError } from './http.js'
 import { storage } from './storage.js'
@@ -110,4 +111,51 @@ export async function stripVideoMetadata(path: string): Promise<number> {
     await fh.close()
   }
   return cleared
+}
+
+/** Seconds between 1904-01-01 (the MP4 epoch) and 1970-01-01. */
+const MP4_EPOCH_OFFSET = 2_082_844_800
+
+/**
+ * When an MP4/MOV was recorded: the creation time in its movie header (moov/mvhd), which is UTC.
+ * Read-only; null for WebM, a zero or implausible time, or anything malformed. Location and camera
+ * details live elsewhere (udta/meta), which stripVideoMetadata clears.
+ */
+export async function videoCreationTime(path: string): Promise<string | null> {
+  const fh = await open(path, 'r')
+  try {
+    const { size: fileSize } = await fh.stat()
+    const header = Buffer.alloc(16)
+    const find = async (start: number, end: number, want: string): Promise<{ at: number; size: number; headerSize: number } | null> => {
+      let pos = start
+      while (pos + 8 <= end) {
+        await fh.read(header, 0, 16, pos)
+        let size = header.readUInt32BE(0)
+        const type = header.toString('latin1', 4, 8)
+        let headerSize = 8
+        if (size === 1) {
+          size = Number(header.readBigUInt64BE(8))
+          headerSize = 16
+        } else if (size === 0) size = end - pos
+        if (size < headerSize || pos + size > end) return null
+        if (type === want) return { at: pos, size, headerSize }
+        pos += size
+      }
+      return null
+    }
+    const moov = await find(0, fileSize, 'moov')
+    if (!moov) return null
+    const mvhd = await find(moov.at + moov.headerSize, moov.at + moov.size, 'mvhd')
+    if (!mvhd) return null
+    const body = Buffer.alloc(12)
+    await fh.read(body, 0, 12, mvhd.at + mvhd.headerSize)
+    const version = body[0]
+    const seconds = version === 1 ? Number(body.readBigUInt64BE(4)) : body.readUInt32BE(4)
+    if (!seconds) return null
+    return sensibleTime(new Date((seconds - MP4_EPOCH_OFFSET) * 1000).toISOString())
+  } catch {
+    return null
+  } finally {
+    await fh.close()
+  }
 }

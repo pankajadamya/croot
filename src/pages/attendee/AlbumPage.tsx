@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react'
 import { shortCaption } from '../../lib/caption'
-import { IMAGE_ACCEPT, prepareImage } from '../../lib/prepareImage'
+import { IMAGE_ACCEPT, prepareImage, captureTimeOf } from '../../lib/prepareImage'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, useLocation, useParams, useSearchParams } from 'react-router'
 import { api, ApiError, del, get } from '../../lib/api'
@@ -102,6 +102,7 @@ function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { ba
       const fd = new FormData()
       try {
         fd.append('photo', await prepareImage(file))
+        fd.append('takenAt', await captureTimeOf(file))
         await api('POST', `${base}/album/photos`, fd)
       } catch (e) {
         failed.push(`${file.name}: ${e instanceof ApiError || e instanceof Error ? e.message : 'upload failed'}`)

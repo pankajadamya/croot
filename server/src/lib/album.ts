@@ -239,11 +239,11 @@ export async function setAlbumSharing(response: { id: string; organisationId: st
 }
 
 /** A guest adds a photo straight to the album: uploading there is their choice to share it with the group. */
-export async function addContribution(retreat: RetreatLike, response: ResponseLike, file: Buffer) {
+export async function addContribution(retreat: RetreatLike, response: ResponseLike, file: Buffer, takenAtHint?: unknown) {
   if (!available(retreat) || !isUnlocked(response) || !response) throw new HttpError(403, 'Send your review to add photos to the album')
   const already = await prisma.mediaAsset.count({ where: { responseId: response.id, albumConsent: true, removedAt: null } })
   if (already >= MAX_CONTRIBUTIONS) throw new HttpError(409, `You can share up to ${MAX_CONTRIBUTIONS} photos in the album`)
-  const image = await processImage(file)
+  const image = await processImage(file, takenAtHint)
   const id = crypto.randomUUID()
   const prefix = `org/${retreat.organisationId}/retreat/${retreat.id}/guest/${id}`
   await storage.put(`${prefix}/original`, image.original, image.originalMime)
@@ -261,6 +261,7 @@ export async function addContribution(retreat: RetreatLike, response: ResponseLi
       sizeBytes: image.original.length,
       width: image.width,
       height: image.height,
+      takenAt: image.takenAt,
       albumConsent: true,
       albumOrder: await nextAlbumOrder(retreat.id),
     },

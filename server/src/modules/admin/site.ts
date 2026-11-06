@@ -1,4 +1,5 @@
 import { readFile, rm } from 'node:fs/promises'
+import { sensibleTime } from '../../../../shared/captureTime.js'
 import { tmpdir } from 'node:os'
 import { Router } from 'express'
 import sharp from 'sharp'
@@ -12,7 +13,7 @@ import { env } from '../../lib/env.js'
 import { HttpError, parseBody, route, text, uuidParam } from '../../lib/http.js'
 import { processImage } from '../../lib/images.js'
 import { albumHasPhotoRoom, albumLimits, albumUsage, assertAlbumRoom } from '../../lib/platformSettings.js'
-import { sniffVideo, streamVideo, stripVideoMetadata } from '../../lib/video.js'
+import { sniffVideo, streamVideo, stripVideoMetadata, videoCreationTime } from '../../lib/video.js'
 import { prisma } from '../../lib/prisma.js'
 import { storage } from '../../lib/storage.js'
 import { removeObjects } from '../../lib/storageCleanup.js'
@@ -190,6 +191,7 @@ function organiserMediaView(orgSlug: string, m: Awaited<ReturnType<typeof tenant
     isVideo: Boolean(m.videoKey),
     videoUrl: m.videoKey ? `/api/admin/orgs/${orgSlug}/media/${m.id}/video` : null,
     durationSec: m.durationSec,
+    takenAt: m.takenAt,
   }
 }
 
@@ -235,7 +237,7 @@ siteRouter.post(
     // ?album=1: a thank-you album photo (not on the public site; guests who reviewed and anyone with the share link see it).
     const kind = req.query.album ? 'album' : 'organiser'
     if (kind === 'album') await assertAlbumRoom(retreat.id, 'photo')
-    const image = await processImage(req.file.buffer)
+    const image = await processImage(req.file.buffer, req.body.takenAt)
     const id = crypto.randomUUID()
     // A slideshow image joins the album too, unless the album is already full.
     const joinsAlbum = kind === 'organiser' ? await albumHasPhotoRoom(retreat.id) : true
@@ -255,6 +257,7 @@ siteRouter.post(
         sizeBytes: image.original.length,
         width: image.width,
         height: image.height,
+        takenAt: image.takenAt,
         displayOrder: count,
         // New photos go to the end of the album.
         albumOrder: (await prisma.mediaAsset.aggregate({ where: { retreatId: retreat.id, removedAt: null }, _max: { albumOrder: true } }))._max.albumOrder! + 1 || 0,
@@ -306,6 +309,8 @@ siteRouter.post(
       const id = crypto.randomUUID()
       const prefix = `org/${t.org.id}/retreat/${retreat.id}/album/${id}`
       // Phones record where a video was taken; the album can be public, so that never leaves here.
+      // When it was filmed: the container's creation time, read first; the browser's reading otherwise.
+      const filmedAt = (await videoCreationTime(video.path)) ?? sensibleTime(req.body.takenAt)
       if (type.ext !== 'webm') await stripVideoMetadata(video.path)
       await storage.putFile(`${prefix}/video.${type.ext}`, video.path, type.mime)
       await storage.put(`${prefix}/poster.webp`, posterImage.derivative, 'image/webp')
@@ -323,6 +328,7 @@ siteRouter.post(
           width: meta.width ?? posterImage.width,
           height: meta.height ?? posterImage.height,
           durationSec: meta.duration ?? null,
+          takenAt: filmedAt ? new Date(filmedAt) : null,
           albumOrder: ((await prisma.mediaAsset.aggregate({ where: { retreatId: retreat.id, removedAt: null }, _max: { albumOrder: true } }))._max.albumOrder ?? -1) + 1,
           inHeroSlideshow: false,
           inWritingSlideshow: false,

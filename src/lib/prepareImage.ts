@@ -1,3 +1,4 @@
+import { EXIF_SCAN_BYTES, readCaptureTime } from '../../shared/captureTime'
 /** Matches the server's MAX_UPLOAD_BYTES default. */
 export const MAX_UPLOAD_MB = 30
 /** Largest edge we keep; matches the server. */
@@ -43,4 +44,18 @@ async function downscale(file: File): Promise<File> {
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9))
   if (!blob) return file
   return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' })
+}
+
+/**
+ * When the original photo was taken, read in the browser (an ISO time, or '' when unknown). Sent with
+ * the upload as `takenAt`, because converting a HEIC photo or scaling a large one loses its EXIF;
+ * the server prefers its own reading when the file still has one. Only the time is read.
+ */
+export async function captureTimeOf(file: File): Promise<string> {
+  try {
+    const bytes = new Uint8Array(await file.slice(0, EXIF_SCAN_BYTES).arrayBuffer())
+    return readCaptureTime(bytes) ?? ''
+  } catch {
+    return ''
+  }
 }

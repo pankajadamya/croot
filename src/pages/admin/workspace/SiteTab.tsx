@@ -12,7 +12,7 @@ import { AlbumSection } from './AlbumSection'
 import { MediaEditor } from './MediaEditor'
 import { SlideshowSettings } from './SlideshowSettings'
 import { UploadZone } from '../../../components/UploadZone'
-import { IMAGE_ACCEPT, isImageFile, MAX_UPLOAD_MB, prepareImage } from '../../../lib/prepareImage'
+import { IMAGE_ACCEPT, isImageFile, MAX_UPLOAD_MB, prepareImage, captureTimeOf } from '../../../lib/prepareImage'
 import { useConfirm } from '../../../components/ConfirmDialog'
 
 interface ContentState {
@@ -331,6 +331,7 @@ function ImageLibrary({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
       const data = new FormData()
       try {
         data.append('image', await prepareImage(file))
+        data.append('takenAt', await captureTimeOf(file))
         data.append('rightsConfirmed', 'true')
         await post(`${orgApi(orgSlug)}/retreats/${retreat.id}/media`, data)
       } catch (e) {
@@ -379,7 +380,7 @@ function ImageLibrary({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
       <UploadZone
         id="lib-upload"
         title="Add photos"
-        hint={`JPG, PNG, WebP or HEIC · up to ${MAX_UPLOAD_MB} MB each · location and camera details removed`}
+        hint={`JPG, PNG, WebP or HEIC · up to ${MAX_UPLOAD_MB} MB each · location and camera details removed; only the time taken is kept`}
         accept={IMAGE_ACCEPT}
         busy={uploading}
         busyLabel={progress ? `Uploading ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…` : undefined}

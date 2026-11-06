@@ -94,7 +94,7 @@ function ProcessingTerms() {
         <li>Processes guest data only on the organisation’s documented instructions, given through the product’s settings and actions.</li>
         <li>Ensures everyone with access is bound by confidentiality. Platform staff access to an organisation’s workspace is logged in its audit log.</li>
         <li>
-          Applies appropriate security: encrypted transport, hashed access links and passwords, per-request access checks, metadata stripped from photos,
+          Applies appropriate security: encrypted transport, hashed access links and passwords, per-request access checks, location and camera metadata stripped from photos and videos (only the time taken is kept),
           separation between public and private data, and audit records.
         </li>
         <li>Uses only the sub-processors listed in the platform privacy notice, and gives notice before adding or replacing one.</li>

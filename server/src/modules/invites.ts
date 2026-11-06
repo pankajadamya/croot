@@ -296,7 +296,7 @@ reviewRoutes.post(
     const response = await ensureResponse(r)
     const count = await prisma.mediaAsset.count({ where: { responseId: response.id, removedAt: null } })
     if (count >= env.MAX_PHOTOS_PER_RESPONSE) throw new HttpError(409, `You can add up to ${env.MAX_PHOTOS_PER_RESPONSE} photos`)
-    const image = await processImage(req.file.buffer)
+    const image = await processImage(req.file.buffer, req.body.takenAt)
     const id = crypto.randomUUID()
     const prefix = `org/${r.retreat.organisationId}/retreat/${r.retreat.id}/guest/${id}`
     await storage.put(`${prefix}/original`, image.original, image.originalMime)
@@ -314,6 +314,7 @@ reviewRoutes.post(
         sizeBytes: image.original.length,
         width: image.width,
         height: image.height,
+        takenAt: image.takenAt,
         displayOrder: count,
         // Adding a photo shares it in the album; its use on the website and social media follows the
         // guest's own Yes/No answer (off until they say yes).
@@ -398,7 +399,7 @@ reviewRoutes.post(
   route(async (req, res) => {
     const r = current(res)
     if (!req.file) throw new HttpError(400, 'Choose a photo to add')
-    const asset = await addContribution(r.retreat, r.response, req.file.buffer)
+    const asset = await addContribution(r.retreat, r.response, req.file.buffer, req.body.takenAt)
     res.status(201).json({ id: asset.id })
   }),
 )

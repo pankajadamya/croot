@@ -143,7 +143,7 @@ receiptsRouter.post(
   route(async (req, res) => {
     const response = res.locals.receipt as Awaited<ReturnType<typeof resolveReceipt>>
     if (!req.file) throw new HttpError(400, 'Choose a photo to add')
-    const asset = await addContribution(response.retreat, response, req.file.buffer)
+    const asset = await addContribution(response.retreat, response, req.file.buffer, req.body.takenAt)
     res.status(201).json({ id: asset.id })
   }),
 )

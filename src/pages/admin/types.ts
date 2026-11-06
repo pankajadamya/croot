@@ -206,4 +206,6 @@ export interface OrganiserMedia {
   isVideo?: boolean
   videoUrl?: string | null
   durationSec?: number | null
+  /** When it was taken, if the file said. */
+  takenAt?: string | null
 }

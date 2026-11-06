@@ -1,5 +1,6 @@
 import request from 'supertest'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import { PROCESSING_TERMS_VERSION } from '../../shared/legal.js'
 import { closeDatabase, prisma } from '../src/lib/prisma.js'
 import { app, invite, login, makeTenant, resetDatabase } from './helpers.js'
 
@@ -19,7 +20,7 @@ async function sendReview(token: string, body: Record<string, unknown>) {
 describe('notifications bell', () => {
   it('lists what needs the organiser, and each item clears once dealt with', async () => {
     const { org, retreat } = await makeTenant('alpha')
-    await prisma.organisation.update({ where: { id: org.id }, data: { legalName: 'Alpha Ltd', legalAddress: '1 Road', privacyEmail: 'privacy@alpha.test', dpaVersion: '2026-11-1' } })
+    await prisma.organisation.update({ where: { id: org.id }, data: { legalName: 'Alpha Ltd', legalAddress: '1 Road', privacyEmail: 'privacy@alpha.test', dpaVersion: PROCESSING_TERMS_VERSION } })
     const owner = await login('alpha@owner.test')
     const bell = async () => (await owner.agent.get('/api/attention')).body.items as Item[]
     expect(await bell()).toEqual([])

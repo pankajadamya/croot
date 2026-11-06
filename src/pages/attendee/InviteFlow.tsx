@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { UploadZone } from '../../components/UploadZone'
-import { IMAGE_ACCEPT, MAX_UPLOAD_MB, prepareImage } from '../../lib/prepareImage'
+import { IMAGE_ACCEPT, MAX_UPLOAD_MB, prepareImage, captureTimeOf } from '../../lib/prepareImage'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import { CONSENT_WORDING, type FeedbackCategory, type ReviewKind } from '../../../shared/categories'
 import { api, ApiError, del, get, patch, post, put } from '../../lib/api'
@@ -811,7 +811,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                   <summary>Read photo sharing details</summary>
                   {view.retreat.albumSharingAvailable && <p>{CONSENT_WORDING.albumPhoto}</p>}
                   <p>{CONSENT_WORDING.photoMarketing}</p>
-                  <p>Camera and location details are removed from every photo.</p>
+                  <p>Location and camera details are removed from every photo. We keep only the date and time it was taken, to put the album in order.</p>
                 </details>
                 <PhotoManager
                   base={base}
@@ -980,6 +980,7 @@ function PhotoManager({
       try {
         // Full quality from the phone's gallery; iPhone HEIC photos are converted here first.
         fd.append('photo', await prepareImage(file))
+        fd.append('takenAt', await captureTimeOf(file))
         const p = await api<Photo>('POST', `${base}/photos`, fd)
         next = [...next, p]
         setPhotos(next)
