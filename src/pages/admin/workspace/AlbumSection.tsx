@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState, type DragEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError, get, orgApi, patch, post } from '../../../lib/api'
 import { Field } from '../../../components/Controls'
@@ -59,6 +59,8 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
   const [copied, setCopied] = useState(false)
 
   // Several photos at once, one after another, as in "Your images".
+  const [dropping, setDropping] = useState(false)
+  const dragDepth = useRef(0)
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [failures, setFailures] = useState<Array<{ name: string; message: string }>>([])
   async function uploadAll(files: File[]) {
@@ -118,8 +120,42 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
   const pending = photos.data?.media.filter((m) => m.inAlbum && m.kind === 'guest' && !m.approved).length ?? 0
   const live = retreat.rewardAlbumEnabled && (count > 0 || Boolean(retreat.rewardAlbumUrl))
 
+  // Photos and videos can be dropped anywhere on the album, not only on the upload box.
+  const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes('Files')
+  const dropProps = retreat.rewardAlbumEnabled
+    ? {
+        onDragEnter: (e: DragEvent) => {
+          if (!hasFiles(e)) return
+          e.preventDefault()
+          dragDepth.current++
+          setDropping(true)
+        },
+        onDragOver: (e: DragEvent) => {
+          if (hasFiles(e)) e.preventDefault()
+        },
+        onDragLeave: (e: DragEvent) => {
+          if (!hasFiles(e)) return
+          dragDepth.current = Math.max(0, dragDepth.current - 1)
+          if (dragDepth.current === 0) setDropping(false)
+        },
+        onDrop: (e: DragEvent) => {
+          dragDepth.current = 0
+          setDropping(false)
+          // The upload box handles drops on itself (and marks them handled).
+          if (e.defaultPrevented || !hasFiles(e)) return
+          e.preventDefault()
+          void uploadAll(Array.from(e.dataTransfer.files))
+        },
+      }
+    : {}
+
   return (
-    <section className="card site-setup-panel" aria-labelledby="album-title">
+    <section className={`card site-setup-panel album-drop-area ${dropping ? 'is-dropping' : ''}`} aria-labelledby="album-title" {...dropProps}>
+      {dropping && (
+        <div className="album-drop-overlay" aria-hidden="true">
+          <span>Drop photos or videos to add them to the album</span>
+        </div>
+      )}
       <h2 id="album-title">Photo album</h2>
       <div className="site-album-status">
         <div>

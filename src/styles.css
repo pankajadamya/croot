@@ -4924,3 +4924,85 @@ a.review-date:hover {
   color: var(--danger, #b3261e);
   margin-top: 0.3rem;
 }
+
+/* Album tile actions on one line: arrows on the left, take out / delete on the right. */
+.album-tile .album-tile-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: 0.25rem;
+}
+.album-tile-move {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+.icon-btn {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--button);
+  cursor: pointer;
+}
+.icon-btn svg {
+  width: 14px;
+  height: 14px;
+}
+.icon-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--button) 8%, var(--surface));
+}
+.icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.icon-btn:focus-visible {
+  outline: 2px solid var(--button);
+  outline-offset: 2px;
+}
+/* Tooltip on hover and keyboard focus (the button's aria-label says the same to screen readers). */
+.icon-btn[data-tip]:not(:disabled):hover::after,
+.icon-btn[data-tip]:not(:disabled):focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  background: #183d3b;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  pointer-events: none;
+  z-index: 5;
+}
+/* The whole album accepts dropped photos and videos. */
+.album-drop-area {
+  position: relative;
+}
+.album-drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  border: 3px dashed var(--button);
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  pointer-events: none;
+}
+.album-drop-overlay span {
+  padding: 0.6rem 1.1rem;
+  border-radius: 999px;
+  background: var(--button);
+  color: var(--button-text);
+  font-weight: 700;
+  position: sticky;
+  top: 40%;
+}

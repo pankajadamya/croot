@@ -191,7 +191,7 @@ export function AlbumGrid({
           <p className="small muted album-toolbar-note" aria-live="polite">
             {choosingTitle
               ? 'Click the photo to show first and largest. Guests’ photos can’t be the title photo.'
-              : status ?? (compact ? 'Drag photos into order. On a phone, press and hold a photo, then move it.' : 'Drag a photo to move it (on a phone, press and hold first), or use Earlier / Later.')}
+              : status ?? (compact ? 'Drag photos into order. On a phone, press and hold a photo, then move it.' : 'Drag a photo to move it (on a phone, press and hold first), or use its arrows. You can also drop new photos anywhere here.')}
           </p>
 
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setActiveId(null)}>
@@ -254,12 +254,28 @@ export function AlbumGrid({
                               )}
                               {fromGuest && m.approved && <span className="badge ok">In the album</span>}
                               <div className="album-tile-actions">
-                                <button type="button" className="btn ghost small" disabled={i === 0} onClick={() => move(m.id, -1)} aria-label={`Move photo ${i + 1} earlier`}>
-                                  ← Earlier
-                                </button>
-                                <button type="button" className="btn ghost small" disabled={i === ordered.length - 1} onClick={() => move(m.id, 1)} aria-label={`Move photo ${i + 1} later`}>
-                                  Later →
-                                </button>
+                                <span className="album-tile-move">
+                                  <button
+                                    type="button"
+                                    className="icon-btn"
+                                    disabled={i === 0}
+                                    onClick={() => move(m.id, -1)}
+                                    aria-label={`Move photo ${i + 1} earlier`}
+                                    data-tip="Move earlier"
+                                  >
+                                    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="icon-btn"
+                                    disabled={i === ordered.length - 1}
+                                    onClick={() => move(m.id, 1)}
+                                    aria-label={`Move photo ${i + 1} later`}
+                                    data-tip="Move later"
+                                  >
+                                    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                  </button>
+                                </span>
                                 <button
                                   type="button"
                                   className="btn ghost small"
