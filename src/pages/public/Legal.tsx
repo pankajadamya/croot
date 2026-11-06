@@ -65,8 +65,9 @@ function PlatformPrivacy() {
       </ul>
       <h2>Sub-processors and transfers</h2>
       <p>
-        Hosting: {PLATFORM_OPERATOR.hosting}. Email delivery: {PLATFORM_OPERATOR.email_delivery}. Optional sign-in: {PLATFORM_OPERATOR.sign_in}. We do not use
-        advertising, analytics or tracking services. Any change is announced to organisers in advance.
+        Hosting: {PLATFORM_OPERATOR.hosting}. Email delivery: {PLATFORM_OPERATOR.email_delivery}. Optional sign-in: {PLATFORM_OPERATOR.sign_in}. Page statistics
+        run on our own servers (see <Link to="/legal/cookies">cookies</Link>). We do not use advertising or tracking services. Any change is
+        announced to organisers in advance.
       </p>
       <p>
         Your information is stored in the UK and the European Economic Area. Amazon Web Services and Google are part of groups based in the
@@ -135,10 +136,17 @@ function Cookies() {
         </table>
       </div>
       <p>
-        Invitation links and public story pages set no cookies and use no analytics, advertising or tracking, so no cookie
-        consent banner is needed. Strictly necessary cookies are exempt from consent under PECR and the ePrivacy Directive. If analytics are ever
-        added, they will stay off guest pages and require consent first.
+        Croot uses no advertising or tracking, and sets no cookies on invitation links or public pages, so no cookie consent banner is
+        needed. Strictly necessary cookies are exempt from consent under PECR and the ePrivacy Directive.
       </p>
+      <h2>Page statistics</h2>
+      <p>
+        To see which public pages are read, Croot counts visits with Umami, which runs on our own servers (not a third party). It sets no
+        cookies, stores nothing on your device, does not store your IP address and cannot follow you between visits or sites. It records the
+        page (public pages by their address; organiser pages only by their kind, never an id or a link’s code), the referring site, and your
+        browser, operating system, device type, screen size, language and country. If your browser sends “Do Not Track”, nothing is counted.
+      </p>
+      <p>Guests’ own pages (their invitation, receipt and album links, and My reviews) are never counted.</p>
       <p>
         The first time you heart a photo or mark a review as helpful, your browser keeps a random visitor ID in its local storage
         (<code>croot.visitor</code>) so you can do each once and take it back. Just viewing a page stores nothing. It isn’t a cookie, isn’t

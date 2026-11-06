@@ -1,9 +1,10 @@
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import compression from 'compression'
 import cookieParser from 'cookie-parser'
 import express, { type Request, type Response } from 'express'
 import helmet from 'helmet'
+import { umamiConfig, withUmami } from './lib/analytics.js'
 import { env, isProduction } from './lib/env.js'
 import { HttpError } from './lib/http.js'
 import { accessLog } from './lib/logger.js'
@@ -26,6 +27,9 @@ export function createApp() {
   const app = express()
   app.disable('x-powered-by')
   app.set('trust proxy', env.TRUST_PROXY_HOPS)
+  // Page statistics, when configured: its script and where it reports to are then allowed.
+  const umami = umamiConfig()
+  const analyticsOrigins = umami ? [umami.origin] : []
 
   app.use(
     helmet({
@@ -36,9 +40,9 @@ export function createApp() {
           mediaSrc: ["'self'", 'blob:'],
           styleSrc: ["'self'", "'unsafe-inline'"],
           // 'wasm-unsafe-eval' and blob: workers: the in-browser HEIC converter (WebAssembly in a worker).
-          scriptSrc: ["'self'", "'wasm-unsafe-eval'"],
+          scriptSrc: ["'self'", "'wasm-unsafe-eval'", ...analyticsOrigins],
           workerSrc: ["'self'", 'blob:'],
-          connectSrc: ["'self'"],
+          connectSrc: ["'self'", ...analyticsOrigins],
           frameAncestors: ["'none'"],
           formAction: ["'self'"],
           upgradeInsecureRequests: isProduction ? [] : null,
@@ -93,12 +97,13 @@ export function createApp() {
   const dist = resolve('dist')
   if (existsSync(dist)) {
     app.use(express.static(dist, { index: false, maxAge: '1h' }))
+    const indexHtml = withUmami(readFileSync(resolve(dist, 'index.html'), 'utf8'), umami)
     app.get(/^(?!\/api\/|\/media\/|\/health\/).*/, (req: Request, res: Response) => {
       if (/^\/(invite|response|admin|platform|interest|album|my-reviews|signin|organiser)/.test(req.path)) {
         res.set('X-Robots-Tag', 'noindex, nofollow')
       }
       res.set('Cache-Control', 'no-cache')
-      res.sendFile(resolve(dist, 'index.html'))
+      res.type('html').send(indexHtml)
     })
   }
 

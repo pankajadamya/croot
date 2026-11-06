@@ -3,6 +3,7 @@ import { Route, Routes } from 'react-router'
 import { Home } from './pages/public/Home'
 import { NotFound } from './components/States'
 import { ScrollToHash } from './components/ScrollToHash'
+import { usePageAnalytics } from './lib/analytics'
 
 // Code-split by audience: guests never download the organiser workspace.
 const OrgHome = lazy(() => import('./pages/public/OrgHome'))
@@ -36,6 +37,7 @@ const Interested = lazy(() => import('./pages/admin/Interested'))
 const PlatformConsole = lazy(() => import('./pages/platform/PlatformConsole'))
 
 export function App() {
+  usePageAnalytics()
   return (
     <Suspense fallback={<div className="container muted" style={{ padding: '3rem 0' }}>Loading…</div>}>
       <ScrollToHash />

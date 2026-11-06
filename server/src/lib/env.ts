@@ -49,6 +49,9 @@ const envSchema = z.object({
   EMAIL_PROVIDER: z.enum(['console', 'ses', 'resend']).default('console'),
   /** The sender. Must sit inside a verified SES identity (croot.cx). */
   EMAIL_FROM: z.string().default('Croot <no-reply@croot.cx>'),
+  /** Umami website id for cookieless page statistics (lib/analytics.ts). Empty: no analytics. */
+  UMAMI_WEBSITE_ID: z.string().optional().default(''),
+  UMAMI_ORIGIN: z.string().default('https://analytics.snaprows.dev'),
   /**
    * Amazon SES: an IAM user whose only permission is ses:SendEmail, separate from the object-storage
    * key. Optional configuration set for delivery, bounce and complaint events.
