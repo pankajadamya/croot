@@ -7,6 +7,32 @@ const STORED_MAX_EDGE = 3840
 /** The copy pages show: sharp on high-density screens, much smaller to load. */
 const WEB_MAX_EDGE = 2560
 const MAX_INPUT_PIXELS = 60_000_000
+/**
+ * At most this many photos are decoded at once. A 48-megapixel phone photo needs a few hundred MB
+ * while it's being resized, so a burst of uploads queues here (a second or two each) instead of
+ * pushing the container past its memory limit.
+ */
+const MAX_CONCURRENT = 2
+
+let running = 0
+const waiting: Array<() => void> = []
+async function withImageSlot<T>(work: () => Promise<T>): Promise<T> {
+  // A free slot is taken at once; otherwise wait for one to be handed over (never more than MAX at once).
+  if (running < MAX_CONCURRENT) running++
+  else await new Promise<void>((resolve) => waiting.push(resolve))
+  try {
+    return await work()
+  } finally {
+    const next = waiting.shift()
+    if (next) next() // the slot passes straight to the next photo, so `running` stays the same
+    else running--
+  }
+}
+
+/** How many photos are being processed and how many are waiting (for tests and diagnostics). */
+export function imageQueueState() {
+  return { running, waiting: waiting.length }
+}
 
 export interface ProcessedImage {
   original: Buffer
@@ -24,7 +50,11 @@ export interface ProcessedImage {
  * sharp drops EXIF/GPS/camera metadata unless asked to keep it, and `.rotate()` bakes the EXIF
  * orientation in first so the stripped copies still display the right way up.
  */
-export async function processImage(input: Buffer): Promise<ProcessedImage> {
+export function processImage(input: Buffer): Promise<ProcessedImage> {
+  return withImageSlot(() => decodeAndResize(input))
+}
+
+async function decodeAndResize(input: Buffer): Promise<ProcessedImage> {
   let meta: Awaited<ReturnType<ReturnType<typeof sharp>["metadata"]>>
   try {
     meta = await sharp(input, { limitInputPixels: MAX_INPUT_PIXELS }).metadata()
