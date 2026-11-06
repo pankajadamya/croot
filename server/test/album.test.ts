@@ -14,7 +14,7 @@ async function albumSetup() {
   const { org, user, retreat } = await makeTenant('alpha')
   const { agent, csrf } = await login(user.email)
   await agent.patch(`/api/admin/orgs/alpha/retreats/${retreat.id}`).set('X-CSRF-Token', csrf).send({ rewardAlbumEnabled: true, rewardAlbumUrl: 'https://photos.example/album', rewardAlbumNote: 'Thank you!' })
-  const up = await agent.post(`/api/admin/orgs/alpha/retreats/${retreat.id}/media?album=1`).set('X-CSRF-Token', csrf).attach('image', await png(), 'group.png')
+  const up = await agent.post(`/api/admin/orgs/alpha/retreats/${retreat.id}/media?album=1`).set('X-CSRF-Token', csrf).field('rightsConfirmed', 'true').attach('image', await png(), 'group.png')
   expect(up.status).toBe(201)
   const { token } = await invite(org.id, retreat.id)
   return { agent, csrf, retreat, token, photoId: up.body.media.id as string }
@@ -34,7 +34,7 @@ describe('thank-you photo album (itinerary retreats)', () => {
   })
 
   it('unlocks once any review is sent, even a private-only one with nothing published', async () => {
-    const { token, photoId } = await albumSetup()
+    const { agent, csrf, token, photoId } = await albumSetup()
     const draft = await request(app).put(`/api/invites/${token}/draft`).send({ revision: 0, keepText: 'The mornings' })
     const sent = await request(app).post(`/api/invites/${token}/submit`).send({ revision: draft.body.revision })
     expect(sent.status).toBe(200)
@@ -44,6 +44,9 @@ describe('thank-you photo album (itinerary retreats)', () => {
     const album = await request(app).get(`/api/invites/${token}/album`)
     expect(album.body.photos).toHaveLength(1)
     expect((await request(app).get(album.body.photos[0].url)).status).toBe(200)
+    const caption = await agent.patch(`/api/admin/orgs/alpha/media/${photoId}`).set('X-CSRF-Token', csrf).send({ caption: 'Morning together at Arkja' })
+    expect(caption.status).toBe(200)
+    expect((await request(app).get(`/api/invites/${token}/album`)).body.photos[0].caption).toBe('Morning together at Arkja')
 
     // The private response page has it too.
     const receipt = await request(app).get(`/api/responses/${sent.body.receiptToken}`)
@@ -56,7 +59,7 @@ describe('thank-you photo album (itinerary retreats)', () => {
   it('includes earlier images, follows the chosen order, puts the title photo first, and honours removal', async () => {
     const { agent, csrf, retreat, token, photoId } = await albumSetup()
     // An image added earlier in "Your images" (organiser kind): in the album by default.
-    const earlier = await agent.post(`/api/admin/orgs/alpha/retreats/${retreat.id}/media`).set('X-CSRF-Token', csrf).attach('image', await png(), 'view.png')
+    const earlier = await agent.post(`/api/admin/orgs/alpha/retreats/${retreat.id}/media`).set('X-CSRF-Token', csrf).field('rightsConfirmed', 'true').attach('image', await png(), 'view.png')
     const earlierId = earlier.body.media.id as string
     const manage = await agent.get(`/api/admin/orgs/alpha/retreats/${retreat.id}/album`)
     expect(manage.body.media.map((m: { id: string }) => m.id)).toEqual([photoId, earlierId])
@@ -210,6 +213,7 @@ describe('album videos (organisers)', () => {
     const up = await agent
       .post(`/api/admin/orgs/alpha/retreats/${retreat.id}/album/videos`)
       .set('X-CSRF-Token', csrf)
+      .field('rightsConfirmed', 'true')
       .attach('video', fakeMp4(), 'clip.mp4')
       .attach('poster', await png(), 'poster.png')
       .field('width', '1920')
@@ -239,6 +243,7 @@ describe('album videos (organisers)', () => {
     const bad = await agent
       .post(`/api/admin/orgs/alpha/retreats/${retreat.id}/album/videos`)
       .set('X-CSRF-Token', csrf)
+      .field('rightsConfirmed', 'true')
       .attach('video', Buffer.from('not a video at all'), 'clip.mp4')
     expect(bad.status).toBe(415)
     expect((await request(app).post(`/api/admin/orgs/alpha/retreats/${retreat.id}/album/videos`).attach('video', fakeMp4(), 'x.mp4')).status).toBe(401)

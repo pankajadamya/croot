@@ -31,15 +31,15 @@ describe('album limits', () => {
     expect(changed.body.settings).toMatchObject({ albumMaxPhotos: 2, albumMaxVideos: 1 })
 
     // A slideshow image joins the album and counts; album uploads stop at the limit.
-    const slide = await agent.post(`${albumApi}/media`).set('X-CSRF-Token', csrf).attach('image', await png(), 'a.png')
+    const slide = await agent.post(`${albumApi}/media`).set('X-CSRF-Token', csrf).field('rightsConfirmed', 'true').attach('image', await png(), 'a.png')
     expect(slide.body.media.inAlbum).toBe(true)
-    expect((await agent.post(`${albumApi}/media?album=1`).set('X-CSRF-Token', csrf).attach('image', await png(), 'b.png')).status).toBe(201)
-    const over = await agent.post(`${albumApi}/media?album=1`).set('X-CSRF-Token', csrf).attach('image', await png(), 'c.png')
+    expect((await agent.post(`${albumApi}/media?album=1`).set('X-CSRF-Token', csrf).field('rightsConfirmed', 'true').attach('image', await png(), 'b.png')).status).toBe(201)
+    const over = await agent.post(`${albumApi}/media?album=1`).set('X-CSRF-Token', csrf).field('rightsConfirmed', 'true').attach('image', await png(), 'c.png')
     expect(over.status).toBe(409)
     expect(over.body.error).toMatch(/2 photos/)
 
     // Slideshow images still upload when the album is full; they just stay out of it, and can't be put back in.
-    const extra = await agent.post(`${albumApi}/media`).set('X-CSRF-Token', csrf).attach('image', await png(), 'd.png')
+    const extra = await agent.post(`${albumApi}/media`).set('X-CSRF-Token', csrf).field('rightsConfirmed', 'true').attach('image', await png(), 'd.png')
     expect(extra.status).toBe(201)
     expect(extra.body.media.inAlbum).toBe(false)
     expect((await agent.patch(`/api/admin/orgs/alpha/media/${extra.body.media.id}`).set('X-CSRF-Token', csrf).send({ inAlbum: true })).status).toBe(409)

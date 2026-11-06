@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError, get, orgApi, patch, post } from '../../../lib/api'
-import { Field, Switch } from '../../../components/Controls'
+import { Field } from '../../../components/Controls'
 import { ErrorNotice, Loading } from '../../../components/States'
 import { MutationError, retreatKey } from '../adminUi'
 import type { OrganiserMedia, Retreat } from '../types'
@@ -91,6 +91,7 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
           // The browser picks a poster frame and reads the size and length; the server stores the rest.
           const meta = await videoPoster(file)
           data.append('video', file)
+          data.append('rightsConfirmed', 'true')
           if (meta.poster) data.append('poster', meta.poster, 'poster.jpg')
           if (meta.width) data.append('width', String(meta.width))
           if (meta.height) data.append('height', String(meta.height))
@@ -98,6 +99,7 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
           await post(`${orgApi(orgSlug)}/retreats/${retreat.id}/album/videos`, data)
         } else {
           data.append('image', await prepareImage(file))
+          data.append('rightsConfirmed', 'true')
           await post(`${orgApi(orgSlug)}/retreats/${retreat.id}/media?album=1`, data)
         }
       } catch (e) {
@@ -110,40 +112,30 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
     setProgress(null)
   }
 
-  const count = photos.data?.media.filter((m) => m.inAlbum).length ?? 0
+  const count = photos.data?.media.filter((m) => m.inAlbum && m.approved).length ?? 0
+  const pending = photos.data?.media.filter((m) => m.inAlbum && m.kind === 'guest' && !m.approved).length ?? 0
   const live = retreat.rewardAlbumEnabled && (count > 0 || Boolean(retreat.rewardAlbumUrl))
 
   return (
-    <section className="card" aria-labelledby="album-title" style={{ marginTop: '1.5rem' }}>
+    <section className="card site-setup-panel" aria-labelledby="album-title">
       <h2 id="album-title">Photo album</h2>
-      <p className="small muted" style={{ maxWidth: '70ch' }}>
-        A thank-you that encourages reviews. Guests see a blurred preview when they open their review link, and get the album link as soon as
-        they send their review, <strong>whatever they choose to share or rate</strong>. They can add their own photos, which appear once you
-        approve them. The album is linked from the top of your public retreat page, and anyone can view it without signing in.
-      </p>
-
-      <div className="panel-sage" style={{ margin: '1rem 0' }}>
-        <Switch
-          checked={retreat.rewardAlbumEnabled}
-          disabled={settings.isPending}
-          onChange={(v) => settings.mutate({ rewardAlbumEnabled: v })}
-          label="Give guests the album link when they send their review"
-          description={
-            retreat.rewardAlbumEnabled
-              ? live
-                ? `Guests who send their review will unlock ${count > 0 ? `${count} photo${count === 1 ? '' : 's'}` : ''}${count > 0 && retreat.rewardAlbumUrl ? ' and ' : ''}${retreat.rewardAlbumUrl ? 'the full-album link' : ''}.`
-                : 'Add photos or a link below so guests have something to unlock.'
-              : 'Guests won’t see an album.'
-          }
-        />
+      <div className="site-album-status">
+        <div>
+          <strong>{retreat.rewardAlbumEnabled ? 'Album available after a guest sends a review' : 'Album is off'}</strong>
+          <p className="small muted">{retreat.rewardAlbumEnabled ? (live ? `${count} photo${count === 1 ? '' : 's'} visible${pending ? ` · ${pending} awaiting approval` : ''}.` : `Add photos or a full-album link so guests have something to view.${pending ? ` ${pending} guest photo(s) await approval.` : ''}`) : 'Guests will not receive the album link.'}</p>
+        </div>
+        {retreat.rewardAlbumEnabled && pageLink && <a className="btn secondary small" href={pageLink} target="_blank" rel="noopener noreferrer">Open album ↗</a>}
+        <button type="button" className={`btn small ${retreat.rewardAlbumEnabled ? 'ghost' : ''}`} disabled={settings.isPending} onClick={() => settings.mutate({ rewardAlbumEnabled: !retreat.rewardAlbumEnabled })}>
+          {retreat.rewardAlbumEnabled ? 'Turn off album' : 'Make album available'}
+        </button>
       </div>
+      <p className="small muted">When available, guests receive the album link after sending a review, whatever they choose to share or rate. Anyone with the link can view the album without signing in. Guest photos appear only after you approve them.</p>
 
       {retreat.rewardAlbumEnabled && pageLink && (
-        <div className="stack" style={{ gap: '0.4rem', marginBottom: '1rem' }}>
+        <div className="site-album-link">
           <label htmlFor="album-page-link" style={{ fontWeight: 600 }}>
             Album link
           </label>
-          <span className="hint">The album’s address, also linked from your public retreat page. Anyone can view it without signing in. Making a new link updates the retreat page too.</span>
           <div className="row" style={{ flexWrap: 'wrap' }}>
             <input id="album-page-link" readOnly value={pageLink} onFocus={(e) => e.target.select()} style={{ flex: '1 1 22rem' }} />
             <button
@@ -161,27 +153,15 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
             <a className="btn ghost small" href={pageLink} target="_blank" rel="noopener noreferrer">
               Open
             </a>
-            <button
-              type="button"
-              className="btn ghost small"
-              disabled={newLink.isPending}
-              onClick={() =>
-                void confirm({
-                  title: 'Make a new album link?',
-                  message: 'The current link stops working for everyone who has it, including guests. Your retreat page switches to the new one automatically.',
-                  confirmLabel: 'Make new link',
-                  danger: true,
-                }).then((ok) => ok && newLink.mutate())
-              }
-            >
-              Make a new link
-            </button>
           </div>
+          <details><summary>Link options</summary><p className="small muted">A new link stops the current one working for everyone who has it. The public retreat page updates automatically.</p>
+            <button type="button" className="btn ghost small" disabled={newLink.isPending} onClick={() => void confirm({ title: 'Make a new album link?', message: 'The current link stops working for everyone who has it, including guests. Your retreat page switches to the new one automatically.', confirmLabel: 'Make new link', danger: true }).then((ok) => ok && newLink.mutate())}>Make a new link</button>
+          </details>
           <MutationError error={newLink.error} />
         </div>
       )}
 
-      <div className="grid-2">
+      <details className="site-album-extras"><summary>Album message &amp; external full-resolution link</summary><div className="grid-2">
         <Field id="album-url" label="Link to the full album (optional)" hint="E.g. a shared Google Photos or Dropbox album with full-resolution photos.">
           <input
             id="album-url"
@@ -207,7 +187,7 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
             style={{ minHeight: '4.5rem' }}
           />
         </Field>
-      </div>
+      </div></details>
       <p className="small muted" aria-live="polite" style={{ margin: '-0.5rem 0 1rem' }}>
         {settings.isPending ? 'Saving…' : saved}
       </p>
@@ -224,10 +204,11 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
           <span className="muted">Guests’ own photos don’t count.</span>
         </p>
       )}
+      <p className="site-consent-note"><span aria-hidden="true">✓</span> By uploading, you confirm you have permission to share these photos or videos and that people pictured have agreed.</p>
       <UploadZone
         id="album-upload"
-        title="Choose photos and videos to upload"
-        hint={`Pick several at once, or drag them here. Photos: JPG, PNG, WebP or HEIC, up to ${MAX_UPLOAD_MB} MB, kept in high quality (up to 4K). Videos: MP4, MOV or WebM, up to ${MAX_VIDEO_MB} MB. Everything here is public, linked from your retreat page, so only include people who are happy to be shared.`}
+        title="Add photos or videos"
+        hint={`Photos up to ${MAX_UPLOAD_MB} MB · videos up to ${MAX_VIDEO_MB} MB · camera and location details removed`}
         accept={`${IMAGE_ACCEPT},video/mp4,video/quicktime,video/webm`}
         busy={Boolean(progress)}
         busyLabel={progress ? `Uploading ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…` : undefined}

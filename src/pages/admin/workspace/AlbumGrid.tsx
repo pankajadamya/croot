@@ -126,26 +126,27 @@ export function AlbumGrid({
                     )}
                   </div>
                   <span className="small muted">{fromGuest ? 'Shared by a guest' : fromImages ? 'From your images' : 'Album upload'}</span>
+                  {!fromGuest && <AlbumCaption orgSlug={orgSlug} media={m} onChanged={onChanged} />}
                   {/* A guest's photo appears in the album once approved. */}
                   {fromGuest && !m.approved && (
                     <div className="album-tile-approve">
-                      <span className="badge warn">Waiting for your approval</span>
-                      <button type="button" className="btn small" disabled={moderate.isPending} onClick={() => moderate.mutate({ id: m.id, status: 'approved' })}>
+                      <span className="badge warn">Awaiting approval · hidden from album</span>
+                      <button type="button" className="btn small approve-action" disabled={moderate.isPending} onClick={() => moderate.mutate({ id: m.id, status: 'approved' })}>
                         Approve
                       </button>
                     </div>
                   )}
                   {fromGuest && m.approved && <span className="badge ok">In the album</span>}
                   <div className="album-tile-actions">
-                    {!isCover ? (
-                      <button type="button" className="btn ghost small" disabled={setCover.isPending} onClick={() => setCover.mutate(m.id)}>
+                    {!fromGuest && (!isCover ? (
+                      <button type="button" className="btn ghost small" disabled={setCover.isPending || !m.approved} onClick={() => setCover.mutate(m.id)}>
                         Make title photo
                       </button>
                     ) : (
                       <button type="button" className="btn ghost small" disabled={setCover.isPending} onClick={() => setCover.mutate(null)}>
                         Unset title
                       </button>
-                    )}
+                    ))}
                     <button type="button" className="btn ghost small" disabled={i === 0} onClick={() => move(m.id, -1)} aria-label={`Move photo ${i + 1} earlier`}>
                       ← Earlier
                     </button>
@@ -202,6 +203,28 @@ export function AlbumGrid({
         </details>
       )}
       <MutationError error={saveOrder.error || setCover.error || include.error || remove.error || moderate.error} />
+    </div>
+  )
+}
+
+function AlbumCaption({ orgSlug, media, onChanged }: { orgSlug: string; media: OrganiserMedia; onChanged: () => void }) {
+  const save = useMutation({
+    mutationFn: (caption: string) => patch(`${orgApi(orgSlug)}/media/${media.id}`, { caption }),
+    onSuccess: onChanged,
+  })
+  return (
+    <div className="album-tile-caption">
+      <label htmlFor={`album-caption-${media.id}`}>Caption</label>
+      <input
+        id={`album-caption-${media.id}`}
+        type="text"
+        maxLength={300}
+        defaultValue={media.caption}
+        placeholder="Add a caption (optional)"
+        onBlur={(e) => { if (e.target.value.trim() !== media.caption) save.mutate(e.target.value.trim()) }}
+      />
+      <span className="small muted" aria-live="polite">{save.isPending ? 'Saving…' : save.isSuccess ? 'Saved' : null}</span>
+      <MutationError error={save.error} />
     </div>
   )
 }

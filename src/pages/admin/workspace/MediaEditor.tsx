@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { del, orgApi, patch } from '../../../lib/api'
-import { Field, Switch } from '../../../components/Controls'
+import { Field } from '../../../components/Controls'
 import { fieldError, MutationError } from '../adminUi'
 import type { OrganiserMedia } from '../types'
 import { imageStatus } from './SlideshowSettings'
@@ -11,10 +11,8 @@ type Fields = {
   altText: string
   caption: string
   credit: string
-  rightsConfirmed: boolean
-  displayOrder: string
   inHeroSlideshow: boolean
-  inWritingSlideshow: boolean
+  inAlbum: boolean
 }
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 
@@ -31,10 +29,8 @@ export function MediaEditor({ orgSlug, media, onChanged }: { orgSlug: string; me
     altText: media.altText,
     caption: media.caption,
     credit: media.credit,
-    rightsConfirmed: media.rightsConfirmed,
-    displayOrder: String(media.displayOrder),
     inHeroSlideshow: media.inHeroSlideshow,
-    inWritingSlideshow: media.inWritingSlideshow,
+    inAlbum: Boolean(media.inAlbum),
   })
   const [state, setState] = useState<SaveState>('idle')
   const [error, setError] = useState<unknown>(null)
@@ -52,7 +48,7 @@ export function MediaEditor({ orgSlug, media, onChanged }: { orgSlug: string; me
     let ok = false
     try {
       const v = latest.current
-      await patch(`${orgApi(orgSlug)}/media/${id}`, { ...v, displayOrder: Number(v.displayOrder) || 0 })
+      await patch(`${orgApi(orgSlug)}/media/${id}`, v)
       ok = true
       setError(null)
       setState(dirty.current ? 'saving' : 'saved')
@@ -82,15 +78,17 @@ export function MediaEditor({ orgSlug, media, onChanged }: { orgSlug: string; me
   }
 
   const remove = useMutation({ mutationFn: () => del(`${orgApi(orgSlug)}/media/${id}`), onSuccess: onChanged })
-  const text = (k: 'altText' | 'caption' | 'credit' | 'displayOrder') => ({
+  const confirmRights = useMutation({ mutationFn: () => patch(`${orgApi(orgSlug)}/media/${id}`, { rightsConfirmed: true }), onSuccess: onChanged })
+  const text = (k: 'altText' | 'caption' | 'credit') => ({
     value: f[k],
     onChange: (e: { target: { value: string } }) => change(k, e.target.value, false),
     onBlur: () => void flush(),
   })
 
   return (
-    <div className="card tight">
-      <img src={media.previewUrl} alt={f.altText || f.caption || 'Retreat photo'} loading="lazy" />
+    <div className="site-photo-details">
+      <h3>Photo details</h3>
+      <img className="site-photo-details-preview" src={media.previewUrl} alt={f.altText || f.caption || 'Retreat photo'} loading="lazy" />
       <div className="spread small" style={{ margin: '0.5rem 0' }}>
         <span className={`badge ${media.approved ? 'ok' : 'warn'}`}>{imageStatus(media)}</span>
         <span aria-live="polite" className="muted">
@@ -120,20 +118,19 @@ export function MediaEditor({ orgSlug, media, onChanged }: { orgSlug: string; me
       <Field id={`cred-${id}`} label="Credit" hint="Photographer or source" error={fieldError(error, 'credit')}>
         <input id={`cred-${id}`} type="text" {...text('credit')} />
       </Field>
-      <Field id={`ord-${id}`} label="Display order" hint="Lower numbers show first." error={fieldError(error, 'displayOrder')}>
-        <input id={`ord-${id}`} type="number" min={0} max={1000} {...text('displayOrder')} />
-      </Field>
-      <div className="stack">
-        <Switch checked={f.rightsConfirmed} onChange={(v) => change('rightsConfirmed', v, true)} label="I have permission to publish this image" />
-        <Switch checked={f.inHeroSlideshow} onChange={(v) => change('inHeroSlideshow', v, true)} label="Include in the public slideshow" />
-        <Switch checked={f.inWritingSlideshow} onChange={(v) => change('inWritingSlideshow', v, true)} label="Include beside the guest’s review form" />
-      </div>
-      {!f.rightsConfirmed && (
-        <p className="small notice warn" style={{ marginTop: '0.5rem' }}>
-          Not shown yet: confirm you have permission to publish it.
-        </p>
+      <fieldset className="site-photo-placements">
+        <legend>Appears in</legend>
+        <p className="small muted">Choose where this photo appears. These are placement choices, not permission settings.</p>
+        <label><input type="checkbox" checked={f.inHeroSlideshow} onChange={(e) => change('inHeroSlideshow', e.target.checked, true)} /> Public slideshow and guest review form</label>
+        <label><input type="checkbox" checked={f.inAlbum} onChange={(e) => change('inAlbum', e.target.checked, true)} /> Photo album</label>
+      </fieldset>
+      {!media.rightsConfirmed && (
+        <div className="notice warn small">
+          This older image is hidden until you confirm permission to use it.
+          <button type="button" className="btn secondary small" disabled={confirmRights.isPending} onClick={() => void confirm({ title: 'Confirm permission for this photo?', message: 'Confirm that you have permission to use this photo and that people pictured agreed.', confirmLabel: 'Confirm permission' }).then((ok) => ok && confirmRights.mutate())}>Confirm permission</button>
+        </div>
       )}
-      <MutationError error={state === 'error' ? error : remove.error} shownFields={['altText', 'caption', 'credit', 'displayOrder']} />
+      <MutationError error={state === 'error' ? error : remove.error || confirmRights.error} shownFields={['altText', 'caption', 'credit']} />
       <div style={{ marginTop: '0.75rem', textAlign: 'right' }}>
         <button
           type="button"

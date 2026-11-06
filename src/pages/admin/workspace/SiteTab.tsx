@@ -21,18 +21,47 @@ interface ContentState {
 }
 
 export function SiteTab({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat }) {
+  const [section, setSection] = useState<'opening' | 'visibility' | 'images' | 'album'>('opening')
   const content = useQuery({
     queryKey: ['admin', orgSlug, 'content', retreat.id],
     queryFn: () => get<ContentState>(`${orgApi(orgSlug)}/retreats/${retreat.id}/content`),
   })
   return (
-    <div className="stack">
-      {content.isLoading && <Loading />}
-      {content.error && <ErrorNotice error={content.error} />}
-      {content.data && <OpeningEditor key={content.data.draft?.id ?? 'new'} orgSlug={orgSlug} retreat={retreat} state={content.data} />}
-      <VisitorSettings orgSlug={orgSlug} retreat={retreat} />
-      <ImageLibrary orgSlug={orgSlug} retreat={retreat} />
-      {retreat.kind === 'itinerary' && <AlbumSection orgSlug={orgSlug} retreat={retreat} />}
+    <div className="site-setup">
+      <nav className="site-setup-nav" aria-label="Public site setup">
+        <h2>Page setup</h2>
+        {([
+          ['opening', 'Opening'],
+          ['visibility', 'Visitor visibility'],
+          ['images', 'Slideshow images'],
+          ...(retreat.kind === 'itinerary' ? [['album', 'Photo album']] : []),
+        ] as Array<[typeof section, string]>).map(([key, label]) => (
+          <button key={key} type="button" className={section === key ? 'is-active' : ''} aria-current={section === key ? 'page' : undefined} onClick={() => setSection(key)}>
+            <span>{label}</span>
+            {key === 'opening' && <span className="badge ok">{content.data?.published ? 'Live' : 'Draft'}</span>}
+            {key === 'album' && <span className="badge neutral">{retreat.rewardAlbumEnabled ? 'On' : 'Off'}</span>}
+          </button>
+        ))}
+      </nav>
+      <div className="site-setup-mobile">
+        <label htmlFor="site-setup-section">Page setup</label>
+        <select id="site-setup-section" value={section} onChange={(e) => setSection(e.target.value as typeof section)}>
+          <option value="opening">Opening</option>
+          <option value="visibility">Visitor visibility</option>
+          <option value="images">Slideshow images</option>
+          {retreat.kind === 'itinerary' && <option value="album">Photo album</option>}
+        </select>
+      </div>
+      <div className="site-setup-content">
+        <div hidden={section !== 'opening'}>
+          {content.isLoading && <Loading />}
+          {content.error && <ErrorNotice error={content.error} />}
+          {content.data && <OpeningEditor key={content.data.draft?.id ?? content.data.published?.id ?? 'new'} orgSlug={orgSlug} retreat={retreat} state={content.data} />}
+        </div>
+        <div hidden={section !== 'visibility'}><VisitorSettings orgSlug={orgSlug} retreat={retreat} /></div>
+        <div hidden={section !== 'images'}><ImageLibrary orgSlug={orgSlug} retreat={retreat} /></div>
+        {retreat.kind === 'itinerary' && <div hidden={section !== 'album'}><AlbumSection orgSlug={orgSlug} retreat={retreat} /></div>}
+      </div>
     </div>
   )
 }
@@ -91,9 +120,10 @@ function OpeningEditor({ orgSlug, retreat, state }: { orgSlug: string; retreat: 
   }
 
   const previewParagraphs = paragraphs.filter((p) => p.trim())
+  const hasUnsavedChanges = headline !== (source?.headline ?? '') || paragraphs.some((p, i) => p !== (source?.introParagraphs[i] ?? '')) || ctaLabel !== (source?.ctaLabel ?? '') || ctaUrl !== (source?.ctaUrl ?? '')
 
   return (
-    <section className="card" aria-labelledby="opening-title">
+    <section className="card site-setup-panel" aria-labelledby="opening-title">
       <div className="spread">
         <h2 id="opening-title" style={{ margin: 0 }}>
           Your opening
@@ -103,13 +133,21 @@ function OpeningEditor({ orgSlug, retreat, state }: { orgSlug: string; retreat: 
         </span>
       </div>
       <p className="small muted">The headline and introduction visitors see first, in your own words. Publishing or unpublishing this never affects guest stories.</p>
+      <p className="row small" aria-live="polite"><span className={`badge ${pub ? 'ok' : 'neutral'}`}>{pub ? 'Published' : 'Draft'}</span>{hasUnsavedChanges && <span className="badge warn">Unsaved changes</span>}</p>
 
       <div className="grid-2" style={{ alignItems: 'start' }}>
         <form onSubmit={submit} noValidate>
           <Field id="op-headline" label="Headline" error={fieldError(error, 'headline')}>
             <input id="op-headline" type="text" maxLength={160} value={headline} onChange={(e) => setHeadline(e.target.value)} />
           </Field>
-          {paragraphs.map((p, i) => (
+          {paragraphs.map((p, i) => i === 2 ? (
+            <details key={i} className="site-optional-field" open={Boolean(p.trim())}>
+              <summary>{p.trim() ? 'Introduction paragraph 3 (optional)' : 'Add third paragraph (optional)'}</summary>
+              <Field id="op-p2" label="Introduction paragraph 3 (optional)">
+                <textarea id="op-p2" maxLength={800} value={p} onChange={(e) => setParagraphs((all) => all.map((x, j) => j === i ? e.target.value : x))} />
+              </Field>
+            </details>
+          ) : (
             <Field key={i} id={`op-p${i}`} label={`Introduction paragraph ${i + 1}${i > 0 ? ' (optional)' : ''}`}>
               <textarea
                 id={`op-p${i}`}
@@ -121,7 +159,8 @@ function OpeningEditor({ orgSlug, retreat, state }: { orgSlug: string; retreat: 
             </Field>
           ))}
           {fieldError(error, 'introParagraphs') && <p className="small" style={{ color: 'var(--danger)' }}>{fieldError(error, 'introParagraphs')}</p>}
-          <div className="grid-2">
+          <h3 className="site-subheading">Call to action</h3>
+          <div className="site-cta-fields">
             <Field id="op-cta-label" label="Button label" hint="For example: Book the 2027 retreat" error={fieldError(error, 'ctaLabel')}>
               <input id="op-cta-label" type="text" maxLength={60} value={ctaLabel} onChange={(e) => setCtaLabel(e.target.value)} aria-describedby="op-cta-label-hint" />
             </Field>
@@ -145,7 +184,7 @@ function OpeningEditor({ orgSlug, retreat, state }: { orgSlug: string; retreat: 
               {saveDraft.isPending ? 'Saving…' : 'Save draft'}
             </button>
             <button type="button" className="btn" disabled={publish.isPending || !headline.trim()} onClick={() => publish.mutate(null)}>
-              Publish now
+              {pub ? 'Publish changes' : 'Publish now'}
             </button>
             {pub && (
               <button
@@ -160,7 +199,7 @@ function OpeningEditor({ orgSlug, retreat, state }: { orgSlug: string; retreat: 
               </button>
             )}
           </div>
-          <div className="row" style={{ alignItems: 'flex-end', marginTop: '1rem' }}>
+          <details className="site-schedule"><summary>Schedule publication</summary><div className="row" style={{ alignItems: 'flex-end', marginTop: '1rem' }}>
             <div className="field" style={{ marginBottom: 0, flex: '1 1 200px' }}>
               <label htmlFor="op-when">Schedule for later</label>
               <input id="op-when" type="datetime-local" value={publishAt} onChange={(e) => setPublishAt(e.target.value)} min={toLocalInput(new Date().toISOString())} />
@@ -168,11 +207,11 @@ function OpeningEditor({ orgSlug, retreat, state }: { orgSlug: string; retreat: 
             <button type="button" className="btn secondary" disabled={!publishAt || publish.isPending || !headline.trim()} onClick={() => publish.mutate(fromLocalInput(publishAt))}>
               Schedule
             </button>
-          </div>
+          </div></details>
         </form>
 
         <div>
-          <p className="eyebrow">Preview</p>
+          <p className="eyebrow">Visitor preview</p>
           <ThemeScope tokens={theme.tokens} className="site theme-preview">
             <div className="tp-inner">
               <div>
@@ -259,6 +298,26 @@ function ImageLibrary({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [failures, setFailures] = useState<Array<{ name: string; message: string }>>([])
   const [lastBatch, setLastBatch] = useState<number | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const reorder = useMutation({
+    mutationFn: (ids: string[]) => put(`${orgApi(orgSlug)}/retreats/${retreat.id}/media/order`, { ids }),
+    onMutate: async (ids) => {
+      await queryClient.cancelQueries({ queryKey: key })
+      const previous = queryClient.getQueryData<OrganiserMedia[]>(key)
+      if (previous) queryClient.setQueryData(key, ids.map((id) => previous.find((m) => m.id === id)).filter((m): m is OrganiserMedia => Boolean(m)))
+      return { previous }
+    },
+    onError: (_error, _ids, context) => { if (context?.previous) queryClient.setQueryData(key, context.previous) },
+    onSettled: () => { void queryClient.invalidateQueries({ queryKey: key }) },
+  })
+  function moveImage(index: number, by: number) {
+    if (!media.data) return
+    const ids = media.data.map((m) => m.id)
+    const other = index + by
+    if (other < 0 || other >= ids.length) return
+    ;[ids[index], ids[other]] = [ids[other], ids[index]]
+    reorder.mutate(ids)
+  }
 
   async function uploadAll(files: File[]) {
     const images = files.filter(isImageFile)
@@ -272,6 +331,7 @@ function ImageLibrary({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
       const data = new FormData()
       try {
         data.append('image', await prepareImage(file))
+        data.append('rightsConfirmed', 'true')
         await post(`${orgApi(orgSlug)}/retreats/${retreat.id}/media`, data)
       } catch (e) {
         failed.push({ name: file.name, message: e instanceof ApiError || e instanceof Error ? e.message : 'Upload failed' })
@@ -285,14 +345,13 @@ function ImageLibrary({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
     setProgress(null)
   }
   const uploading = progress !== null
+  const selected = media.data?.find((m) => m.id === selectedId) ?? media.data?.[0]
 
   return (
-    <section className="card" aria-labelledby="lib-title">
-      <h2 id="lib-title">Your images</h2>
-      <p className="small muted">
-        Images you provide for the public slideshow and the optional memory prompts beside the guest’s writing form. An image can be shown once you’ve confirmed you have permission to
-        use it. Alt text is optional but helps guests who use screen readers. Guest photos are managed from each response instead.
-      </p>
+    <section className="card site-setup-panel" aria-labelledby="lib-title">
+      <h2 id="lib-title">Retreat images</h2>
+      <p className="muted">Add photos for the public slideshow. Every photo in that slideshow also appears beside the guest’s review form. Photos may also be included in the album.</p>
+      <p className="site-consent-note"><span aria-hidden="true">✓</span> By uploading, you confirm you have permission to use these photos and that people pictured have agreed.</p>
       <SlideshowSettings orgSlug={orgSlug} retreat={retreat} media={media.data ?? []} />
       {(media.data ?? []).some((m) => !m.rightsConfirmed) && (
         <p className="row small" style={{ margin: '0 0 1rem' }}>
@@ -319,8 +378,8 @@ function ImageLibrary({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
       )}
       <UploadZone
         id="lib-upload"
-        title="Choose images to upload"
-        hint={`Pick several at once, or drag them here. JPG, PNG, WebP or HEIC, up to ${MAX_UPLOAD_MB} MB each. Kept in high quality (up to 4K); location and camera details are removed.`}
+        title="Add photos"
+        hint={`JPG, PNG, WebP or HEIC · up to ${MAX_UPLOAD_MB} MB each · location and camera details removed`}
         accept={IMAGE_ACCEPT}
         busy={uploading}
         busyLabel={progress ? `Uploading ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…` : undefined}
@@ -338,7 +397,7 @@ function ImageLibrary({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
       )}
       {lastBatch !== null && lastBatch > 0 && (
         <p className="notice ok small" role="status" style={{ marginTop: '0.75rem' }}>
-          {lastBatch} image{lastBatch === 1 ? '' : 's'} uploaded. Confirm you have permission to show {lastBatch === 1 ? 'it' : 'them'}.
+          {lastBatch} image{lastBatch === 1 ? '' : 's'} added and ready to show.
         </p>
       )}
       {failures.length > 0 && (
@@ -355,15 +414,30 @@ function ImageLibrary({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
       )}
       {media.isLoading && <Loading />}
       {media.error && <ErrorNotice error={media.error} />}
-      {media.data && media.data.length === 0 && <p className="muted">No images yet.</p>}
+      {media.data && media.data.length === 0 && <p className="muted">No photos yet. Add some above to start your slideshow and provide images beside the guest form.</p>}
       {media.data && media.data.length > 0 && (
-        <ul className="media-grid" style={{ listStyle: 'none', padding: 0 }}>
-          {media.data.map((m) => (
-            <li key={m.id}>
-              <MediaEditor orgSlug={orgSlug} media={m} onChanged={() => queryClient.invalidateQueries({ queryKey: key })} />
-            </li>
-          ))}
-        </ul>
+        <div className="site-image-workspace">
+          <div className="site-image-list" role="group" aria-label="Retreat photos">
+            {media.data.map((m, i) => (
+              <div key={m.id} className={`site-image-row ${selected?.id === m.id ? 'is-active' : ''}`}>
+                <button type="button" className="site-image-select" onClick={() => setSelectedId(m.id)} aria-pressed={selected?.id === m.id}>
+                  <img src={m.previewUrl} alt="" loading="lazy" />
+                  <span><strong>{m.caption || `Photo ${i + 1}`}</strong><small>{m.approved ? m.inHeroSlideshow ? 'Public slideshow · guest form' : 'Ready, not in slideshow' : 'Confirm permission to show'}</small></span>
+                </button>
+                <div className="site-image-order">
+                  <button type="button" className="btn ghost small" disabled={i === 0 || reorder.isPending} onClick={() => moveImage(i, -1)} aria-label={`Move ${m.caption || `photo ${i + 1}`} earlier`}>↑ Earlier</button>
+                  <button type="button" className="btn ghost small" disabled={i === media.data!.length - 1 || reorder.isPending} onClick={() => moveImage(i, 1)} aria-label={`Move ${m.caption || `photo ${i + 1}`} later`}>↓ Later</button>
+                </div>
+              </div>
+            ))}
+            <span className="small muted" aria-live="polite">{reorder.isPending ? 'Saving order…' : reorder.isSuccess ? 'Order saved' : null}</span>
+            <MutationError error={reorder.error} />
+          </div>
+          {selected && <MediaEditor key={selected.id} orgSlug={orgSlug} media={selected} onChanged={() => {
+            void queryClient.invalidateQueries({ queryKey: key })
+            void queryClient.invalidateQueries({ queryKey: ['admin', orgSlug, 'album', retreat.id] })
+          }} />}
+        </div>
       )}
     </section>
   )

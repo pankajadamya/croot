@@ -116,13 +116,12 @@ async function draftView(r: Review, req: Request) {
         include: { ratings: true, media: { where: { removedAt: null }, orderBy: { displayOrder: 'asc' } } },
       })
     : null
-  const slideshow = r.retreat.writingSlideshowEnabled
-    ? await prisma.mediaAsset.findMany({
+  const slideshow = await prisma.mediaAsset.findMany({
         where: {
           organisationId: r.retreat.organisationId,
           retreatId: r.retreat.id,
           kind: 'organiser',
-          inWritingSlideshow: true,
+          inHeroSlideshow: true,
           moderation: 'approved',
           publishConsent: true,
           removedAt: null,
@@ -130,7 +129,6 @@ async function draftView(r: Review, req: Request) {
         orderBy: { displayOrder: 'asc' },
         select: { id: true, altText: true, caption: true },
       })
-    : []
   return {
     firstName: firstName(r.attendee.name),
     editable: canEdit(r) && (!r.response?.submittedAt || signedInAsGuest(req, r)),

@@ -207,6 +207,22 @@ siteRouter.get(
   }),
 )
 
+siteRouter.put(
+  '/retreats/:retreatId/media/order',
+  route(async (req, res) => {
+    const t = tenantOf(req)
+    const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
+    const { ids } = parseBody(z.object({ ids: z.array(z.uuid()).max(1000) }), req.body)
+    const current = await prisma.mediaAsset.findMany({ where: { organisationId: t.org.id, retreatId: retreat.id, kind: 'organiser', removedAt: null }, select: { id: true } })
+    if (ids.length !== current.length || new Set(ids).size !== ids.length || current.some((m) => !ids.includes(m.id))) {
+      throw new HttpError(400, 'Include every current retreat image exactly once')
+    }
+    await prisma.$transaction(ids.map((id, displayOrder) => prisma.mediaAsset.update({ where: { id }, data: { displayOrder } })))
+    await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'media.reordered', entityType: 'retreat', entityId: retreat.id })
+    res.json({ ok: true })
+  }),
+)
+
 siteRouter.post(
   '/retreats/:retreatId/media',
   uploadLimiter,
@@ -215,6 +231,7 @@ siteRouter.post(
     const t = tenantOf(req)
     const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
     if (!req.file) throw new HttpError(400, 'Choose an image')
+    if (req.body.rightsConfirmed !== 'true') throw new HttpError(400, 'Confirm you have permission to share these photos before uploading')
     // ?album=1: a thank-you album photo (not on the public site; guests who reviewed and anyone with the share link see it).
     const kind = req.query.album ? 'album' : 'organiser'
     if (kind === 'album') await assertAlbumRoom(retreat.id, 'photo')
@@ -241,12 +258,12 @@ siteRouter.post(
         displayOrder: count,
         // New photos go to the end of the album.
         albumOrder: (await prisma.mediaAsset.aggregate({ where: { retreatId: retreat.id, removedAt: null }, _max: { albumOrder: true } }))._max.albumOrder! + 1 || 0,
-        // Slideshow images: included in both slideshows by default; shown once permission is confirmed.
-        // Album photos: never in a slideshow, and ready at once (they are only for guests who reviewed).
+        // The upload acknowledges rights; organiser slideshow photos also join the album when space allows.
+        publishConsent: true,
+        moderation: 'approved',
         inHeroSlideshow: kind === 'organiser',
         inWritingSlideshow: kind === 'organiser',
         inAlbum: joinsAlbum,
-        ...(kind === 'album' ? { moderation: 'approved' as const } : {}),
       },
     })
     await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'media.uploaded', entityType: 'media', entityId: m.id })
@@ -271,6 +288,7 @@ siteRouter.post(
       const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
       if (retreat.kind !== 'itinerary') throw new HttpError(400, 'Albums are for itinerary retreats')
       if (!video) throw new HttpError(400, 'Choose a video')
+      if (req.body.rightsConfirmed !== 'true') throw new HttpError(400, 'Confirm you have permission to share this video before uploading')
       await assertAlbumRoom(retreat.id, 'video')
       const type = await sniffVideo(video.path)
       const meta = parseBody(
@@ -308,6 +326,7 @@ siteRouter.post(
           albumOrder: ((await prisma.mediaAsset.aggregate({ where: { retreatId: retreat.id, removedAt: null }, _max: { albumOrder: true } }))._max.albumOrder ?? -1) + 1,
           inHeroSlideshow: false,
           inWritingSlideshow: false,
+          publishConsent: true,
           moderation: 'approved',
         },
       })
