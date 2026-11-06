@@ -8,6 +8,7 @@ import { env, isProduction } from './lib/env.js'
 import { HttpError } from './lib/http.js'
 import { accessLog } from './lib/logger.js'
 import { prisma } from './lib/prisma.js'
+import { release } from './lib/version.js'
 import { loadSession, requireCsrf, requireUser } from './middleware/auth.js'
 import { errorHandler } from './middleware/errors.js'
 import { accountRouter } from './modules/account.js'
@@ -52,13 +53,14 @@ export function createApp() {
   app.use(accessLog)
 
   // Health: liveness is process-only; readiness proves the database answers.
-  app.get('/health/live', (_req, res) => res.json({ ok: true }))
+  // Both say which release is serving, so a deploy's health check and monitoring can tell.
+  app.get('/health/live', (_req, res) => res.json({ ok: true, ...release }))
   app.get('/health/ready', async (_req, res) => {
     try {
       await prisma.$queryRaw`SELECT 1`
-      res.json({ ok: true, db: 'up' })
+      res.json({ ok: true, db: 'up', ...release })
     } catch {
-      res.status(503).json({ ok: false, db: 'down' })
+      res.status(503).json({ ok: false, db: 'down', ...release })
     }
   })
 
