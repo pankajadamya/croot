@@ -41,10 +41,25 @@ export async function api<T = unknown>(
     if ((e as Error).name === 'AbortError') throw e
     throw new ApiError(0, 'You appear to be offline. Your text is kept on this page; try again when you are connected.')
   }
+  if (res.ok && changesAttention(method, path)) announceChange()
   if (res.status === 204) return undefined as T
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new ApiError(res.status, data.error || 'Something went wrong', data.details)
   return data as T
+}
+
+/** Fired after anything that can change what the notifications bell shows, so it refreshes at once. */
+export const DATA_CHANGED_EVENT = 'croot:data-changed'
+let pending: number | undefined
+function announceChange() {
+  // One refresh for a burst of changes (e.g. approving several photos).
+  window.clearTimeout(pending)
+  pending = window.setTimeout(() => window.dispatchEvent(new Event(DATA_CHANGED_EVENT)), 250)
+}
+function changesAttention(method: Method, path: string) {
+  if (!/^\/api\/(admin|platform|account)\//.test(path)) return false
+  // Opening anonymous notes marks them as seen.
+  return method !== 'GET' || /\/anonymous(\?|$)/.test(path)
 }
 
 export const get = <T,>(path: string) => api<T>('GET', path)

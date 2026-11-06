@@ -5,6 +5,8 @@ import { defaultCategoriesFor } from '../../../../shared/categories.js'
 import { slugify } from '../../../../shared/slug.js'
 import { audit } from '../../lib/audit.js'
 import { HttpError, parseBody, route, text, uuidParam } from '../../lib/http.js'
+import { sendMail } from '../../lib/mailer.js'
+import { organiserMails } from '../../lib/organisers.js'
 import { prisma } from '../../lib/prisma.js'
 import { tenantRetreat } from '../../lib/tenant.js'
 import { requireCsrf, requireOrgMember, requireOwner, tenantOf } from '../../middleware/auth.js'
@@ -214,8 +216,16 @@ adminRouter.post(
     await prisma.membership.create({ data: { userId: user.id, organisationId: t.org.id, role: body.role } })
     await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'member.added', entityType: 'user', entityId: user.id, metadata: { role: body.role } })
     // No setup (password) link: it would let an owner take over any existing account by adding its
-    // address. The person signs in with their own email (a one-time code or Google) instead.
-    res.status(201).json({ setupUrl: null })
+    // address. They're emailed, and sign in with their own email (a one-time code or Google).
+    let emailed = true
+    try {
+      const by = (await prisma.user.findUnique({ where: { id: t.userId }, select: { name: true } }))?.name || 'Your team'
+      await sendMail(organiserMails.addedToTeam(email, { name: user.name || body.name, orgName: t.org.name, orgSlug: t.org.slug, by, role: body.role }))
+    } catch (e) {
+      emailed = false
+      console.error('team member email failed:', (e as Error).message)
+    }
+    res.status(201).json({ setupUrl: null, emailed })
   }),
 )
 

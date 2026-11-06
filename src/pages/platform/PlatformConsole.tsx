@@ -47,6 +47,7 @@ interface Tenant {
 interface Created {
   organisation: { id: string; slug: string; name: string }
   setupUrl: string | null
+  emailed?: boolean
 }
 
 const REQUESTS_KEY = ['platform', 'requests']
@@ -89,7 +90,8 @@ function CreatedNotice({ created, onDismiss }: { created: Created; onDismiss: ()
     <OneTimeLinkNotice title={`${created.organisation.name} is ready (/${created.organisation.slug}). Owner setup link:`} url={created.setupUrl} onDismiss={onDismiss} />
   ) : (
     <div className="notice ok" role="status">
-      Approved: {created.organisation.name} (/{created.organisation.slug}). We’ve emailed them; they sign in with their email or Google.{' '}
+      {created.organisation.name} (/{created.organisation.slug}) is ready.{' '}
+      {created.emailed === false ? 'The email to the owner couldn’t be sent: ask them to sign in with their email address.' : 'We’ve emailed the owner; they sign in with their email or Google.'}{' '}
       <button type="button" className="btn ghost small" onClick={onDismiss}>
         Dismiss
       </button>

@@ -119,6 +119,18 @@ export const organiserMails = {
       ],
       { url, label: 'Accept invitation' },
     ),
+  /** Someone was added to an organisation's team (by an owner, or by the Croot team when it was set up). */
+  addedToTeam: (to: string, opts: { name: string; orgName: string; orgSlug: string; by: string; role: 'owner' | 'organiser' }) =>
+    simpleMail(
+      to,
+      `You’ve been added to ${opts.orgName} on Croot`,
+      [
+        `Hello ${opts.name},`,
+        `${opts.by} added you to ${opts.orgName} on Croot as ${opts.role === 'owner' ? 'an owner' : 'an organiser'}, to collect and publish reviews from your guests.`,
+        `Sign in with this email address (${to}). We’ll email you a one-time code, so there’s no password to remember. You can also use Google if this is a Google address.`,
+      ],
+      { url: `${env.WEB_ORIGIN}/signin?next=${encodeURIComponent(`/admin/${opts.orgSlug}`)}`, label: 'Sign in to Croot' },
+    ),
   newRequest: (to: string, who: string, orgName: string) =>
     simpleMail(to, `New organiser request: ${orgName}`, [`${who} asked to become an organiser for ${orgName}.`], {
       url: `${env.WEB_ORIGIN}/platform`,

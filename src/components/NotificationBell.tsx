@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router'
-import { get } from '../lib/api'
+import { DATA_CHANGED_EVENT, get } from '../lib/api'
 
 export interface AttentionItem {
   id: string
@@ -40,6 +40,13 @@ export function NotificationBell() {
     setOpen(false)
     void refetch()
   }, [location.pathname, location.search, refetch])
+
+  // Anything changed elsewhere in the app (a request resolved, a story published): refresh now.
+  useEffect(() => {
+    const onChange = () => void refetch()
+    window.addEventListener(DATA_CHANGED_EVENT, onChange)
+    return () => window.removeEventListener(DATA_CHANGED_EVENT, onChange)
+  }, [refetch])
 
   useEffect(() => {
     if (!open) return

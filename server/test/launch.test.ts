@@ -143,3 +143,34 @@ describe('failed file deletions', () => {
     spy.mockRestore()
   })
 })
+
+describe('team emails', () => {
+  it('emails a new team member a sign-in link instead of handing the owner a password link', async () => {
+    await makeTenant('alpha')
+    const owner = await login('alpha@owner.test')
+    const res = await owner.agent
+      .post('/api/admin/orgs/alpha/members')
+      .set('X-CSRF-Token', owner.csrf)
+      .send({ email: 'Nia.New@example.test', name: 'Nia New', role: 'organiser' })
+    expect(res.status).toBe(201)
+    expect(res.body).toMatchObject({ setupUrl: null, emailed: true })
+    const mail = testOutbox.at(-1)!
+    expect(mail.to).toBe('nia.new@example.test')
+    expect(mail.subject).toBe('You’ve been added to alpha on Croot')
+    expect(mail.text).toContain('alpha owner added you to alpha on Croot as an organiser')
+    expect(mail.text).toContain('/signin?next=%2Fadmin%2Falpha')
+  })
+
+  it('emails the owner of an organisation an admin creates', async () => {
+    await prisma.user.create({ data: { email: 'boss@example.test', name: 'Boss', isPlatformAdmin: true } })
+    const admin = await signInByCode('boss@example.test')
+    const res = await admin.agent
+      .post('/api/platform/orgs')
+      .set('X-CSRF-Token', admin.csrf)
+      .send({ name: 'Lakeside Wellness', ownerEmail: 'lee@example.test', ownerName: 'Lee' })
+    expect(res.status).toBe(201)
+    expect(res.body).toMatchObject({ setupUrl: null, emailed: true })
+    expect(testOutbox.at(-1)).toMatchObject({ to: 'lee@example.test', subject: 'You’ve been added to Lakeside Wellness on Croot' })
+    expect(testOutbox.at(-1)!.text).toContain('The Croot team added you to Lakeside Wellness on Croot as an owner')
+  })
+})

@@ -10,7 +10,7 @@ import { platformSettings } from '../lib/platformSettings.js'
 import { prisma } from '../lib/prisma.js'
 import { hashToken, newToken } from '../lib/tokens.js'
 import { requireCsrf, requirePlatformAdmin } from '../middleware/auth.js'
-import { issueSetupToken } from './auth.js'
+import { sendMail } from '../lib/mailer.js'
 
 /** Platform operators: approve retreat owners as tenants, suspend them, map custom domains. */
 export const platformRouter = Router()
@@ -245,9 +245,15 @@ platformRouter.post(
       await audit({ organisationId: org.id, actorUserId: req.auth!.user.id, actorKind: 'platform', action: 'tenant.created', entityType: 'organisation', entityId: org.id }, tx)
       return { org, user, isNew: !found }
     })
-    // A setup link only for an account made just now: never for an existing account (it could be anyone's).
-    const setupUrl = isNew && !user.isPlatformAdmin ? `${env.WEB_ORIGIN}/admin/setup/${await issueSetupToken(user.id)}` : null
-    res.status(201).json({ organisation: { id: org.id, slug: org.slug, name: org.name }, setupUrl })
+    // The owner is emailed and signs in with their own email (a one-time code or Google): no password link.
+    let emailed = true
+    try {
+      await sendMail(organiserMails.addedToTeam(email, { name: user.name || body.ownerName, orgName: org.name, orgSlug: org.slug, by: 'The Croot team', role: 'owner' }))
+    } catch (e) {
+      emailed = false
+      console.error('new owner email failed:', (e as Error).message)
+    }
+    res.status(201).json({ organisation: { id: org.id, slug: org.slug, name: org.name }, setupUrl: null, emailed, newAccount: isNew })
   }),
 )
 

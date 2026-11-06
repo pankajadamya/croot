@@ -7,7 +7,7 @@ import { formatDateTime } from '../../lib/format'
 import { Field } from '../../components/Controls'
 import { ErrorNotice, Loading } from '../../components/States'
 import { AdminShell } from './AdminShell'
-import { fieldError, MutationError, OneTimeLinkNotice, useOrgSummary } from './adminUi'
+import { fieldError, MutationError, useOrgSummary } from './adminUi'
 import { useConfirm } from '../../components/ConfirmDialog'
 
 interface Member {
@@ -31,11 +31,11 @@ export default function Team() {
   const members = useQuery({ queryKey: key, queryFn: () => get<{ members: Member[] }>(`${orgApi(orgSlug)}/members`).then((r) => r.members) })
 
   const [form, setForm] = useState({ name: '', email: '', role: 'organiser' as 'owner' | 'organiser' })
-  const [setupUrl, setSetupUrl] = useState<{ name: string; url: string | null } | null>(null)
+  const [added, setAdded] = useState<{ name: string; email: string; emailed: boolean } | null>(null)
   const add = useMutation({
-    mutationFn: () => post<{ setupUrl: string | null }>(`${orgApi(orgSlug)}/members`, form),
+    mutationFn: () => post<{ emailed: boolean }>(`${orgApi(orgSlug)}/members`, form),
     onSuccess: (r) => {
-      setSetupUrl({ name: form.name, url: r.setupUrl })
+      setAdded({ name: form.name, email: form.email, emailed: r.emailed })
       setForm({ name: '', email: '', role: 'organiser' })
       void queryClient.invalidateQueries({ queryKey: key })
     },
@@ -47,7 +47,7 @@ export default function Team() {
 
   function submit(e: FormEvent) {
     e.preventDefault()
-    setSetupUrl(null)
+    setAdded(null)
     add.mutate()
   }
 
@@ -112,7 +112,7 @@ export default function Team() {
       {isOwner && (
         <form className="card" onSubmit={submit} noValidate style={{ marginTop: '2rem', maxWidth: 640 }}>
           <h2>Add a team member</h2>
-          <p className="small muted">They’ll get a one-time link to choose their own password. Nothing is emailed — share the link yourself.</p>
+          <p className="small muted">We’ll email them to say they’ve been added. They sign in with that email address: Croot sends them a one-time code, so there’s no password to set.</p>
           <Field id="tm-name" label="Name" error={fieldError(add.error, 'name')}>
             <input id="tm-name" type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
           </Field>
@@ -131,15 +131,16 @@ export default function Team() {
           </button>
         </form>
       )}
-      {setupUrl && (
+      {added && (
         <div style={{ marginTop: '1rem', maxWidth: 640 }}>
-          {setupUrl.url ? (
-            <OneTimeLinkNotice title={`Setup link for ${setupUrl.name}`} url={setupUrl.url} onDismiss={() => setSetupUrl(null)} />
-          ) : (
-            <div className="notice ok" role="status">
-              {setupUrl.name} is on the team. They sign in with their email address ({form.email || 'the one you entered'}): we send them a one-time code, or they can use Google.
-            </div>
-          )}
+          <div className={`notice ${added.emailed ? 'ok' : 'warn'}`} role="status">
+            {added.emailed
+              ? `${added.name} is on the team. We’ve emailed ${added.email} with a link to sign in.`
+              : `${added.name} is on the team, but the email to ${added.email} couldn’t be sent. Ask them to sign in at ${window.location.origin}/signin with that address.`}{' '}
+            <button type="button" className="btn ghost small" onClick={() => setAdded(null)}>
+              Dismiss
+            </button>
+          </div>
         </div>
       )}
     </AdminShell>
