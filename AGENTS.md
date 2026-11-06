@@ -19,8 +19,8 @@ Where the version shows:
 
 - `/health/live` and `/health/ready` answer `{ app: "Croot", version, commit }` (the deploy's health
   check and monitoring can tell which release is serving);
-- the signed-in top bar shows it quietly (`virtual:app-version`, read from `package.json` at build
-  time; see `vite.config.ts`).
+- the client can import it from `virtual:app-version` (read from `package.json` at build time; see
+  `vite.config.ts`). It isn't shown in the top bar.
 
 ## Before you call it done
 

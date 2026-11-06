@@ -3,7 +3,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Link, NavLink, useNavigate } from 'react-router'
 import { useAuth, type Session } from '../lib/auth'
 import { NotificationBell } from './NotificationBell'
-import { appVersion } from 'virtual:app-version'
 
 /** Where "Organiser workspace" leads: straight into the only organisation, or the chooser. */
 export function workspacePath(session: Session) {
@@ -51,9 +50,6 @@ export function AppHeader({ session, orgSlug, orgName }: { session: Session; org
         <div className="row">
           {(isOrganiser || session.user.isPlatformAdmin) && <NotificationBell />}
           <span className="small muted">{session.user.name}</span>
-          <span className="version-tag" title={`Croot version ${appVersion}`}>
-            v{appVersion}
-          </span>
           <button type="button" className="btn secondary small" onClick={signOut}>
             Sign out
           </button>

@@ -1325,15 +1325,6 @@ table.data th {
   background: var(--sage);
 }
 /* Large upload area: the whole box opens the picker (the photo gallery on phones). */
-/* The running release, quietly, for support ("which version are you on?"). */
-.version-tag {
-  font-size: 0.7rem;
-  color: var(--muted, #5b6b66);
-  opacity: 0.7;
-  font-variant-numeric: tabular-nums;
-  user-select: all;
-}
-
 /* Notifications bell (organiser and admin top bar). */
 .bell {
   position: relative;
