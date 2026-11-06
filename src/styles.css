@@ -4485,3 +4485,47 @@ a.review-date:hover {
   .site-album-status .btn, .site-showcase-status .btn { width: 100%; }
   .site-setup-panel .album-admin-grid { grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); }
 }
+
+/*
+ * Phones: the retreat page slideshow's caption goes below the photo instead of over it. Overlaid,
+ * the dots and pause button keep their width and squeeze the caption into a one-word column tall
+ * enough to cover the whole photo (seen on an iPhone 13). Placed last so it wins over the
+ * page-specific aspect ratios above.
+ */
+@media (max-width: 700px) {
+  .hero-slides.photo-panel {
+    display: flex;
+    flex-direction: column;
+    aspect-ratio: auto;
+    max-height: none;
+  }
+  .hero-slides.photo-panel .photo-stage {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+  }
+  .hero-slides.photo-panel .photo-band {
+    position: static;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.4rem;
+    min-height: 0;
+    padding: 0.85rem 1rem 0.6rem;
+  }
+  .hero-slides.photo-panel .photo-line {
+    font-size: 1.05rem;
+  }
+  .hero-slides.photo-panel .photo-controls {
+    justify-content: space-between;
+    flex: initial;
+  }
+  .hero-slides.photo-panel .photo-dots {
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+  .hero-slides.photo-panel .photo-dots button {
+    width: 24px;
+  }
+}
