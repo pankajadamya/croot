@@ -1,8 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, Navigate, useLocation } from 'react-router'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router'
 import { get, post } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
-import { formatDate } from '../../lib/format'
 import { SignedInFrame, workspacePath } from '../../components/AppHeader'
 import { OrganiserDetailsForm } from '../../components/OrganiserDetailsForm'
 import { ErrorNotice, Loading } from '../../components/States'
@@ -16,9 +15,10 @@ interface RequestView {
   reviewedAt: string | null
 }
 
-/** "Become an organiser": a signed-in person sends their details; an admin approves or declines. */
+/** "Become an organiser": a signed-in person adds their details and starts straight away as the owner of a new organisation. */
 export default function BecomeOrganiser() {
-  const { session, loading } = useAuth()
+  const { session, loading, refresh } = useAuth()
+  const navigate = useNavigate()
   const location = useLocation()
   const qc = useQueryClient()
   const q = useQuery({
@@ -31,8 +31,8 @@ export default function BecomeOrganiser() {
   if (!session) return <Navigate to={`/signin?next=${encodeURIComponent(location.pathname)}`} replace />
 
   const isOrganiser = session.memberships.length > 0
-  const latest = q.data?.request
-  const showForm = !isOrganiser && q.data && (!latest || latest.status === 'declined')
+  // Anyone not yet an organiser can start (a request declined before self-service included).
+  const showForm = !isOrganiser && q.data
 
   return (
     <SignedInFrame session={session}>
@@ -45,38 +45,25 @@ export default function BecomeOrganiser() {
           </div>
         ) : (
           <p className="muted" style={{ maxWidth: '62ch' }}>
-            Organisers invite their guests to review a retreat or a stay, then publish the stories guests agree to share. Tell us a little about you
-            and the Croot team will review your request, usually within a couple of working days. We’ll email you either way.
+            Organisers invite their guests to review a retreat or a stay, then publish the stories guests agree to share. Add a few details and you
+            can start straight away: you’ll be the owner of your organisation and can invite your team.
           </p>
         )}
         {q.isLoading && <Loading />}
         {q.error && <ErrorNotice error={q.error} />}
 
-        {latest?.status === 'pending' && (
-          <div className="card" role="status">
-            <h2 style={{ fontSize: '1.3rem' }}>Request received</h2>
-            <p style={{ margin: 0 }}>
-              We received your request for <strong>{latest.orgName}</strong> on {formatDate(latest.createdAt)}. We’ll email {session.user.email} once
-              it’s been reviewed.
-            </p>
-          </div>
-        )}
-        {latest?.status === 'declined' && (
-          <div className="notice warn" style={{ marginBottom: '1.5rem' }}>
-            Your request for {latest.orgName} was declined on {formatDate(latest.reviewedAt)}.
-            {latest.declineReason && <> Note from the Croot team: {latest.declineReason}</>} You can send a new request below.
-          </div>
-        )}
 
         {showForm && (
           <section className="card" style={{ marginTop: '1rem' }}>
             <OrganiserDetailsForm
               email={session.user.email}
               initial={{ contactName: q.data!.prefill.contactName, phone: q.data!.prefill.phone }}
-              submitLabel="Send request"
+              submitLabel="Start as an organiser"
               onSubmit={async (details) => {
-                await post('/api/account/organiser-request', details)
+                const { organisation } = await post<{ organisation: { slug: string } }>('/api/account/organiser-request', details)
+                await refresh()
                 await qc.invalidateQueries({ queryKey: ['organiser-request'] })
+                navigate(`/admin/${organisation.slug}`, { replace: true })
               }}
             />
           </section>
