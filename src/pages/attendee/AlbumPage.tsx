@@ -9,6 +9,8 @@ import { LinkUnavailable, Loading } from '../../components/States'
 import { HeartButton, useHearts } from '../../components/Hearts'
 import { formatDuration } from '../../lib/format'
 import { useConfirm } from '../../components/ConfirmDialog'
+import { MemoryFilm } from '../../components/MemoryFilm'
+import type { FilmMusic } from '../../../shared/film'
 
 interface AlbumPhoto {
   id: string
@@ -23,6 +25,8 @@ interface AlbumPhoto {
   /** For videos: where to stream it from; url is then its poster. */
   video: string | null
   duration: number | null
+  focalX?: number
+  focalY?: number
 }
 interface AlbumListing {
   pageUrl: string
@@ -35,6 +39,7 @@ interface AlbumListing {
   coverId: string | null
   canContribute: boolean
   photos: AlbumPhoto[]
+  film?: { music: FilmMusic; startDate: string | null; endDate: string | null; organiser: string | null }
 }
 
 /**
@@ -50,6 +55,9 @@ function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { ba
   // The open photo lives in the address (?photo=<id>), so a refresh or a shared link opens the same one.
   const [params, setParams] = useSearchParams()
   const openId = params.get('photo')
+  // ?film=1 plays the memory film (the organiser's "Play memories" opens it this way).
+  // How the film was opened: from a link it waits for Play, since sound needs a click first.
+  const [film, setFilm] = useState<'link' | 'click' | null>(() => (params.get('film') === '1' ? 'link' : null))
   const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [shared, setShared] = useState<string | null>(null)
@@ -160,7 +168,15 @@ function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { ba
           {album.note && <p className="album-hero-note">{album.note}</p>}
           <div className="row" style={{ marginTop: '1.25rem' }}>
             {photos.length > 0 && (
-              <button type="button" className="album-btn" onClick={() => setOpen(0)}>
+              <button type="button" className="album-btn" onClick={() => setFilm('click')}>
+                <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
+                  <path d="M4 2l10 6-10 6z" fill="currentColor" />
+                </svg>
+                Play memories
+              </button>
+            )}
+            {photos.length > 0 && (
+              <button type="button" className="album-btn ghost" onClick={() => setOpen(0)}>
                 View photos
               </button>
             )}
@@ -245,6 +261,23 @@ function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { ba
         )}
       </main>
 
+      {film && photos.length > 0 && (
+        <MemoryFilm
+          startPaused={film === 'link'}
+          items={photos}
+          info={{
+            title: album.title,
+            organiser: album.film?.organiser ?? album.orgName,
+            startDate: album.film?.startDate ?? null,
+            endDate: album.film?.endDate ?? null,
+            music: album.film?.music ?? 'calm',
+          }}
+          onClose={() => {
+            setFilm(null)
+            if (params.has('film')) setParams((prev) => { const next = new URLSearchParams(prev); next.delete('film'); return next }, { replace: true })
+          }}
+        />
+      )}
       {open !== null && photos[open] && (
         <Lightbox photos={photos} index={open} onIndex={setOpen} onClose={() => setOpen(null)} onStopSharing={stopSharing} hearts={hearts} />
       )}

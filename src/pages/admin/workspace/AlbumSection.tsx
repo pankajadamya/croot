@@ -10,6 +10,7 @@ import { videoPoster } from '../../../lib/videoPoster'
 import { UploadZone } from '../../../components/UploadZone'
 import { IMAGE_ACCEPT, isImageFile, MAX_UPLOAD_MB, prepareImage } from '../../../lib/prepareImage'
 import { useConfirm } from '../../../components/ConfirmDialog'
+import { FILM_MUSIC, type FilmMusic } from '../../../../shared/film'
 
 /** Matches the server's MAX_VIDEO_BYTES default. */
 const MAX_VIDEO_MB = 200
@@ -39,7 +40,7 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
   const [note, setNote] = useState(retreat.rewardAlbumNote ?? '')
   const [saved, setSaved] = useState<string | null>(null)
   const settings = useMutation({
-    mutationFn: (body: Partial<Pick<Retreat, 'rewardAlbumEnabled' | 'rewardAlbumUrl' | 'rewardAlbumNote'>>) =>
+    mutationFn: (body: Partial<Pick<Retreat, 'rewardAlbumEnabled' | 'rewardAlbumUrl' | 'rewardAlbumNote' | 'filmMusic'>>) =>
       patch(`${orgApi(orgSlug)}/retreats/${retreat.id}`, body),
     onSuccess: async () => {
       setSaved('Saved')
@@ -158,6 +159,37 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
             <button type="button" className="btn ghost small" disabled={newLink.isPending} onClick={() => void confirm({ title: 'Make a new album link?', message: 'The current link stops working for everyone who has it, including guests. Your retreat page switches to the new one automatically.', confirmLabel: 'Make new link', danger: true }).then((ok) => ok && newLink.mutate())}>Make a new link</button>
           </details>
           <MutationError error={newLink.error} />
+        </div>
+      )}
+
+      {retreat.rewardAlbumEnabled && pageLink && (
+        <div className="site-album-film">
+          <div>
+            <strong>Memory film</strong>
+            <p className="small muted" style={{ margin: '0.2rem 0 0' }}>
+              Everyone who opens the album can press <em>Play memories</em> to watch it as a short film: the photos and videos in the order
+              below, with music. It plays in their browser and can’t be downloaded.
+            </p>
+          </div>
+          <div className="row" style={{ alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <Field id="film-music" label="Music" hint={FILM_MUSIC.find((m) => m.id === (retreat.filmMusic ?? 'calm'))?.hint}>
+              <select
+                id="film-music"
+                value={retreat.filmMusic ?? 'calm'}
+                disabled={settings.isPending}
+                onChange={(e) => settings.mutate({ filmMusic: e.target.value as FilmMusic })}
+              >
+                {FILM_MUSIC.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <a className="btn secondary small" href={`${pageLink}?film=1`} target="_blank" rel="noopener noreferrer" style={{ marginBottom: '1rem' }}>
+              ▶ Play memories ↗
+            </a>
+          </div>
         </div>
       )}
 

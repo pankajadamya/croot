@@ -36,6 +36,7 @@ export interface Retreat {
   rewardAlbumNote: string
   rewardAlbumCoverId: string | null
   feedbackCategories: FeedbackCategory[]
+  filmMusic: 'calm' | 'warm' | 'bright' | 'none'
   removedFeedbackCategories?: FeedbackCategory[]
   aggregateThreshold: number
   createdAt: string

@@ -29,6 +29,11 @@ type RetreatLike = {
   rewardAlbumCoverId: string | null
   albumShareToken?: string | null
   organisationId: string
+  /** For the memory film's title card and music. */
+  startDate?: Date | null
+  endDate?: Date | null
+  organiserName?: string
+  filmMusic?: string
 }
 type ResponseLike = { id: string; submittedAt: Date | null; status: string } | null | undefined
 
@@ -151,6 +156,13 @@ export async function albumListing(
     url: retreat.rewardAlbumUrl,
     coverId: photos[0] && photos[0].id === retreat.rewardAlbumCoverId ? photos[0].id : null,
     canContribute: !opts.publicView && isUnlocked(response),
+    // The memory film plays exactly these photos and videos, in this order (src/components/MemoryFilm.tsx).
+    film: {
+      music: retreat.filmMusic ?? 'calm',
+      startDate: retreat.startDate ?? null,
+      endDate: retreat.endDate ?? null,
+      organiser: retreat.organiserName || opts.orgName || null,
+    },
     photos: photos.map((p) => ({
       id: p.id,
       url: opts.publicView ? `${api}/${p.id}` : `${base}/album/${p.id}`,
@@ -163,6 +175,8 @@ export async function albumListing(
       hearts: hearts.get(p.id) ?? 0,
       video: p.videoKey ? `${api}/${p.id}/video` : null,
       duration: p.durationSec,
+      focalX: p.focalX,
+      focalY: p.focalY,
     })),
   }
 }

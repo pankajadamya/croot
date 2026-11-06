@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import type { Prisma } from '@prisma/client'
 import { defaultCategoriesFor, reconcileCategories, type FeedbackCategory, type RemovedFeedbackCategory } from '../../../../shared/categories.js'
+import { FILM_MUSIC_IDS } from '../../../../shared/film.js'
 import { slugify } from '../../../../shared/slug.js'
 import { audit } from '../../lib/audit.js'
 import { HttpError, parseBody, route, text, uuidParam } from '../../lib/http.js'
@@ -108,6 +109,7 @@ const retreatSchema = z.object({
   rewardAlbumNote: text(600).optional(),
   aggregateThreshold: z.number().int().min(3).max(50).optional(),
   feedbackCategories: z.array(categorySchema).max(20).optional(),
+  filmMusic: z.enum(FILM_MUSIC_IDS).optional(),
 })
 
 adminRouter.get(
@@ -147,7 +149,12 @@ adminRouter.patch(
   route(async (req, res) => {
     const t = tenantOf(req)
     const current = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
-    const body = parseBody(retreatSchema.partial(), req.body)
+    // Only the fields sent are changed. partial() keeps the schema's defaults, so without this filter
+    // a save of one setting (the album note, say) reset the others to them: the organiser name,
+    // location and route went blank and a property's type went back to "itinerary".
+    const parsed = parseBody(retreatSchema.partial(), req.body)
+    const sent = new Set(Object.keys(req.body ?? {}))
+    const body = Object.fromEntries(Object.entries(parsed).filter(([key]) => sent.has(key))) as typeof parsed
     checkDates(
       body.kind ?? current.kind,
       body.startDate !== undefined ? body.startDate : current.startDate,
