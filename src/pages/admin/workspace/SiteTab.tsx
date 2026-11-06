@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { useUrlState } from '../../../lib/useUrlState'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError, get, orgApi, patch, post, put } from '../../../lib/api'
 import { formatDateTime } from '../../../lib/format'
@@ -21,7 +22,8 @@ interface ContentState {
 }
 
 export function SiteTab({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat }) {
-  const [section, setSection] = useState<'opening' | 'visibility' | 'images' | 'album'>('opening')
+  // Kept in the address (?section=album), so a refresh stays on the same section.
+  const [section, setSection] = useUrlState('section', 'opening', ['opening', 'visibility', 'images', 'album'] as const)
   const content = useQuery({
     queryKey: ['admin', orgSlug, 'content', retreat.id],
     queryFn: () => get<ContentState>(`${orgApi(orgSlug)}/retreats/${retreat.id}/content`),

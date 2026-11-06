@@ -1,6 +1,7 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter } from 'react-router'
 import { SiteTab } from './SiteTab'
 import type { Retreat } from '../types'
 import { DEFAULT_THEME } from '../../../../shared/themes'
@@ -22,7 +23,7 @@ test('page setup keeps an unsaved opening while switching sections and separates
     return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
   }))
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(<QueryClientProvider client={client}><SiteTab orgSlug="balance-and-beyond" retreat={retreat} /></QueryClientProvider>)
+  render(<MemoryRouter><QueryClientProvider client={client}><SiteTab orgSlug="balance-and-beyond" retreat={retreat} /></QueryClientProvider></MemoryRouter>)
 
   const headline = await screen.findByRole('textbox', { name: 'Headline' })
   fireEvent.change(headline, { target: { value: 'A new opening' } })

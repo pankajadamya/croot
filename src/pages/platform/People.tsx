@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { useUrlState } from '../../lib/useUrlState'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router'
 import { del, get, patch, post } from '../../lib/api'
@@ -39,7 +40,7 @@ const PEOPLE_KEY = ['platform', 'people']
 export function People() {
   const qc = useQueryClient()
   const [q, setQ] = useState('')
-  const [filter, setFilter] = useState<'all' | 'organisers' | 'admins'>('all')
+  const [filter, setFilter] = useUrlState('people', 'all', ['all', 'organisers', 'admins'] as const)
   const people = useQuery({
     queryKey: [...PEOPLE_KEY, q, filter],
     queryFn: () => get<{ users: Person[] }>(`/api/platform/users?q=${encodeURIComponent(q)}&filter=${filter}`).then((r) => r.users),

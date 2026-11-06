@@ -10,9 +10,29 @@ import type { ResponseListItem, Retreat } from '../types'
 type Filters = { status: string; publication: string; queue: 'all' | 'ready' | 'requests'; q: string }
 
 export function ResponsesTab({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat }) {
-  const [urlParams] = useSearchParams()
-  const [filters, setFilters] = useState<Filters>({ status: 'all', publication: 'all', queue: urlParams.get('queue') === 'requests' ? 'requests' : urlParams.get('queue') === 'ready' ? 'ready' : 'all', q: '' })
-  const [search, setSearch] = useState('')
+  const [urlParams, setUrlParams] = useSearchParams()
+  // Filters live in the address too, so a refresh shows the same list.
+  const word = (key: string) => (/^[a-z_]{1,30}$/.test(urlParams.get(key) ?? '') ? urlParams.get(key)! : 'all')
+  const [filters, setFilters] = useState<Filters>({
+    status: word('status'),
+    publication: word('publication'),
+    queue: urlParams.get('queue') === 'requests' ? 'requests' : urlParams.get('queue') === 'ready' ? 'ready' : 'all',
+    q: (urlParams.get('q') ?? '').slice(0, 100),
+  })
+  const [search, setSearch] = useState(filters.q)
+  useEffect(() => {
+    setUrlParams(
+      (prev) => {
+        const out = new URLSearchParams(prev)
+        for (const [k, v] of Object.entries(filters)) {
+          if (!v || v === 'all') out.delete(k)
+          else out.set(k, v)
+        }
+        return out
+      },
+      { replace: true, preventScrollReset: true },
+    )
+  }, [filters, setUrlParams])
   // Search as you type, like the other filters (no button needed).
   useEffect(() => {
     const t = window.setTimeout(() => setFilters((f) => (f.q === search.trim() ? f : { ...f, q: search.trim() })), 300)

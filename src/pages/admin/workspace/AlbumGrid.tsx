@@ -1,4 +1,5 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { useUrlState } from '../../../lib/useUrlState'
 import { useMutation } from '@tanstack/react-query'
 import {
   closestCenter,
@@ -53,7 +54,9 @@ export function AlbumGrid({
   const [order, setOrder] = useState(() => included.map((m) => m.id))
   const [activeId, setActiveId] = useState<string | null>(null)
   const [status, setStatus] = useState<string | null>(null)
-  const [compact, setCompact] = useState(false)
+  const [view, setView] = useUrlState('albumView', 'details', ['details', 'photos'] as const)
+  const compact = view === 'photos'
+  const setCompact = (on: boolean) => setView(on ? 'photos' : 'details')
   const [choosingTitle, setChoosingTitle] = useState(false)
 
   // Keep the local order in step with the server (new uploads, removals), preserving local moves.
