@@ -4915,3 +4915,8 @@ a.review-date:hover {
   outline: 3px solid var(--button);
   outline-offset: -3px;
 }
+/* In the details view the photo itself can be dragged too. */
+.album-tile-img-wrap {
+  cursor: grab;
+  touch-action: manipulation;
+}

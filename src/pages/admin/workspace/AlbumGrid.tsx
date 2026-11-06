@@ -191,7 +191,7 @@ export function AlbumGrid({
           <p className="small muted album-toolbar-note" aria-live="polite">
             {choosingTitle
               ? 'Click the photo to show first and largest. Guests’ photos can’t be the title photo.'
-              : status ?? (compact ? 'Drag photos into order. On a phone, press and hold a photo, then move it.' : 'Drag a photo by its handle, or use Earlier / Later.')}
+              : status ?? (compact ? 'Drag photos into order. On a phone, press and hold a photo, then move it.' : 'Drag a photo to move it (on a phone, press and hold first), or use Earlier / Later.')}
           </p>
 
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setActiveId(null)}>
@@ -220,7 +220,7 @@ export function AlbumGrid({
                   }
                   return (
                     <SortableTile key={m.id} id={m.id} compact={compact} label={label} isCover={isCover}>
-                      {(handle) => (
+                      {(handle, dragArea) => (
                         <>
                           {compact ? (
                             <div {...handle} className="album-tile-handle-area" aria-label={`${label}. Press Space to move it.`}>
@@ -228,7 +228,8 @@ export function AlbumGrid({
                             </div>
                           ) : (
                             <>
-                              <div className="album-tile-img-wrap">
+                              {/* The photo itself drags (mouse or finger); the handle is for the keyboard. */}
+                              <div className="album-tile-img-wrap" {...dragArea}>
                                 <TileImage m={m} position={i + 1} isCover={isCover} />
                                 <button type="button" className="album-drag-handle" {...handle} aria-label={`Move ${label}. Press Space to lift, arrows to move.`}>
                                   <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -324,13 +325,13 @@ export function AlbumGrid({
 type Handle = Record<string, unknown>
 
 /** One sortable tile. The drag handle's props go to whichever element should start a drag. */
-function SortableTile({ id, compact, label, isCover, children }: { id: string; compact: boolean; label: string; isCover: boolean; children: (handle: Handle) => ReactNode }) {
+function SortableTile({ id, compact, label, isCover, children }: { id: string; compact: boolean; label: string; isCover: boolean; children: (handle: Handle, dragArea: Handle) => ReactNode }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id })
   const style: CSSProperties = { transform: CSS.Translate.toString(transform), transition }
   const handle: Handle = { ...attributes, ...listeners, ref: setActivatorNodeRef }
   return (
     <li ref={setNodeRef} style={style} className={`album-tile ${isDragging ? 'placeholder' : ''} ${isCover ? 'is-cover' : ''} ${compact ? 'compact' : ''}`} aria-label={label}>
-      {children(handle)}
+      {children(handle, { ...listeners })}
     </li>
   )
 }
