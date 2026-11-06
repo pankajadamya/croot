@@ -4726,3 +4726,59 @@ a.review-date:hover {
     padding: 0.25rem 0.4rem;
   }
 }
+
+/* Save status: a fixed 18px slot beside a label, so saving never moves anything (SaveIndicator). */
+.save-indicator {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  vertical-align: middle;
+  color: var(--muted, #5b6b66);
+}
+.save-indicator svg {
+  width: 16px;
+  height: 16px;
+}
+.save-indicator.is-saved {
+  color: #2f7a4f;
+  animation: save-tick-fade 2.4s ease forwards;
+}
+.save-indicator.is-error {
+  color: var(--danger, #b3261e);
+}
+.save-spinner {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: save-spin 0.8s linear infinite;
+}
+@keyframes save-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* The tick shows, then quietly fades: its slot stays, so nothing shifts. */
+@keyframes save-tick-fade {
+  0%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .save-spinner {
+    animation: none;
+  }
+}
+.label-with-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}

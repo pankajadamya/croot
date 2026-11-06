@@ -221,7 +221,7 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
           />
         </Field>
       </div></details>
-      <p className="small muted" aria-live="polite" style={{ margin: '-0.5rem 0 1rem' }}>
+      <p className="small muted" aria-live="polite" style={{ margin: '-0.5rem 0 1rem', minHeight: '1.3em' }}>
         {settings.isPending ? 'Saving…' : saved}
       </p>
       <MutationError error={settings.error} />

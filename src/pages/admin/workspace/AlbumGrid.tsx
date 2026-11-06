@@ -1,4 +1,5 @@
 import { useEffect, useState, type DragEvent } from 'react'
+import { SaveIndicator } from '../../../components/SaveIndicator'
 import { useMutation } from '@tanstack/react-query'
 import { del, orgApi, patch, post, put } from '../../../lib/api'
 import { MutationError } from '../adminUi'
@@ -214,7 +215,10 @@ function AlbumCaption({ orgSlug, media, onChanged }: { orgSlug: string; media: O
   })
   return (
     <div className="album-tile-caption">
-      <label htmlFor={`album-caption-${media.id}`}>Caption</label>
+      <div className="label-with-status">
+        <label htmlFor={`album-caption-${media.id}`}>Caption</label>
+        <SaveIndicator state={save.isPending ? 'saving' : save.isError ? 'error' : save.isSuccess ? 'saved' : 'idle'} />
+      </div>
       <input
         id={`album-caption-${media.id}`}
         type="text"
@@ -223,7 +227,6 @@ function AlbumCaption({ orgSlug, media, onChanged }: { orgSlug: string; media: O
         placeholder="Add a caption (optional)"
         onBlur={(e) => { if (e.target.value.trim() !== media.caption) save.mutate(e.target.value.trim()) }}
       />
-      <span className="small muted" aria-live="polite">{save.isPending ? 'Saving…' : save.isSuccess ? 'Saved' : null}</span>
       <MutationError error={save.error} />
     </div>
   )

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { SaveIndicator } from '../../../components/SaveIndicator'
 import { useMutation } from '@tanstack/react-query'
 import { del, orgApi, patch } from '../../../lib/api'
 import { Field } from '../../../components/Controls'
@@ -91,17 +92,13 @@ export function MediaEditor({ orgSlug, media, onChanged }: { orgSlug: string; me
       <img className="site-photo-details-preview" src={media.previewUrl} alt={f.altText || f.caption || 'Retreat photo'} loading="lazy" />
       <div className="spread small" style={{ margin: '0.5rem 0' }}>
         <span className={`badge ${media.approved ? 'ok' : 'warn'}`}>{imageStatus(media)}</span>
-        <span aria-live="polite" className="muted">
-          {state === 'saving' && 'Saving…'}
-          {state === 'saved' && 'Saved'}
+        <span className="row" style={{ gap: '0.4rem' }}>
           {state === 'error' && (
-            <>
-              Couldn’t save.{' '}
-              <button type="button" className="btn ghost small" onClick={() => void flush()}>
-                Retry
-              </button>
-            </>
+            <button type="button" className="btn ghost small" onClick={() => void flush()}>
+              Retry
+            </button>
           )}
+          <SaveIndicator state={state} />
         </span>
       </div>
       <Field
