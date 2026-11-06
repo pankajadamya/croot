@@ -1,3 +1,4 @@
+import { CONSENT_WORDING_VERSION } from '../../shared/categories.js'
 import sharp from 'sharp'
 import request from 'supertest'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
@@ -45,7 +46,7 @@ describe('using guest photos on the website and social media', () => {
     const sent = await request(app).post(`/api/invites/${token}/submit`).send({ revision: await revisionOf(token) })
     expect(sent.status).toBe(200)
     const event = await prisma.consentEvent.findFirstOrThrow({ where: { scope: 'photo_marketing' } })
-    expect(event).toMatchObject({ granted: true, wordingVersion: '2026-11-v8' })
+    expect(event).toMatchObject({ granted: true, wordingVersion: CONSENT_WORDING_VERSION })
 
     // Withdrawing from the private response page turns it off for every photo.
     const off = await request(app).post(`/api/responses/${sent.body.receiptToken}/withdraw`).send({ scope: 'photo_marketing' })

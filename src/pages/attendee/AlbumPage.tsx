@@ -20,6 +20,8 @@ interface AlbumPhoto {
   width: number
   height: number
   sharedByGuest: boolean
+  /** "Photo: …": a guest's first name if they agreed to it, else "a guest"; or the organiser's credit. */
+  credit?: string | null
   mine: boolean
   hearts: number
   /** For videos: where to stream it from; url is then its poster. */
@@ -248,7 +250,7 @@ function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { ba
                   )}
                 </button>
                 {(p.sharedByGuest || p.caption) && (
-                  <span className="album-tag">{p.mine ? 'Shared by you' : p.sharedByGuest ? 'Shared by a guest' : shortCaption(p.caption, 70)}</span>
+                  <span className="album-tag">{p.mine ? 'Shared by you' : p.sharedByGuest ? `Photo: ${p.credit ?? 'a guest'}` : shortCaption(p.caption, 70)}</span>
                 )}
                 {hearts.enabled && <HeartButton on={hearts.hearted(p.id)} count={hearts.count(p)} onToggle={() => void hearts.toggle(p)} />}
               </li>
@@ -360,7 +362,7 @@ function Lightbox({
       )}
       <div className="lightbox-caption">
         <span className="lightbox-caption-text">
-          {p.caption || (p.sharedByGuest ? (p.mine ? 'Shared by you' : 'Shared by a guest') : '')}
+          {[p.caption, p.mine ? 'Shared by you' : p.credit ? `Photo: ${p.credit}` : ''].filter(Boolean).join(' · ')}
         </span>
         <span className="lightbox-count">
           {index + 1} / {photos.length}

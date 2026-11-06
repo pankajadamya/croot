@@ -1,7 +1,8 @@
 import type { Request as ExpressRequest, Response as ExpressResponse } from 'express'
 import type { Prisma } from '@prisma/client'
 import sharp from 'sharp'
-import { CONSENT_WORDING_VERSION } from '../../../shared/categories.js'
+import { CONSENT_WORDING_VERSION, FIRST_NAME_CREDITS_FROM, wordingVersionNumber } from '../../../shared/categories.js'
+import { firstName } from '../../../shared/slug.js'
 import { altFor } from './altText.js'
 import { env } from './env.js'
 import { HttpError } from './http.js'
@@ -56,7 +57,12 @@ function albumWhere(retreatId: string): Prisma.MediaAssetWhereInput {
 
 /** In the organiser's order, with the title photo first. */
 export async function albumPhotos(retreatId: string, coverId: string | null = null) {
-  const photos = await prisma.mediaAsset.findMany({ where: albumWhere(retreatId), orderBy: [{ albumOrder: 'asc' }, { createdAt: 'asc' }] })
+  const photos = await prisma.mediaAsset.findMany({
+    where: albumWhere(retreatId),
+    orderBy: [{ albumOrder: 'asc' }, { createdAt: 'asc' }],
+    // For guests' photos: whether they agreed to be credited by first name.
+    include: { response: { select: { consentFirstName: true, consentWordingVersion: true, attendee: { select: { name: true } } } } },
+  })
   const cover = coverId ? photos.find((p) => p.id === coverId) : undefined
   return withoutDuplicates(cover ? [cover, ...photos.filter((p) => p !== cover)] : photos)
 }
@@ -100,6 +106,22 @@ export async function albumSummary(retreat: RetreatLike, response: ResponseLike,
     note: unlocked ? retreat.rewardAlbumNote || null : null,
     url: unlocked ? retreat.rewardAlbumUrl : null,
   }
+}
+
+/**
+ * Who a photo is credited to. A guest's photo names them only if they agreed to show their first
+ * name under wording that covers album credits (v9 on); otherwise it says a guest shared it.
+ * The organiser's photos carry the credit the organiser typed, if any.
+ */
+export function creditFor(p: {
+  kind: string
+  credit: string
+  response?: { consentFirstName: boolean; consentWordingVersion: string | null; attendee: { name: string } } | null
+}): string | null {
+  if (p.kind !== 'guest') return p.credit || null
+  const r = p.response
+  const named = r?.consentFirstName && wordingVersionNumber(r.consentWordingVersion) >= FIRST_NAME_CREDITS_FROM && r.attendee.name.trim()
+  return named ? firstName(r.attendee.name) : 'a guest'
 }
 
 /** The album's link token, created the first time anyone asks for it. */
@@ -185,6 +207,7 @@ export async function albumListing(
       url: opts.publicView ? `${api}/${p.id}` : `${base}/album/${p.id}`,
       alt: altFor(p, p.kind === 'guest' ? 'Photo shared by a guest' : 'Retreat photo'),
       caption: p.caption,
+      credit: creditFor(p),
       width: p.width,
       height: p.height,
       sharedByGuest: p.kind === 'guest',

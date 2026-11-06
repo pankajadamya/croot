@@ -82,12 +82,20 @@ export function storyPromptsFor(kind: ReviewKind): string[] {
 // v7: adding a photo on the review form explicitly shares it with the story and available retreat album.
 // v8: adding a photo shares it in the retreat album only; using photos on the organiser's website and social
 //     media is a separate, explicit Yes/No answer (nothing pre-selected). Story reuse no longer mentions photos.
-export const CONSENT_WORDING_VERSION = '2026-11-v8'
+// v9: showing the first name also credits the guest on photos they share in the album ("Photo: Ana").
+export const CONSENT_WORDING_VERSION = '2026-11-v9'
+
+/** The number in a wording version ("2026-11-v9" → 9), for "agreed to wording v9 or later". */
+export function wordingVersionNumber(version: string | null | undefined): number {
+  return Number(/v(\d+)$/.exec(version ?? '')?.[1] ?? 0)
+}
+/** From this wording, agreeing to show the first name covers album photo credits too. */
+export const FIRST_NAME_CREDITS_FROM = 9
 
 export const CONSENT_WORDING = {
   publicText: 'You may publish my written story, with its title and my overall star rating, on the retreat review site.',
   albumPhoto: 'Shared in the retreat’s photo album once the organiser approves it. The album is linked from the public retreat page, so anyone can see it, no sign-in needed. The organiser can take it out at any time, and you can stop sharing whenever you like.',
-  firstName: 'You may show my first name with my story.',
+  firstName: 'You may show my first name with my story, and as the credit on photos I share in the album.',
   followUp: 'You may contact me about my private feedback.',
   marketing: 'You may reuse my story in social media or advertising (separate from the website).',
   photoMarketing:

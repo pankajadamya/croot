@@ -77,3 +77,22 @@ describe('the same picture uploaded twice', () => {
     expect(await prisma.mediaAsset.findUniqueOrThrow({ where: { id: slideshow.body.media.id } })).toMatchObject({ removedAt: null, inAlbum: false })
   })
 })
+
+describe('album photo credits', () => {
+  it('names a guest only if they agreed to show their first name under wording that covers credits', async () => {
+    const { creditFor } = await import('../src/lib/album.js')
+    const guest = (consentFirstName: boolean, consentWordingVersion: string | null) => ({
+      kind: 'guest',
+      credit: '',
+      response: { consentFirstName, consentWordingVersion, attendee: { name: 'Ana Lopez' } },
+    })
+    expect(creditFor(guest(true, '2026-11-v9'))).toBe('Ana')
+    expect(creditFor(guest(true, '2026-11-v10'))).toBe('Ana')
+    // Agreed before the wording mentioned credits, or didn't agree: not named.
+    expect(creditFor(guest(true, '2026-11-v8'))).toBe('a guest')
+    expect(creditFor(guest(false, '2026-11-v9'))).toBe('a guest')
+    // The organiser's own photos: their typed credit, or none.
+    expect(creditFor({ kind: 'album', credit: 'Suzy' })).toBe('Suzy')
+    expect(creditFor({ kind: 'organiser', credit: '' })).toBeNull()
+  })
+})

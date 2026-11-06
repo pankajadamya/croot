@@ -5115,3 +5115,10 @@ a.review-date:hover {
   display: grid;
   gap: 0.5rem;
 }
+.film-credit {
+  display: block;
+  margin-top: 0.2rem;
+  font-family: var(--sans, system-ui, sans-serif);
+  font-size: 0.8rem;
+  opacity: 0.85;
+}

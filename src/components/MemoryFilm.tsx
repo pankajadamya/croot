@@ -22,6 +22,8 @@ export interface FilmItem {
   duration: number | null
   focalX?: number
   focalY?: number
+  /** Who took it ("Photo: …"), shown with a photo that has the screen to itself. */
+  credit?: string | null
   /** Pixel size, to tell portrait from landscape (both unknown: treated as landscape). */
   width?: number
   height?: number
@@ -374,7 +376,9 @@ export function MemoryFilm({ items, info, onClose, startPaused = false }: { item
     }
   }
 
-  const current = slide.kind === 'video' ? slide.item : slide.kind === 'photos' ? (slide.items.find((m) => m.caption) ?? null) : null
+  const current = slide.kind === 'video' ? slide.item : slide.kind === 'photos' ? (slide.items.length === 1 ? slide.items[0] : (slide.items.find((m) => m.caption) ?? null)) : null
+  // Credits only where one photo has the screen; a collage would need a list.
+  const credit = slide.kind === 'photos' && slide.items.length === 1 ? slide.items[0].credit : slide.kind === 'video' ? slide.item.credit : null
   return (
     <div
       className={`film ${paused ? 'is-paused' : ''} ${showChrome ? '' : 'chrome-hidden'}`}
@@ -390,7 +394,12 @@ export function MemoryFilm({ items, info, onClose, startPaused = false }: { item
         {layer(index)}
       </div>
 
-      {current?.caption && <p className="film-caption">{shortCaption(current.caption, 110)}</p>}
+      {(current?.caption || credit) && (
+        <p className="film-caption">
+          {current?.caption && shortCaption(current.caption, 110)}
+          {credit && <span className="film-credit">Photo: {credit}</span>}
+        </p>
+      )}
 
       <div className="film-controls">
         <button type="button" className="film-btn" onClick={() => go(index - 1)} disabled={index === 0} aria-label="Previous">
