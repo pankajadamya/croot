@@ -1,7 +1,7 @@
 {
   "name": "croot",
   "private": true,
-  "version": "1.2.1",
+  "version": "1.2.2",
   "type": "module",
   "description": "Multi-tenant retreat review platform: guest stories, private feedback, anonymous notes and a consent-gated public showcase.",
   "engines": {

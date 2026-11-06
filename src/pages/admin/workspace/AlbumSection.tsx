@@ -10,7 +10,8 @@ import { videoPoster } from '../../../lib/videoPoster'
 import { UploadZone } from '../../../components/UploadZone'
 import { IMAGE_ACCEPT, isImageFile, MAX_UPLOAD_MB, prepareImage, captureTimeOf } from '../../../lib/prepareImage'
 import { useConfirm } from '../../../components/ConfirmDialog'
-import { FILM_MUSIC, type FilmMusic } from '../../../../shared/film'
+import { type FilmMusic } from '../../../../shared/film'
+import { FilmMusicPicker } from '../../../components/FilmMusicPicker'
 
 /** Matches the server's MAX_VIDEO_BYTES default. */
 const MAX_VIDEO_MB = 200
@@ -208,24 +209,14 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
               below, with music. It plays in their browser and can’t be downloaded.
             </p>
           </div>
-          <div className="row" style={{ alignItems: 'flex-end', flexWrap: 'wrap' }}>
-            <Field id="film-music" label="Music" hint={FILM_MUSIC.find((m) => m.id === (retreat.filmMusic ?? 'calm'))?.hint}>
-              <select
-                id="film-music"
-                value={retreat.filmMusic ?? 'calm'}
-                disabled={settings.isPending}
-                onChange={(e) => settings.mutate({ filmMusic: e.target.value as FilmMusic })}
-              >
-                {FILM_MUSIC.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <a className="btn secondary small" href={`${pageLink}?film=1`} target="_blank" rel="noopener noreferrer" style={{ marginBottom: '1rem' }}>
+          <FilmMusicPicker value={(retreat.filmMusic ?? 'calm') as FilmMusic} disabled={settings.isPending} onChange={(music) => settings.mutate({ filmMusic: music })} />
+          <div>
+            <a className="btn secondary small" href={`${pageLink}?film=1`} target="_blank" rel="noopener noreferrer">
               ▶ Play memories ↗
             </a>
+            <p className="small muted" style={{ margin: '0.3rem 0 0' }}>
+              About a minute: up to 3 seconds per screen, portrait photos side by side, and collages for long albums.
+            </p>
           </div>
         </div>
       )}

@@ -5006,3 +5006,112 @@ a.review-date:hover {
   position: sticky;
   top: 40%;
 }
+
+/* Memory film: a screen of one to four photos (MemoryFilm filmSlides). Thin dark gaps between them. */
+.film-photos {
+  display: grid;
+  gap: 6px;
+  background: #070b0b;
+}
+.film-cell {
+  position: relative;
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+}
+.film-cell > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform-origin: center;
+}
+.film-cell > img.kb-in-left,
+.film-cell > img.kb-out-right,
+.film-cell > img.kb-in-up,
+.film-cell > img.kb-out-down {
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+  will-change: transform;
+}
+.film-cell > img.kb-in-left { animation-name: kb-in-left; }
+.film-cell > img.kb-out-right { animation-name: kb-out-right; }
+.film-cell > img.kb-in-up { animation-name: kb-in-up; }
+.film-cell > img.kb-out-down { animation-name: kb-out-down; }
+.film.is-paused .film-cell img {
+  animation-play-state: paused;
+}
+.film-photos.layout-single {
+  grid-template: 1fr / 1fr;
+}
+.film-photos.layout-pair-cols {
+  grid-template: 1fr / 1fr 1fr;
+}
+.film-photos.layout-pair-rows {
+  grid-template: 1fr 1fr / 1fr;
+}
+/* Three: one large, two small beside it (wide screens) or below it (upright phones). */
+.film-photos.layout-trio-cols {
+  grid-template: 1fr 1fr / 3fr 2fr;
+}
+.film-photos.layout-trio-cols .film-cell:first-child {
+  grid-row: 1 / 3;
+}
+.film-photos.layout-trio-rows {
+  grid-template: 3fr 2fr / 1fr 1fr;
+}
+.film-photos.layout-trio-rows .film-cell:first-child {
+  grid-column: 1 / 3;
+}
+.film-photos.layout-quad {
+  grid-template: 1fr 1fr / 1fr 1fr;
+}
+
+/* Album settings: the memory film's music, each mood with a Listen preview (FilmMusicPicker). */
+.film-music-picker {
+  border: 0;
+  padding: 0;
+  margin: 0.75rem 0;
+  display: grid;
+  gap: 0.4rem;
+}
+.film-music-picker legend {
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+}
+.film-music-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.film-music-option.is-chosen {
+  border-color: var(--button);
+  box-shadow: 0 0 0 1px var(--button);
+}
+.film-music-option label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+}
+.film-music-option label input {
+  margin-top: 0.25rem;
+}
+.film-music-option label span {
+  display: grid;
+}
+.film-music-option small {
+  color: var(--muted, #5b6b66);
+}
+.site-album-film {
+  display: grid;
+  gap: 0.5rem;
+}
