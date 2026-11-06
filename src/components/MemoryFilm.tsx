@@ -36,12 +36,16 @@ export interface FilmInfo {
   music: FilmMusic
 }
 
-/** How a screen of photos is laid out: one, two side by side or stacked, one large and two small, or four. */
-export type PhotoLayout = 'single' | 'pair-cols' | 'pair-rows' | 'trio-cols' | 'trio-rows' | 'quad'
+/**
+ * How a screen of photos is laid out: one; two side by side or stacked; one large and two small; four in
+ * a grid; one large and three small (feature); or three to five slightly overlapping prints (scatter).
+ * `flip` mirrors the arrangement, so the large photo isn't always on the same side.
+ */
+export type PhotoLayout = 'single' | 'pair-cols' | 'pair-rows' | 'trio-cols' | 'trio-rows' | 'quad' | 'feature' | 'scatter'
 
 export type FilmSlide =
   | { kind: 'title'; ms: number }
-  | { kind: 'photos'; items: FilmItem[]; layout: PhotoLayout; ms: number }
+  | { kind: 'photos'; items: FilmItem[]; layout: PhotoLayout; flip: boolean; ms: number }
   | { kind: 'video'; item: FilmItem }
   | { kind: 'end' }
 
@@ -54,25 +58,63 @@ export const SCREEN_MS = 6000
 export const STILL_SCREEN_MS = 7000
 /** Videos play to the end, or this long at most, so one long clip doesn't take over the film. */
 export const VIDEO_MAX_S = 15
-const MAX_PER_SCREEN = 4
+/** Five photos only ever appear as overlapping prints. */
+const MAX_PER_SCREEN = 5
+/**
+ * In a long album, screens hold about this many photos at most on average, so photos on their own and
+ * pairs keep appearing (a very big album plays a little longer instead of becoming all fours and fives).
+ */
+const MAX_AVERAGE = 3.2
+
+/** A small seeded random generator, so an album's film comes out the same every time it's played. */
+function seeded(seed: number) {
+  let a = seed >>> 0
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0
+    let t = a
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/**
+ * The next screen's size: picked at random around the average still needed, never the same collage
+ * size as the last one, and within what the remaining screens can absorb. Five (overlapping prints) is rarer.
+ */
+function nextSize(target: number, lo: number, hi: number, previous: number, random: () => number): number {
+  // A tighter spread near one photo a screen, so early large screens don't leave a tail of singles.
+  const spread = 2.6 * Math.min(1, Math.max(0.3, (target - 0.8) / 1.6))
+  const options: Array<[number, number]> = []
+  for (let s = lo; s <= hi; s++) {
+    if (s === previous && s > 1 && hi > lo) continue // photos on their own may follow each other
+    options.push([s, Math.exp(-((s - target) ** 2) / spread) * (s === 5 ? 0.45 : 1)])
+  }
+  let r = random() * options.reduce((sum, [, w]) => sum + w, 0)
+  for (const [s, w] of options) if ((r -= w) <= 0) return s
+  return options.at(-1)![0]
+}
 
 const MOTIONS = ['kb-in-left', 'kb-out-right', 'kb-in-up', 'kb-out-down'] as const
 
 const isPortrait = (m: FilmItem) => Boolean(m.width && m.height && m.height > m.width * 1.05)
 
-function layoutFor(count: number, wideScreen: boolean): PhotoLayout {
-  if (count === 1) return 'single'
-  if (count === 2) return wideScreen ? 'pair-cols' : 'pair-rows'
-  if (count === 3) return wideScreen ? 'trio-cols' : 'trio-rows'
-  return 'quad'
+/** The layout for the nth screen of this many photos: trios and fours take turns between their arrangements. */
+function layoutFor(count: number, wideScreen: boolean, nth = 0): { layout: PhotoLayout; flip: boolean } {
+  const flip = nth % 2 === 1
+  if (count === 1) return { layout: 'single', flip: false }
+  if (count === 2) return { layout: wideScreen ? 'pair-cols' : 'pair-rows', flip: false }
+  if (count === 3) return nth % 3 === 2 ? { layout: 'scatter', flip } : { layout: wideScreen ? 'trio-cols' : 'trio-rows', flip }
+  if (count === 4) return { layout: (['quad', 'scatter', 'feature'] as const)[nth % 3], flip: Math.floor(nth / 3) % 2 === 1 }
+  return { layout: 'scatter', flip }
 }
 
 /**
  * Turns the album into the film's screens, keeping the album's order:
  *  - two photos in a row that would each waste the screen (portraits on a wide screen, landscapes on
  *    an upright phone) share one screen;
- *  - if the film would still run past about three minutes, photos are grouped into even collages of
- *    up to four;
+ *  - if the film would still run past about three minutes, photos are grouped into collages of one to
+ *    five, varied in size and arrangement (five only as overlapping prints);
  *  - each screen shows for 6 s (7 s with reduced motion), videos for up to 15 s, the title for 4.5 s.
  */
 export function filmSlides(items: FilmItem[], opts: { wideScreen?: boolean; reduced?: boolean } = {}): FilmSlide[] {
@@ -106,17 +148,33 @@ export function filmSlides(items: FilmItem[], opts: { wideScreen?: boolean; redu
   let groups = runs.map((r) => (Array.isArray(r) ? natural(r) : r))
   const screens = () => groups.reduce<number>((n, g) => n + (Array.isArray(g) ? g.length : 0), 0)
   if (screens() > maxScreens) {
-    // Too long: even collages of up to four.
-    const perScreen = Math.min(MAX_PER_SCREEN, Math.ceil(photoCount / maxScreens))
+    // Too long: collages of varied sizes (a photo on its own, then three, two, four, five
+    // overlapping…), averaging what fits the length, and never the same size twice in a row.
+    const average = Math.min(MAX_AVERAGE, photoCount / maxScreens)
+    const random = seeded(photoCount * 7919 + 17)
+    let previous = 0
     groups = runs.map((r) => {
       if (!Array.isArray(r)) return r
       const chunks: FilmItem[][] = []
-      const n = Math.ceil(r.length / perScreen)
-      // Spread evenly (4,4,3 rather than 4,4,4,1).
+      const n = Math.min(r.length, Math.max(Math.ceil(r.length / MAX_PER_SCREEN), Math.floor(r.length / average)))
       for (let k = 0, at = 0; k < n; k++) {
-        const size = Math.ceil((r.length - at) / (n - k))
+        const left = r.length - at
+        const screensLeft = n - k
+        const lo = Math.max(1, left - (screensLeft - 1) * MAX_PER_SCREEN)
+        const hi = Math.min(MAX_PER_SCREEN, left - (screensLeft - 1))
+        const size = nextSize(left / screensLeft, lo, hi, previous, random)
         chunks.push(r.slice(at, at + size))
         at += size
+        previous = size
+      }
+      // The last screens can be forced to a size; where two neighbours match, move a photo across.
+      for (let k = 1; k < chunks.length; k++) {
+        const [a, b] = [chunks[k - 1], chunks[k]]
+        if (a.length !== b.length || a.length <= 1 || b.length >= MAX_PER_SCREEN) continue
+        const moved = a.length - 1
+        if (chunks[k - 2]?.length === moved || chunks[k + 1]?.length === b.length + 1) continue
+        chunks[k - 1] = a.slice(0, -1)
+        chunks[k] = [a.at(-1)!, ...b]
       }
       return chunks
     })
@@ -124,9 +182,14 @@ export function filmSlides(items: FilmItem[], opts: { wideScreen?: boolean; redu
   const ms = screenMs
 
   const slides: FilmSlide[] = [{ kind: 'title', ms: TITLE_MS }]
+  const seen: Record<number, number> = {}
   for (const g of groups) {
     if (!Array.isArray(g)) slides.push({ kind: 'video', item: g })
-    else for (const screen of g) slides.push({ kind: 'photos', items: screen, layout: layoutFor(screen.length, wide), ms })
+    else
+      for (const screen of g) {
+        const nth = (seen[screen.length] = (seen[screen.length] ?? -1) + 1)
+        slides.push({ kind: 'photos', items: screen, ms, ...layoutFor(screen.length, wide, nth) })
+      }
   }
   slides.push({ kind: 'end' })
   return slides
@@ -331,9 +394,9 @@ export function MemoryFilm({ items, info, onClose, startPaused = false }: { item
     }
     if (s.kind === 'photos') {
       return (
-        <div key={`photos-${s.items.map((m) => m.id).join('-')}`} className={`film-layer film-photos layout-${s.layout} ${state}`} style={style}>
+        <div key={`photos-${s.items.map((m) => m.id).join('-')}`} className={`film-layer film-photos layout-${s.layout} n-${s.items.length} ${s.flip ? 'is-flipped' : ''} ${state}`} style={style}>
           {s.items.map((m, k) => (
-            <div key={m.id} className="film-cell">
+            <div key={m.id} className="film-cell" style={s.layout === 'scatter' && !reduced ? { animationDelay: `${fadeMs / 2 + k * 450}ms` } : undefined}>
               <img
                 src={m.url}
                 alt={i === index ? m.alt : ''}

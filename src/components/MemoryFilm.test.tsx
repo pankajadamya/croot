@@ -39,12 +39,24 @@ test('an ordinary album plays every photo on its own; only a long one becomes co
   const many = Array.from({ length: 90 }, (_, i) => photo(`p${i}`))
   const slides = filmSlides(many)
   const screens = slides.filter((s) => s.kind === 'photos')
-  expect(screens.every((s) => s.kind === 'photos' && s.items.length <= 4 && s.ms === SCREEN_MS)).toBe(true)
+  expect(screens.every((s) => s.kind === 'photos' && s.items.length <= 5 && s.ms === SCREEN_MS)).toBe(true)
   expect(screens.flatMap((s) => (s.kind === 'photos' ? s.items.map((m) => m.id) : []))).toEqual(many.map((m) => m.id)) // every photo, in order
   expect(filmLengthMs(slides)).toBeLessThanOrEqual(TARGET_MS)
-  // Even groups, not 4-4-4-1.
+  // Varied: photos on their own, pairs, threes and fours, some overlapping; never the same collage size twice running.
   const sizes = screens.map((s) => (s.kind === 'photos' ? s.items.length : 0))
-  expect(Math.max(...sizes) - Math.min(...sizes)).toBeLessThanOrEqual(1)
+  for (const n of [1, 2, 3, 4]) expect(sizes).toContain(n)
+  expect(sizes.every((n, i) => i === 0 || n === 1 || n !== sizes[i - 1])).toBe(true)
+  const layouts = new Set(screens.map((s) => s.kind === 'photos' && s.layout))
+  expect(layouts.has('scatter')).toBe(true)
+  expect(screens.every((s) => s.kind !== 'photos' || s.items.length < 5 || s.layout === 'scatter')).toBe(true)
+})
+
+test('a very large album still mixes sizes instead of all fours', () => {
+  const lots = Array.from({ length: 200 }, (_, i) => photo(`q${i}`))
+  const sizes = filmSlides(lots).flatMap((s) => (s.kind === 'photos' ? [s.items.length] : []))
+  expect(sizes.reduce((a, b) => a + b, 0)).toBe(200)
+  expect(sizes.filter((n) => n === 4).length / sizes.length).toBeLessThan(0.4)
+  expect(sizes.filter((n) => n <= 2).length).toBeGreaterThan(5)
 })
 
 test('moves on by itself, can be paused and skipped, and closes with Esc', () => {

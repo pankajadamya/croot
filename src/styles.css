@@ -5067,6 +5067,114 @@ a.review-date:hover {
 .film-photos.layout-quad {
   grid-template: 1fr 1fr / 1fr 1fr;
 }
+/* Flipped trios: the large photo on the other side (or below). */
+.film-photos.layout-trio-cols.is-flipped {
+  grid-template-columns: 2fr 3fr;
+}
+.film-photos.layout-trio-cols.is-flipped .film-cell:first-child {
+  grid-column: 2;
+}
+.film-photos.layout-trio-rows.is-flipped {
+  grid-template-rows: 2fr 3fr;
+}
+.film-photos.layout-trio-rows.is-flipped .film-cell:first-child {
+  grid-row: 2;
+}
+/* Four as a feature: one large photo, three small in a column beside it (a row below it when upright). */
+.film-photos.layout-feature {
+  grid-template: 1fr 1fr 1fr / 2fr 1fr;
+}
+.film-photos.layout-feature .film-cell:first-child {
+  grid-row: 1 / 4;
+}
+.film-photos.layout-feature.is-flipped {
+  grid-template-columns: 1fr 2fr;
+}
+.film-photos.layout-feature.is-flipped .film-cell:first-child {
+  grid-column: 2;
+}
+@media (max-aspect-ratio: 1/1) {
+  .film-photos.layout-feature {
+    grid-template: 2fr 1fr / 1fr 1fr 1fr;
+  }
+  .film-photos.layout-feature .film-cell:first-child {
+    grid-row: 1;
+    grid-column: 1 / 4;
+  }
+  .film-photos.layout-feature.is-flipped {
+    grid-template-rows: 1fr 2fr;
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+  .film-photos.layout-feature.is-flipped .film-cell:first-child {
+    grid-row: 2;
+  }
+}
+
+/* Scatter: three to five prints with white borders, slightly overlapping and tilted, laid down one by
+   one. Each print's place is set per count; flipped mirrors them left to right. */
+.film-photos.layout-scatter {
+  display: block;
+  background: radial-gradient(ellipse at center, #1d2422 0%, #070b0b 75%);
+}
+.film-photos.layout-scatter .film-cell {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: var(--w);
+  height: var(--h);
+  --rot: var(--r);
+  transform: rotate(var(--rot));
+  border: clamp(4px, 0.9vmin, 10px) solid #f4efe6;
+  border-radius: 2px;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.55);
+}
+.film-photos.layout-scatter.is-flipped .film-cell {
+  left: auto;
+  right: var(--x);
+  --rot: calc(var(--r) * -1);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .film-photos.layout-scatter .film-cell {
+    animation: film-print-in 900ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+  }
+}
+.film.is-paused .film-cell {
+  animation-play-state: paused;
+}
+@keyframes film-print-in {
+  from {
+    opacity: 0;
+    transform: translateY(4%) rotate(calc(var(--rot) * 2.5)) scale(1.06);
+  }
+}
+/* Wide screens. */
+.layout-scatter.n-3 .film-cell:nth-child(1) { --x: 4%; --y: 7%; --w: 50%; --h: 60%; --r: -3deg; }
+.layout-scatter.n-3 .film-cell:nth-child(2) { --x: 46%; --y: 12%; --w: 49%; --h: 56%; --r: 2.5deg; }
+.layout-scatter.n-3 .film-cell:nth-child(3) { --x: 24%; --y: 47%; --w: 44%; --h: 48%; --r: -1deg; }
+.layout-scatter.n-4 .film-cell:nth-child(1) { --x: 3%; --y: 5%; --w: 45%; --h: 50%; --r: -3deg; }
+.layout-scatter.n-4 .film-cell:nth-child(2) { --x: 45%; --y: 4%; --w: 46%; --h: 48%; --r: 2deg; }
+.layout-scatter.n-4 .film-cell:nth-child(3) { --x: 7%; --y: 45%; --w: 42%; --h: 49%; --r: 1.5deg; }
+.layout-scatter.n-4 .film-cell:nth-child(4) { --x: 46%; --y: 47%; --w: 47%; --h: 48%; --r: -2.5deg; }
+.layout-scatter.n-5 .film-cell:nth-child(1) { --x: 2%; --y: 4%; --w: 40%; --h: 48%; --r: -4deg; }
+.layout-scatter.n-5 .film-cell:nth-child(2) { --x: 33%; --y: 2%; --w: 36%; --h: 44%; --r: 2deg; }
+.layout-scatter.n-5 .film-cell:nth-child(3) { --x: 62%; --y: 7%; --w: 35%; --h: 45%; --r: -2deg; }
+.layout-scatter.n-5 .film-cell:nth-child(4) { --x: 7%; --y: 47%; --w: 42%; --h: 49%; --r: 2.5deg; }
+.layout-scatter.n-5 .film-cell:nth-child(5) { --x: 48%; --y: 45%; --w: 45%; --h: 51%; --r: -1.5deg; }
+/* Upright phones: the prints run down the screen. */
+@media (max-aspect-ratio: 1/1) {
+  .layout-scatter.n-3 .film-cell:nth-child(1) { --x: 4%; --y: 4%; --w: 78%; --h: 38%; --r: -3deg; }
+  .layout-scatter.n-3 .film-cell:nth-child(2) { --x: 18%; --y: 32%; --w: 78%; --h: 35%; --r: 2.5deg; }
+  .layout-scatter.n-3 .film-cell:nth-child(3) { --x: 6%; --y: 62%; --w: 74%; --h: 34%; --r: -1.5deg; }
+  .layout-scatter.n-4 .film-cell:nth-child(1) { --x: 3%; --y: 3%; --w: 62%; --h: 33%; --r: -3deg; }
+  .layout-scatter.n-4 .film-cell:nth-child(2) { --x: 35%; --y: 18%; --w: 61%; --h: 31%; --r: 2deg; }
+  .layout-scatter.n-4 .film-cell:nth-child(3) { --x: 4%; --y: 44%; --w: 59%; --h: 30%; --r: 1.5deg; }
+  .layout-scatter.n-4 .film-cell:nth-child(4) { --x: 36%; --y: 63%; --w: 61%; --h: 33%; --r: -2deg; }
+  .layout-scatter.n-5 .film-cell:nth-child(1) { --x: 3%; --y: 2%; --w: 60%; --h: 27%; --r: -3deg; }
+  .layout-scatter.n-5 .film-cell:nth-child(2) { --x: 37%; --y: 14%; --w: 59%; --h: 26%; --r: 2deg; }
+  .layout-scatter.n-5 .film-cell:nth-child(3) { --x: 4%; --y: 35%; --w: 60%; --h: 27%; --r: -1.5deg; }
+  .layout-scatter.n-5 .film-cell:nth-child(4) { --x: 36%; --y: 51%; --w: 60%; --h: 25%; --r: 2.5deg; }
+  .layout-scatter.n-5 .film-cell:nth-child(5) { --x: 6%; --y: 69%; --w: 62%; --h: 28%; --r: -2deg; }
+}
 
 /* Album settings: the memory film's music, each mood with a Listen preview (FilmMusicPicker). */
 .film-music-picker {
