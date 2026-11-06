@@ -89,6 +89,14 @@ export function AlbumGrid({
       onChanged()
     },
   })
+  const removeDuplicates = useMutation({
+    mutationFn: () => post<{ removed: number }>(`${orgApi(orgSlug)}/retreats/${retreatId}/album/remove-duplicates`),
+    onSuccess: (r) => {
+      setStatus(`Removed ${r.removed} duplicate${r.removed === 1 ? '' : 's'}`)
+      onChanged()
+    },
+  })
+  const duplicateCount = Object.keys(duplicates).length
   // Approving a guest's photo publishes it straight away: in the album, and with their story if they allowed that.
   const moderate = useMutation({
     mutationFn: (v: { id: string; status: 'approved' | 'rejected' }) => post(`${orgApi(orgSlug)}/media/${v.id}/moderate`, { status: v.status }),
@@ -185,6 +193,22 @@ export function AlbumGrid({
             {cover && !choosingTitle && (
               <button type="button" className="btn ghost small" disabled={setCover.isPending} onClick={() => setCover.mutate(null)}>
                 Remove title photo
+              </button>
+            )}
+            {duplicateCount > 0 && (
+              <button
+                type="button"
+                className="btn secondary small"
+                disabled={removeDuplicates.isPending}
+                onClick={() =>
+                  void confirm({
+                    title: `Remove ${duplicateCount} duplicate${duplicateCount === 1 ? '' : 's'}?`,
+                    message: 'The first copy of each picture stays. Extra album uploads are deleted; extra copies from your images or from guests are only taken out of the album.',
+                    confirmLabel: 'Remove duplicates',
+                  }).then((ok) => ok && removeDuplicates.mutate())
+                }
+              >
+                Remove {duplicateCount} duplicate{duplicateCount === 1 ? '' : 's'}
               </button>
             )}
             <button type="button" className="btn ghost small danger-text" disabled={clearAll.isPending} onClick={() => void confirmClearAll()}>
@@ -341,7 +365,7 @@ export function AlbumGrid({
           </ul>
         </details>
       )}
-      <MutationError error={saveOrder.error || setCover.error || include.error || remove.error || moderate.error || clearAll.error} />
+      <MutationError error={saveOrder.error || setCover.error || include.error || remove.error || moderate.error || clearAll.error || removeDuplicates.error} />
     </div>
   )
 }

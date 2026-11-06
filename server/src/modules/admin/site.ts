@@ -530,6 +530,40 @@ siteRouter.post(
   }),
 )
 
+/**
+ * Removes the extra copies of pictures that are in the album more than once, keeping the first:
+ * an extra album upload is deleted; an extra from "Your images" or a guest is only taken out of the album.
+ */
+siteRouter.post(
+  '/retreats/:retreatId/album/remove-duplicates',
+  route(async (req, res) => {
+    const t = tenantOf(req)
+    const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
+    const media = await prisma.mediaAsset.findMany({
+      where: { organisationId: t.org.id, retreatId: retreat.id, removedAt: null, OR: [{ kind: 'album' }, { inAlbum: true }] },
+      orderBy: [{ albumOrder: 'asc' }, { createdAt: 'asc' }],
+    })
+    // The title photo is always the copy kept.
+    const ordered = retreat.rewardAlbumCoverId ? [...media.filter((m) => m.id === retreat.rewardAlbumCoverId), ...media.filter((m) => m.id !== retreat.rewardAlbumCoverId)] : media
+    const seen = new Set<string>()
+    const extras = ordered.filter((m) => {
+      const key = sameFileKey(m)
+      if (seen.has(key)) return true
+      seen.add(key)
+      return false
+    })
+    const toDelete = extras.filter((m) => m.kind === 'album')
+    const toTakeOut = extras.filter((m) => m.kind !== 'album')
+    await prisma.$transaction([
+      prisma.mediaAsset.updateMany({ where: { id: { in: toDelete.map((m) => m.id) } }, data: { removedAt: new Date() } }),
+      prisma.mediaAsset.updateMany({ where: { id: { in: toTakeOut.map((m) => m.id) } }, data: { inAlbum: false } }),
+    ])
+    await removeObjects(toDelete.flatMap((m) => [m.originalKey, m.derivativeKey, m.videoKey]))
+    await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'album.duplicates_removed', entityType: 'retreat', entityId: retreat.id, metadata: { deleted: toDelete.length, takenOut: toTakeOut.length } })
+    res.json({ removed: extras.length })
+  }),
+)
+
 /** Deletes every image in "Your images" (the slideshow's photos) in one go; those in the album leave it too. */
 siteRouter.post(
   '/retreats/:retreatId/media/clear',

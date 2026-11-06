@@ -70,5 +70,10 @@ describe('the same picture uploaded twice', () => {
     const pageUrl = admin.pageUrl as string
     const shared = (await request(app).get(pageUrl.replace('/album/', '/api/albums/'))).body
     expect(shared.photos).toHaveLength(1)
+
+    // One click removes the extra copy: here a slideshow image, so it's only taken out of the album.
+    expect((await agent.post(`/api/admin/orgs/alpha/retreats/${retreat.id}/album/remove-duplicates`).set('X-CSRF-Token', csrf)).body).toEqual({ removed: 1 })
+    expect((await agent.get(`/api/admin/orgs/alpha/retreats/${retreat.id}/album`)).body.duplicates).toEqual({})
+    expect(await prisma.mediaAsset.findUniqueOrThrow({ where: { id: slideshow.body.media.id } })).toMatchObject({ removedAt: null, inAlbum: false })
   })
 })
