@@ -3,7 +3,7 @@
  * acceptance recorded against an organisation (dpaVersion) or request (termsVersion) stays meaningful.
  * The texts are in src/pages/public/Legal.tsx and the generated tenant notice (PrivacyNotice.tsx).
  */
-export const PLATFORM_PRIVACY_VERSION = '2026-11-2'
+export const PLATFORM_PRIVACY_VERSION = '2026-11-3'
 export const PROCESSING_TERMS_VERSION = '2026-11-1'
 /** Shown as "Last updated" on the platform's legal pages. */
 export const LEGAL_LAST_UPDATED = '6 November 2026'

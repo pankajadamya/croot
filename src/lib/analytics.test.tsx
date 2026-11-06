@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { referrerOrigin, SCREENS, screenFor } from './analytics'
+import { referrerOrigin, SCREENS, screenFor, viaFrom } from './analytics'
 
 describe('page statistics: what is reported', () => {
   it('covers every route in App.tsx', () => {
@@ -19,10 +19,21 @@ describe('page statistics: what is reported', () => {
     expect(screenFor('/somewhere/else?x=1')).toBe('/other')
   })
 
-  it('does not count guests’ own pages at all', () => {
-    for (const path of ['/invite/tok', '/invite/tok/album', '/response/tok', '/response/tok/album', '/album/tok', '/interest/tok', '/interest/tok/unsubscribe', '/my-reviews', '/my-reviews/a1', '/my-reviews/a1/album']) {
-      expect(screenFor(path), path).toBeNull()
-    }
+  it('counts guests’ link pages by kind only, and not My reviews', () => {
+    expect(screenFor('/invite/s3cr3t')).toBe('/invite/:token')
+    expect(screenFor('/invite/s3cr3t/album')).toBe('/invite/:token/album')
+    expect(screenFor('/response/s3cr3t')).toBe('/response/:token')
+    expect(screenFor('/album/s3cr3t')).toBe('/album/:token')
+    expect(screenFor('/interest/s3cr3t/unsubscribe')).toBe('/interest/:token/unsubscribe')
+    for (const path of ['/my-reviews', '/my-reviews/a1', '/my-reviews/a1/album']) expect(screenFor(path), path).toBeNull()
+  })
+
+  it('reports how a link was shared only from the fixed list', () => {
+    expect(viaFrom('?via=email')).toBe('email')
+    expect(viaFrom('?via=WhatsApp&x=1')).toBe('whatsapp')
+    expect(viaFrom('?via=someone@example.com')).toBeNull()
+    expect(viaFrom('?utm_source=newsletter')).toBeNull()
+    expect(viaFrom('')).toBeNull()
   })
 
   it('keeps the address of public pages, so organisers see which retreats are read', () => {

@@ -11,21 +11,22 @@ import { matchPath, useLocation } from 'react-router'
  * the slugs of public, indexable pages (an organiser's page, a retreat page, a story), so
  * organisers can see which retreats are read.
  *
- * Guests' own pages (their invitation, receipt, album and interest links, My reviews) are not
- * counted at all: the privacy notice promises analytics stay off guest pages.
+ * Guests' invitation, receipt and album pages are counted the same way, by kind only, so organisers
+ * can see how many guests open an invitation and how many finish. My reviews (signed in, personal)
+ * is not counted.
+ *
+ * Where a visitor came from: the referring site's origin, which email and messaging apps rarely
+ * send, so the links Croot hands out carry ?via= (email invitations, copied links, the share kit's
+ * caption). Only a value from the fixed list below is reported, as Umami's utm_source.
  */
-const GUEST_PAGES = new Set([
-  '/album/:token',
-  '/interest/:token/unsubscribe',
-  '/interest/:token',
-  '/invite/:token/album',
-  '/invite/:token',
-  '/response/:token/album',
-  '/response/:token',
-  '/my-reviews/:attendeeId/album',
-  '/my-reviews/:attendeeId',
-  '/my-reviews',
-])
+const NOT_COUNTED = new Set(['/my-reviews/:attendeeId/album', '/my-reviews/:attendeeId', '/my-reviews'])
+export const VIA = ['email', 'link', 'social', 'whatsapp', 'instagram', 'facebook', 'qr'] as const
+
+/** The ?via= value when it is one of ours; anything else is ignored. */
+export function viaFrom(search: string): string | null {
+  const via = new URLSearchParams(search).get('via')?.toLowerCase() ?? ''
+  return (VIA as readonly string[]).includes(via) ? via : null
+}
 const PUBLIC_PAGES = ['/o/:orgSlug/r/:retreatSlug', '/o/:orgSlug', '/stories/:slug', '/o/:orgSlug/privacy', '/legal/:doc']
 
 /** Every route in App.tsx, most specific first. Others are reported as /other. */
@@ -64,12 +65,12 @@ export const SCREENS = [
   '/platform',
 ]
 
-/** What is reported for an address, never a token or an id; null for a guest's page (not counted). */
+/** What is reported for an address, never a token or an id; null when the page is not counted. */
 export function screenFor(pathname: string): string | null {
   for (const pattern of SCREENS) {
     const match = matchPath(pattern, pathname)
     if (!match) continue
-    if (GUEST_PAGES.has(pattern)) return null
+    if (NOT_COUNTED.has(pattern)) return null
     if (PUBLIC_PAGES.includes(pattern)) return match.pathname
     // A retreat's tab name is a fixed word, not an id; worth keeping.
     if (pattern === '/admin/:orgSlug/retreats/:retreatId/:tab') {
@@ -104,7 +105,7 @@ function umamiScript(): HTMLScriptElement | null {
 
 /** Reports a page view on every change of page. Mounted once, in App. */
 export function usePageAnalytics() {
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
   const first = useRef(true)
   useEffect(() => {
     const script = umamiScript()
@@ -112,13 +113,17 @@ export function usePageAnalytics() {
     const screen = screenFor(pathname)
     if (screen === null) return
     const referrer = first.current ? referrerOrigin(document.referrer, window.location.origin) : ''
+    const via = first.current ? viaFrom(search) : null
     first.current = false
-    const send = () => window.umami?.track((defaults) => ({ ...defaults, url: screen, title: screen, referrer }))
+    const url = via ? `${screen}?utm_source=${via}` : screen
+    const send = () => window.umami?.track((defaults) => ({ ...defaults, url, title: screen, referrer }))
     if (window.umami) {
       send()
       return
     }
     script.addEventListener('load', send, { once: true })
     return () => script.removeEventListener('load', send)
+    // One view per page: a change of query string alone (a filter, a tab) is not a new page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname])
 }

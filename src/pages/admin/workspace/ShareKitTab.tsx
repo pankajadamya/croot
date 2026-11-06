@@ -161,7 +161,7 @@ export function ShareKitTab({ orgSlug, retreat }: { orgSlug: string; retreat: Re
     const quote = first ? `“${quoteOf(first)}”${first.name ? ` — ${first.name}` : ''}\n\n` : ''
     const stars = d.rating ? ` ${'★'.repeat(Math.round(d.rating.average))} ${d.rating.average.toFixed(1)} from ${d.rating.count} guest review${d.rating.count === 1 ? '' : 's'}.` : ''
     const tags = ['#retreat', '#yogaretreat', '#wellness', `#${slug(d.orgName).replace(/-/g, '')}`].join(' ')
-    return `${quote}What our guests said about ${d.retreat.title}.${stars}\n\nRead more guest stories: ${link}\n\n${tags}`
+    return `${quote}What our guests said about ${d.retreat.title}.${stars}\n\nRead more guest stories: ${link}?via=social\n\n${tags}`
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [d, choices, link])
 

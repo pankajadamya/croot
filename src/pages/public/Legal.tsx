@@ -141,12 +141,16 @@ function Cookies() {
       </p>
       <h2>Page statistics</h2>
       <p>
-        To see which public pages are read, Croot counts visits with Umami, which runs on our own servers (not a third party). It sets no
-        cookies, stores nothing on your device, does not store your IP address and cannot follow you between visits or sites. It records the
-        page (public pages by their address; organiser pages only by their kind, never an id or a link’s code), the referring site, and your
-        browser, operating system, device type, screen size, language and country. If your browser sends “Do Not Track”, nothing is counted.
+        Croot counts visits anonymously, to see which pages are read, how guests find their way to a review and where they give up. It uses
+        Umami, which runs on our own servers (not a third party). It sets no cookies, stores nothing on your device, does not store your IP
+        address, cannot follow you between visits or sites, and nothing links a visit to you or to your review.
       </p>
-      <p>Guests’ own pages (their invitation, receipt and album links, and My reviews) are never counted.</p>
+      <p>
+        It records the page (public pages by their address; invitation, receipt, album and organiser pages only by their kind, never a link’s
+        code or an id), the site you came from, how a link was shared when it says so (for example “email” in an invitation link), and your
+        browser, operating system, device type, screen size, language and country. My reviews is not counted. If your browser sends “Do Not
+        Track”, nothing is counted.
+      </p>
       <p>
         The first time you heart a photo or mark a review as helpful, your browser keeps a random visitor ID in its local storage
         (<code>croot.visitor</code>) so you can do each once and take it back. Just viewing a page stores nothing. It isn’t a cookie, isn’t

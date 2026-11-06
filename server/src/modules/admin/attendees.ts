@@ -145,7 +145,8 @@ attendeesRouter.post(
     const attendee = await tenantAttendee(t.org.id, uuidParam(req, 'attendeeId'))
     const { token } = await prisma.$transaction((tx) => issueInvitation(tx, { organisationId: t.org.id, attendeeId: attendee.id, ttlDays: attendee.retreat.inviteTtlDays }))
     await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'invitation.issued', entityType: 'attendee', entityId: attendee.id })
-    res.json({ url: `${await siteOrigin(t.org.id)}/invite/${token}` })
+    // ?via= says how the guest arrived (page statistics, src/lib/analytics.ts); the page ignores it.
+    res.json({ url: `${await siteOrigin(t.org.id)}/invite/${token}?via=link` })
   }),
 )
 
@@ -169,7 +170,7 @@ async function emailInvite(org: OrgForMail, retreat: RetreatForMail, attendee: {
       firstName: firstName(attendee.name),
       retreatTitle: retreat.title,
       from: retreat.organiserName || orgName,
-      url: `${origin}/invite/${token}`,
+      url: `${origin}/invite/${token}?via=email`,
       expiresAt: invitation.expiresAt,
       kind: retreat.kind,
       privacyUrl: `${origin}/o/${org.slug}/privacy`,
@@ -235,7 +236,7 @@ attendeesRouter.post(
     const links: Array<{ attendeeId: string; name: string; email: string; url: string }> = []
     for (const a of pending) {
       const { token } = await prisma.$transaction((tx) => issueInvitation(tx, { organisationId: t.org.id, attendeeId: a.id, ttlDays: retreat.inviteTtlDays }))
-      links.push({ attendeeId: a.id, name: a.name, email: a.email, url: `${origin}/invite/${token}` })
+      links.push({ attendeeId: a.id, name: a.name, email: a.email, url: `${origin}/invite/${token}?via=link` })
     }
     await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'invitation.bulk_issued', entityType: 'retreat', entityId: retreat.id, metadata: { count: links.length } })
     res.json({ links })
