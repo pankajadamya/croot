@@ -36,12 +36,15 @@ export function AlbumGrid({
   retreatId,
   coverId,
   media,
+  duplicates = {},
   onChanged,
 }: {
   orgSlug: string
   retreatId: string
   coverId: string | null
   media: OrganiserMedia[]
+  /** Later copies of a picture already in the album → the first copy's id. Guests see it once. */
+  duplicates?: Record<string, string>
   onChanged: () => void
 }) {
   const confirm = useConfirm()
@@ -253,6 +256,11 @@ export function AlbumGrid({
                                 </div>
                               )}
                               {fromGuest && m.approved && <span className="badge ok">In the album</span>}
+                              {duplicates[m.id] && (
+                                <span className="badge warn" title="The same picture is already in the album. Guests and the memory film see it once; you can delete this copy.">
+                                  Duplicate of #{order.indexOf(duplicates[m.id]) + 1} · shown once
+                                </span>
+                              )}
                               <div className="album-tile-actions">
                                 <span className="album-tile-move">
                                   <button

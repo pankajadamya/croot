@@ -1,7 +1,7 @@
 import sharp from 'sharp'
 import request from 'supertest'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
-import { closeDatabase } from '../src/lib/prisma.js'
+import { closeDatabase, prisma } from '../src/lib/prisma.js'
 import { app, invite, login, makeTenant, resetDatabase } from './helpers.js'
 
 beforeEach(resetDatabase)
@@ -44,5 +44,31 @@ describe('saving one retreat setting', () => {
     await admin({ organiserName: 'Balance & Beyond', locationSummary: 'Himachal, India', routeSummary: ['Delhi', 'Arkja'] })
     const after = (await admin({ publicReviewsEnabled: false })).body.retreat
     expect(after).toMatchObject({ kind: 'property', organiserName: 'Balance & Beyond', locationSummary: 'Himachal, India', routeSummary: ['Delhi', 'Arkja'], publicReviewsEnabled: false })
+  })
+})
+
+describe('the same picture uploaded twice', () => {
+  it('shows once in the album and film, is marked for the organiser, and is not added again', async () => {
+    const { user, retreat } = await makeTenant('alpha')
+    const { agent, csrf } = await login(user.email)
+    await agent.patch(`/api/admin/orgs/alpha/retreats/${retreat.id}`).set('X-CSRF-Token', csrf).send({ rewardAlbumEnabled: true })
+    const picture = await png()
+    const up = (album: boolean) =>
+      agent.post(`/api/admin/orgs/alpha/retreats/${retreat.id}/media${album ? '?album=1' : ''}`).set('X-CSRF-Token', csrf).field('rightsConfirmed', 'true').attach('image', picture, 'same.png')
+    // An album upload, then the same file as a slideshow image: it doesn't join the album twice.
+    expect((await up(true)).status).toBe(201)
+    const slideshow = await up(false)
+    expect(slideshow.status).toBe(201)
+    expect(slideshow.body.media.inAlbum).toBe(false)
+    // And the album refuses it outright.
+    expect((await up(true)).status).toBe(409)
+
+    // Duplicates made before this check: shown once, and marked.
+    await prisma.mediaAsset.update({ where: { id: slideshow.body.media.id }, data: { inAlbum: true } })
+    const admin = (await agent.get(`/api/admin/orgs/alpha/retreats/${retreat.id}/album`)).body
+    expect(Object.keys(admin.duplicates)).toEqual([slideshow.body.media.id])
+    const pageUrl = admin.pageUrl as string
+    const shared = (await request(app).get(pageUrl.replace('/album/', '/api/albums/'))).body
+    expect(shared.photos).toHaveLength(1)
   })
 })

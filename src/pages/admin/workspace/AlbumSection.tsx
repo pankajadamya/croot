@@ -35,6 +35,7 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
         media: OrganiserMedia[]
         limits: { maxPhotos: number; maxVideos: number }
         usage: { photos: number; videos: number }
+        duplicates?: Record<string, string>
       }>(`${orgApi(orgSlug)}/retreats/${retreat.id}/album`),
   })
   const [url, setUrl] = useState(retreat.rewardAlbumUrl ?? '')
@@ -306,6 +307,7 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
           retreatId={retreat.id}
           coverId={photos.data.coverId}
           media={photos.data.media}
+          duplicates={photos.data.duplicates ?? {}}
           onChanged={() => queryClient.invalidateQueries({ queryKey: key })}
         />
       )}

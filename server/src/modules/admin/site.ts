@@ -7,7 +7,7 @@ import multer from 'multer'
 import { z } from 'zod'
 import type { Prisma } from '@prisma/client'
 import { DEFAULT_THEME, THEME_PRESETS, validateTheme } from '../../../../shared/themes.js'
-import { ensureShareToken, resetShareToken, sharePath } from '../../lib/album.js'
+import { ensureShareToken, resetShareToken, sameFileKey, sharePath } from '../../lib/album.js'
 import { audit } from '../../lib/audit.js'
 import { env } from '../../lib/env.js'
 import { HttpError, parseBody, route, text, uuidParam } from '../../lib/http.js'
@@ -247,7 +247,13 @@ siteRouter.post(
     const image = await processImage(req.file.buffer, req.body.takenAt)
     const id = crypto.randomUUID()
     // A slideshow image joins the album too, unless the album is already full.
-    const joinsAlbum = kind === 'organiser' ? await albumHasPhotoRoom(retreat.id) : true
+    // Already in the album (the same file uploaded before): don't add a second copy of it.
+    const inAlbumAlready = (await prisma.mediaAsset.findMany({
+      where: { retreatId: retreat.id, removedAt: null, OR: [{ kind: 'album' }, { kind: 'organiser', inAlbum: true }] },
+      select: { width: true, height: true, sizeBytes: true, videoKey: true },
+    })).some((m) => sameFileKey(m) === sameFileKey({ width: image.width, height: image.height, sizeBytes: image.original.length }))
+    if (kind === 'album' && inAlbumAlready) throw new HttpError(409, 'That photo is already in the album')
+    const joinsAlbum = kind === 'organiser' ? !inAlbumAlready && (await albumHasPhotoRoom(retreat.id)) : true
     // A new image joins the slideshow while it has room; past MAX_SLIDESHOW it waits in "Your images".
     const joinsSlideshow = kind === 'organiser' && (await slideshowCount(retreat.id)) < MAX_SLIDESHOW
     const prefix = `org/${t.org.id}/retreat/${retreat.id}/${kind}/${id}`
@@ -440,9 +446,20 @@ siteRouter.get(
     })
     const limits = await albumLimits()
     const usage = await albumUsage(retreat.id)
+    // Later copies of a picture already in the album are marked, so the organiser can delete them.
+    const firstOf = new Map<string, string>()
+    const duplicateOf = new Map<string, string>()
+    for (const m of media) {
+      if (!(m.kind === 'album' || m.inAlbum)) continue
+      const key = sameFileKey(m)
+      const first = firstOf.get(key)
+      if (first) duplicateOf.set(m.id, first)
+      else firstOf.set(key, m.id)
+    }
     res.json({
       limits,
       usage,
+      duplicates: Object.fromEntries(duplicateOf),
       coverId: retreat.rewardAlbumCoverId,
       pageUrl: retreat.kind === 'itinerary' ? sharePath(await ensureShareToken(retreat)) : null,
       media: media.map((m) => organiserMediaView(t.org.slug, m)),

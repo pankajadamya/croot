@@ -58,7 +58,24 @@ function albumWhere(retreatId: string): Prisma.MediaAssetWhereInput {
 export async function albumPhotos(retreatId: string, coverId: string | null = null) {
   const photos = await prisma.mediaAsset.findMany({ where: albumWhere(retreatId), orderBy: [{ albumOrder: 'asc' }, { createdAt: 'asc' }] })
   const cover = coverId ? photos.find((p) => p.id === coverId) : undefined
-  return cover ? [cover, ...photos.filter((p) => p !== cover)] : photos
+  return withoutDuplicates(cover ? [cover, ...photos.filter((p) => p !== cover)] : photos)
+}
+
+/**
+ * The same picture uploaded twice (say, to the slideshow, which also adds it to the album, and then
+ * to the album itself) gives byte-identical stored copies: same size and dimensions. The album and
+ * its memory film show it once, at its first place.
+ */
+export const sameFileKey = (m: { width: number; height: number; sizeBytes: number; videoKey?: string | null }) =>
+  `${m.videoKey ? 'video' : 'photo'}:${m.width}x${m.height}:${m.sizeBytes}`
+export function withoutDuplicates<T extends { width: number; height: number; sizeBytes: number; videoKey?: string | null }>(items: T[]): T[] {
+  const seen = new Set<string>()
+  return items.filter((m) => {
+    const key = sameFileKey(m)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 export function isUnlocked(response: ResponseLike) {

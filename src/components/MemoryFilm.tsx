@@ -43,15 +43,15 @@ export type FilmSlide =
   | { kind: 'video'; item: FilmItem }
   | { kind: 'end' }
 
-/** The whole film aims to last about this long. */
-export const TARGET_MS = 60_000
-export const TITLE_MS = 3000
-/** A screen of photos shows for at most this long (shorter when the album is long)… */
-export const MAX_PHOTO_MS = 3000
-/** …and at least this long; past that, photos are grouped into collages instead. */
-export const MIN_PHOTO_MS = 2200
-/** Videos play to the end, or this long at most, so clips don't take over the minute. */
-export const VIDEO_MAX_S = 6
+/** Past about this long, photos are grouped into collages so a big album doesn't drag on. */
+export const TARGET_MS = 180_000
+export const TITLE_MS = 4500
+/** Each screen of photos, at an unhurried pace with a slow zoom… */
+export const SCREEN_MS = 6000
+/** …and a little longer with reduced motion, when nothing moves. */
+export const STILL_SCREEN_MS = 7000
+/** Videos play to the end, or this long at most, so one long clip doesn't take over the film. */
+export const VIDEO_MAX_S = 15
 const MAX_PER_SCREEN = 4
 
 const MOTIONS = ['kb-in-left', 'kb-out-right', 'kb-in-up', 'kb-out-down'] as const
@@ -69,15 +69,16 @@ function layoutFor(count: number, wideScreen: boolean): PhotoLayout {
  * Turns the album into the film's screens, keeping the album's order:
  *  - two photos in a row that would each waste the screen (portraits on a wide screen, landscapes on
  *    an upright phone) share one screen;
- *  - if that still leaves too many screens for about a minute, photos are grouped into collages of
- *    up to four, as evenly as the minute needs;
- *  - each screen of photos shows for 2.2–3 s, videos for up to 6 s, the title card for 3 s.
+ *  - if the film would still run past about three minutes, photos are grouped into even collages of
+ *    up to four;
+ *  - each screen shows for 6 s (7 s with reduced motion), videos for up to 15 s, the title for 4.5 s.
  */
-export function filmSlides(items: FilmItem[], opts: { wideScreen?: boolean } = {}): FilmSlide[] {
+export function filmSlides(items: FilmItem[], opts: { wideScreen?: boolean; reduced?: boolean } = {}): FilmSlide[] {
   const wide = opts.wideScreen ?? true
+  const screenMs = opts.reduced ? STILL_SCREEN_MS : SCREEN_MS
   const videoMs = items.filter((m) => m.video).reduce((sum, m) => sum + Math.min(m.duration ?? VIDEO_MAX_S, VIDEO_MAX_S) * 1000, 0)
-  const photoBudget = Math.max(TARGET_MS - TITLE_MS - videoMs, MIN_PHOTO_MS)
-  const maxScreens = Math.max(1, Math.floor(photoBudget / MIN_PHOTO_MS))
+  const photoBudget = Math.max(TARGET_MS - TITLE_MS - videoMs, screenMs)
+  const maxScreens = Math.max(1, Math.floor(photoBudget / screenMs))
 
   // Runs of photos between videos, so a video always keeps its place in the story.
   const runs: Array<FilmItem[] | FilmItem> = []
@@ -103,7 +104,7 @@ export function filmSlides(items: FilmItem[], opts: { wideScreen?: boolean } = {
   let groups = runs.map((r) => (Array.isArray(r) ? natural(r) : r))
   const screens = () => groups.reduce<number>((n, g) => n + (Array.isArray(g) ? g.length : 0), 0)
   if (screens() > maxScreens) {
-    // Too long: even collages of up to four, sized for the minute.
+    // Too long: even collages of up to four.
     const perScreen = Math.min(MAX_PER_SCREEN, Math.ceil(photoCount / maxScreens))
     groups = runs.map((r) => {
       if (!Array.isArray(r)) return r
@@ -118,8 +119,7 @@ export function filmSlides(items: FilmItem[], opts: { wideScreen?: boolean } = {
       return chunks
     })
   }
-  const photoScreens = screens()
-  const ms = photoScreens ? Math.round(Math.min(MAX_PHOTO_MS, Math.max(MIN_PHOTO_MS, photoBudget / photoScreens))) : MAX_PHOTO_MS
+  const ms = screenMs
 
   const slides: FilmSlide[] = [{ kind: 'title', ms: TITLE_MS }]
   for (const g of groups) {
@@ -144,8 +144,8 @@ export function filmLengthMs(slides: FilmSlide[]): number {
 export function MemoryFilm({ items, info, onClose, startPaused = false }: { items: FilmItem[]; info: FilmInfo; onClose: () => void; startPaused?: boolean }) {
   // The screen's shape when the film opens decides how photos pair up (side by side, or stacked).
   const [wideScreen] = useState(() => typeof window === 'undefined' || window.innerWidth >= window.innerHeight)
-  const slides = useMemo(() => filmSlides(items, { wideScreen }), [items, wideScreen])
   const [reduced] = useState(() => typeof window !== 'undefined' && Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches))
+  const slides = useMemo(() => filmSlides(items, { wideScreen, reduced }), [items, wideScreen, reduced])
   const [index, setIndex] = useState(0)
   const [previous, setPrevious] = useState<number | null>(null)
   const [paused, setPaused] = useState(startPaused)
@@ -287,8 +287,8 @@ export function MemoryFilm({ items, info, onClose, startPaused = false }: { item
 
   const cover = items[0]
   const dates = formatRange(info.startDate, info.endDate)
-  // Short screens need short fades; reduced motion fades a little more gently.
-  const fadeMs = reduced ? 900 : 700
+  // Slow crossfades; gentler still with reduced motion.
+  const fadeMs = reduced ? 1600 : 1200
   const count = slides.length - 2
   const position = slide.kind === 'photos' || slide.kind === 'video' ? index : null
 
