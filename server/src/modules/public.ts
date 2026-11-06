@@ -89,6 +89,7 @@ async function heroImages(retreatId: string) {
   const media = await prisma.mediaAsset.findMany({
     where: { retreatId, kind: 'organiser', inHeroSlideshow: true, moderation: 'approved', publishConsent: true, removedAt: null },
     orderBy: { displayOrder: 'asc' },
+    take: 10, // the slideshow's limit (admin/site.ts MAX_SLIDESHOW); older retreats may have more chosen
   })
   return media.map((m) => ({ url: `/media/${m.id}`, alt: altFor(m), caption: m.caption, credit: m.credit, focalX: m.focalX, focalY: m.focalY }))
 }

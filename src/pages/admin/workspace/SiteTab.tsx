@@ -10,7 +10,7 @@ import type { ContentRevision, OrganiserMedia, Retreat } from '../types'
 import { useRetreatTheme } from './AppearanceTab'
 import { AlbumSection } from './AlbumSection'
 import { MediaEditor } from './MediaEditor'
-import { SlideshowSettings } from './SlideshowSettings'
+import { MAX_SLIDESHOW, SlideshowSettings } from './SlideshowSettings'
 import { UploadZone } from '../../../components/UploadZone'
 import { IMAGE_ACCEPT, isImageFile, MAX_UPLOAD_MB, prepareImage, captureTimeOf } from '../../../lib/prepareImage'
 import { useConfirm } from '../../../components/ConfirmDialog'
@@ -310,6 +310,26 @@ function ImageLibrary({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
     onError: (_error, _ids, context) => { if (context?.previous) queryClient.setQueryData(key, context.previous) },
     onSettled: () => { void queryClient.invalidateQueries({ queryKey: key }) },
   })
+  const clearAll = useMutation({
+    mutationFn: () => post<{ deleted: number }>(`${orgApi(orgSlug)}/retreats/${retreat.id}/media/clear`),
+    onSuccess: () => {
+      setSelectedId(null)
+      void queryClient.invalidateQueries({ queryKey: key })
+      void queryClient.invalidateQueries({ queryKey: ['admin', orgSlug, 'album', retreat.id] })
+    },
+  })
+  async function confirmClearAll() {
+    const all = media.data ?? []
+    const inAlbum = all.filter((m) => m.inAlbum).length
+    const ok = await confirm({
+      title: `Delete all ${all.length} image${all.length === 1 ? '' : 's'}?`,
+      message: `They’re deleted for good and leave the slideshow and the guest form.${inAlbum ? ` ${inAlbum} of them ${inAlbum === 1 ? 'is' : 'are'} also in the photo album and will leave it too.` : ''}`,
+      confirmLabel: 'Delete all',
+      danger: true,
+    })
+    if (ok) clearAll.mutate()
+  }
+  const slideshowFull = (media.data ?? []).filter((m) => m.inHeroSlideshow).length >= MAX_SLIDESHOW
   function moveImage(index: number, by: number) {
     if (!media.data) return
     const ids = media.data.map((m) => m.id)
@@ -432,9 +452,12 @@ function ImageLibrary({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
               </div>
             ))}
             <span className="small muted" aria-live="polite">{reorder.isPending ? 'Saving order…' : reorder.isSuccess ? 'Order saved' : null}</span>
-            <MutationError error={reorder.error} />
+            <button type="button" className="btn ghost small danger-text" disabled={clearAll.isPending} onClick={() => void confirmClearAll()} style={{ justifySelf: 'start' }}>
+              Delete all images
+            </button>
+            <MutationError error={reorder.error || clearAll.error} />
           </div>
-          {selected && <MediaEditor key={selected.id} orgSlug={orgSlug} media={selected} onChanged={() => {
+          {selected && <MediaEditor key={selected.id} orgSlug={orgSlug} media={selected} slideshowFull={slideshowFull} onChanged={() => {
             void queryClient.invalidateQueries({ queryKey: key })
             void queryClient.invalidateQueries({ queryKey: ['admin', orgSlug, 'album', retreat.id] })
           }} />}

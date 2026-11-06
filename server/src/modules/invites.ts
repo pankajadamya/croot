@@ -127,6 +127,7 @@ async function draftView(r: Review, req: Request) {
           removedAt: null,
         },
         orderBy: { displayOrder: 'asc' },
+        take: 10,
         select: { id: true, altText: true, caption: true },
       })
   return {

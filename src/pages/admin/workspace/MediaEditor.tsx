@@ -23,7 +23,7 @@ const TYPING_PAUSE_MS = 800
  * One organiser image. Everything saves automatically: switches at once, text shortly after typing
  * stops (or when the field loses focus). Saves never overlap, and the latest values always win.
  */
-export function MediaEditor({ orgSlug, media, onChanged }: { orgSlug: string; media: OrganiserMedia; onChanged: () => void }) {
+export function MediaEditor({ orgSlug, media, onChanged, slideshowFull = false }: { orgSlug: string; media: OrganiserMedia; onChanged: () => void; slideshowFull?: boolean }) {
   const confirm = useConfirm()
   const id = media.id
   const [f, setF] = useState<Fields>({
@@ -118,7 +118,10 @@ export function MediaEditor({ orgSlug, media, onChanged }: { orgSlug: string; me
       <fieldset className="site-photo-placements">
         <legend>Appears in</legend>
         <p className="small muted">Choose where this photo appears. These are placement choices, not permission settings.</p>
-        <label><input type="checkbox" checked={f.inHeroSlideshow} onChange={(e) => change('inHeroSlideshow', e.target.checked, true)} /> Public slideshow and guest review form</label>
+        <label>
+          <input type="checkbox" checked={f.inHeroSlideshow} disabled={!f.inHeroSlideshow && slideshowFull} onChange={(e) => change('inHeroSlideshow', e.target.checked, true)} /> Public slideshow and guest review form
+          {!f.inHeroSlideshow && slideshowFull && <span className="small muted"> (the slideshow has its 10 photos)</span>}
+        </label>
         <label><input type="checkbox" checked={f.inAlbum} onChange={(e) => change('inAlbum', e.target.checked, true)} /> Photo album</label>
       </fieldset>
       {!media.rightsConfirmed && (

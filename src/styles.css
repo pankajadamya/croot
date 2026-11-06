@@ -4782,3 +4782,136 @@ a.review-date:hover {
   justify-content: space-between;
   gap: 0.5rem;
 }
+
+/* ---------- album organiser: toolbar, compact view, smooth drag (AlbumGrid) ---------- */
+.album-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.album-toolbar-note {
+  margin: 0.5rem 0 0;
+  min-height: 1.3em;
+}
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px;
+  background: var(--surface);
+}
+.segmented button {
+  min-height: 32px;
+  padding: 0.2rem 0.85rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted, #5b6b66);
+  cursor: pointer;
+}
+.segmented button.on {
+  background: var(--button);
+  color: var(--button-text);
+}
+.btn.danger-text {
+  color: var(--danger, #b3261e);
+}
+.album-admin-grid.compact {
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 0.5rem;
+}
+.album-tile.compact {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.album-tile.compact .album-tile-pos {
+  top: 4px;
+  left: 4px;
+  min-width: 20px;
+  height: 20px;
+  font-size: 0.68rem;
+}
+.album-tile.compact .album-tile-cover {
+  font-size: 0.62rem;
+  bottom: 4px;
+  left: 4px;
+}
+.album-tile-handle-area {
+  cursor: grab;
+  touch-action: manipulation;
+  border-radius: var(--radius-sm);
+}
+.album-tile-handle-area:focus-visible,
+.album-drag-handle:focus-visible {
+  outline: 3px solid var(--button);
+  outline-offset: 2px;
+}
+.album-tile {
+  cursor: default;
+}
+.album-tile-img-wrap {
+  position: relative;
+}
+.album-drag-handle {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 0;
+  background: rgba(255, 255, 255, 0.92);
+  color: #183d3b;
+  display: grid;
+  place-items: center;
+  cursor: grab;
+  touch-action: none;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+.album-drag-handle svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+/* Where the dragged photo will land: a soft outline in its place. */
+.album-tile.placeholder {
+  opacity: 0.35;
+  outline: 2px dashed var(--button);
+  outline-offset: 2px;
+}
+.album-tile.overlay {
+  cursor: grabbing;
+  box-shadow: 0 12px 28px rgba(14, 38, 36, 0.28);
+  transform: scale(1.03);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+}
+.album-tile.overlay img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  display: block;
+}
+.album-tile-pick {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.album-tile-pick:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+.album-admin-grid.choosing .album-tile-pick:not(:disabled):hover img {
+  outline: 3px solid var(--button);
+  outline-offset: -3px;
+}

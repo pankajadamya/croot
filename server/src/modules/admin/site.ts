@@ -195,6 +195,13 @@ function organiserMediaView(orgSlug: string, m: Awaited<ReturnType<typeof tenant
   }
 }
 
+/** The public slideshow (and the guest form's) shows at most this many photos. */
+export const MAX_SLIDESHOW = 10
+
+async function slideshowCount(retreatId: string) {
+  return prisma.mediaAsset.count({ where: { retreatId, kind: 'organiser', removedAt: null, inHeroSlideshow: true } })
+}
+
 siteRouter.get(
   '/retreats/:retreatId/media',
   route(async (req, res) => {
@@ -241,6 +248,8 @@ siteRouter.post(
     const id = crypto.randomUUID()
     // A slideshow image joins the album too, unless the album is already full.
     const joinsAlbum = kind === 'organiser' ? await albumHasPhotoRoom(retreat.id) : true
+    // A new image joins the slideshow while it has room; past MAX_SLIDESHOW it waits in "Your images".
+    const joinsSlideshow = kind === 'organiser' && (await slideshowCount(retreat.id)) < MAX_SLIDESHOW
     const prefix = `org/${t.org.id}/retreat/${retreat.id}/${kind}/${id}`
     await storage.put(`${prefix}/original`, image.original, image.originalMime)
     await storage.put(`${prefix}/web.webp`, image.derivative, 'image/webp')
@@ -264,8 +273,8 @@ siteRouter.post(
         // The upload acknowledges rights; organiser slideshow photos also join the album when space allows.
         publishConsent: true,
         moderation: 'approved',
-        inHeroSlideshow: kind === 'organiser',
-        inWritingSlideshow: kind === 'organiser',
+        inHeroSlideshow: joinsSlideshow,
+        inWritingSlideshow: joinsSlideshow,
         inAlbum: joinsAlbum,
       },
     })
@@ -390,6 +399,9 @@ siteRouter.patch(
     }
     const body = parseBody(mediaPatch, req.body)
     if (body.inAlbum && !media.inAlbum) await assertAlbumRoom(media.retreatId, 'photo')
+    if (body.inHeroSlideshow && !media.inHeroSlideshow && (await slideshowCount(media.retreatId)) >= MAX_SLIDESHOW) {
+      throw new HttpError(409, `The slideshow holds up to ${MAX_SLIDESHOW} photos. Take one out first.`)
+    }
     const { rightsConfirmed, ...rest } = body
     const next = { ...media, ...rest, publishConsent: rightsConfirmed ?? media.publishConsent }
     // The slideshow switches mean 'include when ready'. An organiser image is approved once its
@@ -476,6 +488,46 @@ siteRouter.post(
     }
     await prisma.retreat.update({ where: { id: retreat.id }, data: { rewardAlbumCoverId: mediaId } })
     res.json({ coverId: mediaId })
+  }),
+)
+
+/**
+ * Empties the album in one go: album uploads are deleted; images from "Your images" and guests'
+ * photos are only taken out of it (they stay where they came from). The title photo is cleared.
+ */
+siteRouter.post(
+  '/retreats/:retreatId/album/clear',
+  route(async (req, res) => {
+    const t = tenantOf(req)
+    const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
+    const uploads = await prisma.mediaAsset.findMany({ where: { organisationId: t.org.id, retreatId: retreat.id, kind: 'album', removedAt: null } })
+    const now = new Date()
+    const [, takenOut] = await prisma.$transaction([
+      prisma.mediaAsset.updateMany({ where: { id: { in: uploads.map((m) => m.id) } }, data: { removedAt: now } }),
+      prisma.mediaAsset.updateMany({ where: { organisationId: t.org.id, retreatId: retreat.id, kind: { in: ['organiser', 'guest'] }, removedAt: null, inAlbum: true }, data: { inAlbum: false } }),
+      prisma.retreat.update({ where: { id: retreat.id }, data: { rewardAlbumCoverId: null } }),
+    ])
+    await removeObjects(uploads.flatMap((m) => [m.originalKey, m.derivativeKey, m.videoKey]))
+    await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'album.cleared', entityType: 'retreat', entityId: retreat.id, metadata: { deleted: uploads.length, takenOut: takenOut.count } })
+    res.json({ deleted: uploads.length, takenOut: takenOut.count })
+  }),
+)
+
+/** Deletes every image in "Your images" (the slideshow's photos) in one go; those in the album leave it too. */
+siteRouter.post(
+  '/retreats/:retreatId/media/clear',
+  route(async (req, res) => {
+    const t = tenantOf(req)
+    const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
+    const images = await prisma.mediaAsset.findMany({ where: { organisationId: t.org.id, retreatId: retreat.id, kind: 'organiser', removedAt: null } })
+    const ids = images.map((m) => m.id)
+    await prisma.$transaction([
+      prisma.mediaAsset.updateMany({ where: { id: { in: ids } }, data: { removedAt: new Date(), inHeroSlideshow: false, inWritingSlideshow: false, inAlbum: false } }),
+      ...(retreat.rewardAlbumCoverId && ids.includes(retreat.rewardAlbumCoverId) ? [prisma.retreat.update({ where: { id: retreat.id }, data: { rewardAlbumCoverId: null } })] : []),
+    ])
+    await removeObjects(images.flatMap((m) => [m.originalKey, m.derivativeKey, m.videoKey]))
+    await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'media.cleared', entityType: 'retreat', entityId: retreat.id, metadata: { deleted: ids.length } })
+    res.json({ deleted: ids.length })
   }),
 )
 
