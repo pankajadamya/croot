@@ -14,6 +14,12 @@ export interface ConfirmOptions {
   onConfirm?: () => void
   /** For the most serious actions: the person must type this exact text before confirming. */
   typeToConfirm?: string
+  /**
+   * A yes/no question for the person to answer (a consent, say), not an action to confirm: both
+   * buttons look the same, neither is focused first, and Esc or a click outside doesn't close it,
+   * so the answer is always one of the two buttons.
+   */
+  choice?: boolean
 }
 
 type Ask = (options: ConfirmOptions) => Promise<boolean>
@@ -59,10 +65,11 @@ function ConfirmModal({ options, onDone }: { options: ConfirmOptions; onDone: (o
   useEffect(() => {
     const d = ref.current
     if (d && !d.open) d.showModal()
-    // Destructive actions start on Cancel; others on the main button.
-    if (!options.danger && !options.typeToConfirm) confirmRef.current?.focus()
+    // Destructive actions start on Cancel; a choice on its question; others on the main button.
+    if (options.choice) d?.querySelector<HTMLElement>('#confirm-title')?.focus()
+    else if (!options.danger && !options.typeToConfirm) confirmRef.current?.focus()
     return () => d?.close()
-  }, [options.danger, options.typeToConfirm])
+  }, [options.danger, options.typeToConfirm, options.choice])
   return (
     <dialog
       ref={ref}
@@ -71,12 +78,12 @@ function ConfirmModal({ options, onDone }: { options: ConfirmOptions; onDone: (o
       aria-describedby={options.message ? 'confirm-message' : undefined}
       onCancel={(e) => {
         e.preventDefault()
-        onDone(false)
+        if (!options.choice) onDone(false)
       }}
-      onClick={(e) => e.target === e.currentTarget && onDone(false)} // a click on the backdrop cancels
+      onClick={(e) => !options.choice && e.target === e.currentTarget && onDone(false)} // a click on the backdrop cancels
     >
       <div className="confirm-dialog-body">
-        <h2 id="confirm-title">{options.title}</h2>
+        <h2 id="confirm-title" tabIndex={-1}>{options.title}</h2>
         {options.message && (
           <div id="confirm-message" className="confirm-dialog-message">
             {options.message}
@@ -103,7 +110,7 @@ function ConfirmModal({ options, onDone }: { options: ConfirmOptions; onDone: (o
           <button type="button" className="btn secondary" onClick={() => onDone(false)}>
             {options.cancelLabel ?? 'Cancel'}
           </button>
-          <button ref={confirmRef} type="button" className={`btn ${options.danger ? 'danger' : ''}`} disabled={blocked} onClick={() => onDone(true)}>
+          <button ref={confirmRef} type="button" className={`btn ${options.choice ? 'secondary' : options.danger ? 'danger' : ''}`} disabled={blocked} onClick={() => onDone(true)}>
             {options.confirmLabel ?? 'Continue'}
           </button>
         </div>

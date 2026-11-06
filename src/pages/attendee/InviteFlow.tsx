@@ -273,6 +273,43 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
     return () => window.removeEventListener('beforeunload', handler)
   }, [])
 
+  /**
+   * Leaving "Photos & permissions" with a story written but every story choice left off: an easy page to
+   * skip past, so ask once, plainly, with two equal answers. "Yes" switches publishing on and stays on the
+   * page, so the guest sees what changed and can also choose whether to show their name; "No" moves on
+   * with nothing shared. Returns whether to carry on to the next step.
+   */
+  const askedAboutSharing = useRef(false)
+  async function askAboutSharing(): Promise<boolean> {
+    const c = draft?.consents
+    if (!c || !draft?.storyText.trim() || c.publicText || c.marketing || askedAboutSharing.current) return true
+    askedAboutSharing.current = true
+    const yes = await confirm({
+      choice: true,
+      title: 'Share your story on the review site?',
+      message: (
+        <>
+          <p>
+            You’ve written a story but haven’t chosen to publish it. Stories like yours help future guests decide, and mean a lot to{' '}
+            {view?.retreat.organisationName ?? 'the organiser'}.
+          </p>
+          <p>
+            If you agree, it appears on the retreat’s review page with its title and your overall rating, once they approve it. Your name isn’t shown
+            unless you choose that, and you can withdraw your story at any time. Your private feedback stays private either way.
+          </p>
+        </>
+      ),
+      confirmLabel: 'Yes, publish my story',
+      cancelLabel: 'No, keep it private',
+    })
+    if (!yes) return true
+    update({ consents: { ...c, publicText: true } })
+    setSharingAgreed(true)
+    requestAnimationFrame(() => document.querySelector('.permissions-words')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    return false
+  }
+  const [sharingAgreed, setSharingAgreed] = useState(false)
+
   function update(patchDraft: Partial<Draft>) {
     dirty.current = true
     setSaveState('idle')
@@ -280,6 +317,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
   }
 
   async function goTo(next: number) {
+    if (step === 4 && next > 4 && !(await askAboutSharing())) return
     // Save after each step; moving on never depends on a successful save (text stays on the page).
     try {
       await save(next)
@@ -764,6 +802,11 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
               </p>
               <div className="permissions-card permissions-words">
                 <h2>Your story</h2>
+                {sharingAgreed && c.publicText && (
+                  <p className="notice ok" role="status">
+                    Thank you. Your story will be published once it’s approved. Choose below whether to show your first name, then press Review.
+                  </p>
+                )}
                 <div className="permissions-choice">
                   <Switch
                     checked={c.publicText}
