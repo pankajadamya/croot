@@ -19,7 +19,7 @@ export async function exportGuestData(organisationId: string, attendeeId: string
   const attendee = await prisma.attendee.findFirst({
     where: { id: attendeeId, organisationId },
     include: {
-      retreat: { select: { title: true, kind: true, feedbackCategories: true, organisation: { select: { name: true, legalName: true } } } },
+      retreat: { select: { title: true, kind: true, feedbackCategories: true, removedFeedbackCategories: true, organisation: { select: { name: true, legalName: true } } } },
       invitations: { select: { issuedAt: true, expiresAt: true, openedAt: true, lastUsedAt: true, revokedAt: true } },
       response: {
         include: {
@@ -34,7 +34,9 @@ export async function exportGuestData(organisationId: string, attendeeId: string
   })
   if (!attendee) throw new HttpError(404, 'Not found')
   const r = attendee.response
-  const labels = new Map(((attendee.retreat.feedbackCategories as unknown as FeedbackCategory[]) ?? []).map((c) => [c.key, c.label]))
+  // Removed categories keep their last name, so every rating the guest gave is labelled.
+  const removed = ((attendee.retreat.removedFeedbackCategories as unknown as FeedbackCategory[]) ?? []).map((c) => [c.key, `${c.label} (no longer asked)`] as const)
+  const labels = new Map([...removed, ...((attendee.retreat.feedbackCategories as unknown as FeedbackCategory[]) ?? []).map((c) => [c.key, c.label] as const)])
   return {
     exportedAt: new Date().toISOString(),
     format: 'croot-guest-export/1',

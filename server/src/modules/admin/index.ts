@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import type { Prisma } from '@prisma/client'
-import { defaultCategoriesFor } from '../../../../shared/categories.js'
+import { defaultCategoriesFor, reconcileCategories, type FeedbackCategory, type RemovedFeedbackCategory } from '../../../../shared/categories.js'
 import { slugify } from '../../../../shared/slug.js'
 import { audit } from '../../lib/audit.js'
 import { HttpError, parseBody, route, text, uuidParam } from '../../lib/http.js'
@@ -168,12 +168,23 @@ adminRouter.patch(
       if (answered > 0) throw new HttpError(409, 'Guests have already responded, so the review type can no longer change')
       feedbackCategories ??= defaultCategoriesFor(body.kind)
     }
+    let removedFeedbackCategories: RemovedFeedbackCategory[] | undefined
+    if (feedbackCategories) {
+      const result = reconcileCategories(
+        current.feedbackCategories as unknown as FeedbackCategory[],
+        current.removedFeedbackCategories as unknown as RemovedFeedbackCategory[],
+        feedbackCategories,
+      )
+      if (result.reusedKey) throw new HttpError(409, 'That category was removed earlier. Reload the page and add it again.')
+      removedFeedbackCategories = result.removed
+    }
     const retreat = await prisma.retreat.update({
       where: { id: current.id },
       data: {
         ...rest,
         ...(slug ? { slug } : {}),
         ...(feedbackCategories ? { feedbackCategories: feedbackCategories as unknown as Prisma.InputJsonValue } : {}),
+        ...(removedFeedbackCategories ? { removedFeedbackCategories: removedFeedbackCategories as unknown as Prisma.InputJsonValue } : {}),
       },
     })
     await audit({

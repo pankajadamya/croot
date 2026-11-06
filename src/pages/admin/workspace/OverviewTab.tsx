@@ -42,14 +42,14 @@ export function OverviewTab({ orgSlug, retreat }: { orgSlug: string; retreat: Re
         </section>
       )}
       {/* Keyed by programme only: saving must not remount the form (that would lose typing and the "Saved" note). */}
-      <SettingsForm key={retreat.id} orgSlug={orgSlug} retreat={retreat} />
+      <SettingsForm key={retreat.id} orgSlug={orgSlug} retreat={retreat} answered={stats ? stats.drafts + stats.submitted : 0} />
     </div>
   )
 }
 
 type CategoryRow = FeedbackCategory & { isNew?: boolean }
 
-function SettingsForm({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat }) {
+function SettingsForm({ orgSlug, retreat, answered }: { orgSlug: string; retreat: Retreat; answered: number }) {
   const confirm = useConfirm()
   const queryClient = useQueryClient()
   const isProperty = retreat.kind === 'property'
@@ -181,8 +181,10 @@ function SettingsForm({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
     const label = newCategory.trim()
     if (!label) return
     const base = slugify(label, 36) || 'category'
+    // Never a key that is or was used: a removed category's ratings must not come back under a new one.
+    const used = new Set([...categories, ...retreat.feedbackCategories, ...(retreat.removedFeedbackCategories ?? [])].map((c) => c.key))
     let key = base
-    for (let i = 2; categories.some((c) => c.key === key); i++) key = `${base}-${i}`
+    for (let i = 2; used.has(key); i++) key = `${base}-${i}`
     setCategories((c) => [...c, { key, label, isNew: true }])
     setNewCategory('')
     setSaved(false)
@@ -346,6 +348,13 @@ function SettingsForm({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
         <p className="small muted">
           Guests rate each of these privately. Removing a category hides its existing ratings from views and exports; renaming keeps them.
         </p>
+        {answered > 0 && (
+          <p className="notice warn" role="note">
+            {answered === 1 ? '1 guest has' : `${answered} guests have`} already started or sent a review. Renaming a category keeps their scores
+            under the new name, so only rename it if the meaning stays the same (a clearer wording, say). To ask about something different,
+            remove the category and add a new one. Guests who have already sent their review won’t be asked about new categories.
+          </p>
+        )}
         <ol className="stack" style={{ paddingLeft: '1.25rem' }}>
           {categories.map((c, i) => (
             <li key={c.key}>
@@ -375,7 +384,7 @@ function SettingsForm({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
                   onClick={async () => {
                     if (
                       !c.isNew &&
-                      !(await confirm({ title: `Remove “${c.label}”?`, message: 'Its existing ratings will be hidden from views and exports.', confirmLabel: 'Remove', danger: true }))
+                      !(await confirm({ title: `Remove “${c.label}”?`, message: 'Its existing ratings will be hidden from views and exports. Adding a category with the same name later starts afresh.', confirmLabel: 'Remove', danger: true }))
                     )
                       return
                     setSaved(false)

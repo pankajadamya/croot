@@ -297,6 +297,8 @@ model Retreat {
   albumShareToken          String?  @unique
   /// [{ key, label }] — private feedback categories for this retreat.
   feedbackCategories Json     @default("[]")
+  /// [{ key, label, removedAt }] — categories removed after use; their ratings are kept but hidden.
+  removedFeedbackCategories Json @default("[]")
   /// Below this many submitted responses, aggregate scores are hidden to protect identities.
   aggregateThreshold Int      @default(5)
   createdAt      DateTime      @default(now())

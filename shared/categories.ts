@@ -96,3 +96,29 @@ export const CONSENT_WORDING = {
     'Photos you add go into the retreat’s photo album once the organiser approves them, for everyone from the retreat to see. The album is linked from the public retreat page. You can remove any photo later.',
   photo: 'You may publish this photo with my story.',
 }
+
+/** A category the organiser removed: its ratings are kept but hidden; the name labels guests' data exports. */
+export interface RemovedFeedbackCategory extends FeedbackCategory {
+  removedAt: string
+}
+
+/**
+ * The categories after an edit, and the removed ones to remember. A category missing from `requested`
+ * was removed; one whose key belonged to a removed category is refused, so adding a category never
+ * brings back old ratings (the editor picks fresh keys, so this only stops a stale or crafted request).
+ */
+export function reconcileCategories(
+  previous: FeedbackCategory[],
+  removedBefore: RemovedFeedbackCategory[],
+  requested: FeedbackCategory[],
+  now = new Date(),
+): { removed: RemovedFeedbackCategory[]; reusedKey: string | null } {
+  const kept = new Set(requested.map((c) => c.key))
+  const previousKeys = new Set(previous.map((c) => c.key))
+  const removed = new Map(removedBefore.map((c) => [c.key, c]))
+  const reused = requested.find((c) => !previousKeys.has(c.key) && removed.has(c.key))
+  for (const c of previous) {
+    if (!kept.has(c.key)) removed.set(c.key, { key: c.key, label: c.label, removedAt: now.toISOString() })
+  }
+  return { removed: [...removed.values()], reusedKey: reused?.key ?? null }
+}
