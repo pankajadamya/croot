@@ -1,5 +1,6 @@
 import { Router, type Response } from 'express'
 import { z } from 'zod'
+import { landingFor } from '../../../shared/landing.js'
 import { audit } from '../lib/audit.js'
 import { env, googleCallbackUrl, googleEnabled, isProduction } from '../lib/env.js'
 import { authorisationUrl, exchangeCode, OAUTH_COOKIE, openState, safeNext } from '../lib/google.js'
@@ -86,7 +87,7 @@ authRouter.get(
       hop.searchParams.set('next', safeNext(req.query.next))
       return res.redirect(302, hop.toString())
     }
-    const { url, cookie, maxAge } = authorisationUrl(typeof req.query.next === 'string' ? req.query.next : '/admin')
+    const { url, cookie, maxAge } = authorisationUrl(safeNext(req.query.next))
     res.cookie(OAUTH_COOKIE, cookie, { httpOnly: true, secure: isProduction, sameSite: 'lax', path: '/api/auth/google', maxAge })
     res.redirect(302, url)
   }),
@@ -126,8 +127,9 @@ authRouter.get(
       }
     }
     if (!user.active) return fail('account_disabled')
-    await signedIn(res, user.id, 'google', created)
-    res.redirect(302, saved.next)
+    const session = await signedIn(res, user.id, 'google', created)
+    // The page asked for, if this person can open it; otherwise their own home (shared/landing.ts).
+    res.redirect(302, landingFor(saved.next === '/' ? null : saved.next, { isPlatformAdmin: session.user.isPlatformAdmin, memberships: session.memberships }))
   }),
 )
 

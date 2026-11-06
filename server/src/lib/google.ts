@@ -40,7 +40,8 @@ export function openState(cookie: unknown): OAuthState | null {
 
 /** Only same-site relative paths, so the flow can never be turned into an open redirect. */
 export function safeNext(next: unknown): string {
-  return typeof next === 'string' && /^\/(?!\/)[\w\-./?=&%]*$/.test(next) ? next : '/admin'
+  // '/' means no particular page: the callback then sends the person to their own home.
+  return typeof next === 'string' && /^\/(?!\/)[\w\-./?=&%]*$/.test(next) ? next : '/'
 }
 
 export function authorisationUrl(next: string) {

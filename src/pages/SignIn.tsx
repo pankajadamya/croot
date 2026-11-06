@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router'
 import { ApiError, get, post } from '../lib/api'
 import { useAuth, type Session } from '../lib/auth'
 import { Field } from '../components/Controls'
+import { landingFor } from '../../shared/landing'
 
 interface Providers {
   google: boolean
@@ -48,10 +49,8 @@ export default function SignIn() {
   const [info, setInfo] = useState<string | null>(null)
   const codeRef = useRef<HTMLInputElement>(null)
 
-  function landing(s: Session) {
-    if (next) return next
-    return s.memberships.length || s.user.isPlatformAdmin ? '/admin' : '/my-reviews'
-  }
+  // The page asked for only if this person can open it, else their own home (shared/landing.ts).
+  const landing = (s: Session) => landingFor(next, { isPlatformAdmin: s.user.isPlatformAdmin, memberships: s.memberships })
 
   useEffect(() => {
     if (session) navigate(landing(session), { replace: true })

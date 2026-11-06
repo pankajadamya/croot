@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { ApiError, get, post, setCsrfToken } from './api'
 
 export interface Membership {
@@ -27,6 +28,7 @@ const AuthContext = createContext<AuthState | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSessionState] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
 
   const setSession = useCallback((s: Session | null) => {
     setCsrfToken(s?.csrfToken ?? null)
@@ -46,8 +48,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     await post('/api/auth/logout').catch(() => {})
+    // Nothing from the last person (their organisations, the admin console) carries over to the next.
+    queryClient.clear()
     setSession(null)
-  }, [setSession])
+  }, [setSession, queryClient])
 
   useEffect(() => {
     void refresh()
