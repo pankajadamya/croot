@@ -35,6 +35,7 @@ type RetreatLike = {
   endDate?: Date | null
   organiserName?: string
   filmMusic?: string
+  filmStyle?: string
 }
 type ResponseLike = { id: string; submittedAt: Date | null; status: string } | null | undefined
 
@@ -198,6 +199,7 @@ export async function albumListing(
     // The memory film plays exactly these photos and videos, in this order (src/components/MemoryFilm.tsx).
     film: {
       music: retreat.filmMusic ?? 'calm',
+      style: retreat.filmStyle ?? 'mix',
       startDate: retreat.startDate ?? null,
       endDate: retreat.endDate ?? null,
       organiser: retreat.organiserName || opts.orgName || null,

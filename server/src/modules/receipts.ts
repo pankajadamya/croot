@@ -41,6 +41,7 @@ async function resolveReceipt(token: unknown) {
           startDate: true,
           endDate: true,
           filmMusic: true,
+          filmStyle: true,
           rewardAlbumEnabled: true,
           rewardAlbumUrl: true,
           rewardAlbumNote: true,

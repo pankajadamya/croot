@@ -19,13 +19,15 @@ describe('album memory film', () => {
 
     expect((await admin({ filmMusic: 'disco' })).status).toBe(400)
     expect((await admin({ filmMusic: 'warm' })).body.retreat.filmMusic).toBe('warm')
+    expect((await admin({ filmStyle: 'slideshow' })).status).toBe(400)
+    expect((await admin({ filmStyle: 'dynamic' })).body.retreat.filmStyle).toBe('dynamic')
 
     // The guest's own album view, after sending a review…
     const { token } = await invite(org.id, retreat.id)
     const draft = await request(app).put(`/api/invites/${token}/draft`).send({ revision: 0, keepText: 'The mornings' })
     const sent = await request(app).post(`/api/invites/${token}/submit`).send({ revision: draft.body.revision })
     const mine = (await request(app).get(`/api/invites/${token}/album`)).body
-    expect(mine.film).toEqual({ music: 'warm', startDate: '2026-10-23T00:00:00.000Z', endDate: '2026-11-01T00:00:00.000Z', organiser: 'Balance & Beyond' })
+    expect(mine.film).toEqual({ music: 'warm', style: 'dynamic', startDate: '2026-10-23T00:00:00.000Z', endDate: '2026-11-01T00:00:00.000Z', organiser: 'Balance & Beyond' })
     expect(mine.photos[0]).toMatchObject({ focalX: 0.5, focalY: 0.5 })
 
     // …their response page's album, and the share link's: the same film.

@@ -5067,6 +5067,72 @@ a.review-date:hover {
 .film-photos.layout-quad {
   grid-template: 1fr 1fr / 1fr 1fr;
 }
+/* "One at a time": a photo that doesn't match the screen's shape is shown whole over a blurred copy. */
+.film-cell.is-fit > img:not(.film-fit-bg) {
+  object-fit: contain;
+}
+.film-cell > img.film-fit-bg {
+  filter: blur(28px) brightness(0.55);
+  transform: scale(1.15);
+}
+/* "Moving": bolder camera moves, eased, one per photo (MemoryFilm MOVES). Panning along a photo that
+   doesn't match the screen moves its object-position across the part that would be hidden. */
+.film-cell > img[class^='film-move-'] {
+  animation-timing-function: ease-in-out;
+  animation-fill-mode: forwards;
+  will-change: transform, object-position;
+}
+.film-cell > img.film-move-zoom-in { animation-name: film-zoom-in; }
+.film-cell > img.film-move-zoom-out { animation-name: film-zoom-out; }
+.film-cell > img.film-move-zoom-in-up { animation-name: film-zoom-in-up; }
+.film-cell > img.film-move-pan-left { animation-name: film-pan-left; }
+.film-cell > img.film-move-pan-right { animation-name: film-pan-right; }
+.film-cell > img.film-move-pan-down-wide { animation-name: film-pan-down-wide; }
+.film-cell > img.film-move-pan-down { animation-name: film-pan-down; }
+.film-cell > img.film-move-pan-up { animation-name: film-pan-up; }
+.film-cell > img.film-move-pan-across { animation-name: film-pan-across; }
+.film-cell > img.film-move-pan-back { animation-name: film-pan-back; }
+@keyframes film-zoom-in {
+  from { transform: scale(1); }
+  to { transform: scale(1.3); }
+}
+@keyframes film-zoom-out {
+  from { transform: scale(1.32); }
+  to { transform: scale(1.02); }
+}
+@keyframes film-zoom-in-up {
+  from { transform: scale(1.04) translate(0, 3%); }
+  to { transform: scale(1.3) translate(0, -4%); }
+}
+@keyframes film-pan-left {
+  from { transform: scale(1.22) translate(7%, 0); }
+  to { transform: scale(1.22) translate(-7%, 0); }
+}
+@keyframes film-pan-right {
+  from { transform: scale(1.22) translate(-7%, 1%); }
+  to { transform: scale(1.22) translate(7%, -1%); }
+}
+@keyframes film-pan-down-wide {
+  from { transform: scale(1.25) translate(2%, 6%); }
+  to { transform: scale(1.25) translate(-2%, -6%); }
+}
+@keyframes film-pan-down {
+  from { object-position: 50% 0%; transform: scale(1.04); }
+  to { object-position: 50% 100%; transform: scale(1.12); }
+}
+@keyframes film-pan-up {
+  from { object-position: 50% 100%; transform: scale(1.12); }
+  to { object-position: 50% 0%; transform: scale(1.04); }
+}
+@keyframes film-pan-across {
+  from { object-position: 0% 50%; transform: scale(1.04); }
+  to { object-position: 100% 50%; transform: scale(1.12); }
+}
+@keyframes film-pan-back {
+  from { object-position: 100% 50%; transform: scale(1.12); }
+  to { object-position: 0% 50%; transform: scale(1.04); }
+}
+
 /* Flipped trios: the large photo on the other side (or below). */
 .film-photos.layout-trio-cols.is-flipped {
   grid-template-columns: 2fr 3fr;

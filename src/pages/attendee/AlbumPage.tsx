@@ -10,7 +10,7 @@ import { HeartButton, useHearts } from '../../components/Hearts'
 import { formatDuration } from '../../lib/format'
 import { useConfirm } from '../../components/ConfirmDialog'
 import { MemoryFilm } from '../../components/MemoryFilm'
-import type { FilmMusic } from '../../../shared/film'
+import type { FilmMusic, FilmStyle } from '../../../shared/film'
 
 interface AlbumPhoto {
   id: string
@@ -41,7 +41,7 @@ interface AlbumListing {
   coverId: string | null
   canContribute: boolean
   photos: AlbumPhoto[]
-  film?: { music: FilmMusic; startDate: string | null; endDate: string | null; organiser: string | null }
+  film?: { music: FilmMusic; style?: FilmStyle; startDate: string | null; endDate: string | null; organiser: string | null }
 }
 
 /**
@@ -274,6 +274,7 @@ function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { ba
             startDate: album.film?.startDate ?? null,
             endDate: album.film?.endDate ?? null,
             music: album.film?.music ?? 'calm',
+            style: album.film?.style ?? 'mix',
           }}
           onClose={() => {
             setFilm(null)

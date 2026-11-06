@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { filmLengthMs, filmSlides, MemoryFilm, SCREEN_MS, slideMs, STILL_SCREEN_MS, TARGET_MS, TITLE_MS, type FilmItem } from './MemoryFilm'
+import { filmLengthMs, filmSlides, MemoryFilm, MOVING_SCREEN_MS, SCREEN_MS, slideMs, STILL_SCREEN_MS, TARGET_MS, TITLE_MS, type FilmItem } from './MemoryFilm'
 
 afterEach(() => {
   cleanup()
@@ -93,4 +93,22 @@ test('opened from a link it waits for Play (browsers allow sound only after a cl
   act(() => vi.advanceTimersByTime(TITLE_MS * 3))
   expect(screen.getByRole('heading', { name: 'India Retreat 2026' })).toBeTruthy()
   expect(screen.getByRole('button', { name: 'Play' })).toBeTruthy()
+})
+
+test('"One at a time" and "Moving" give every photo its own screen, however long the album', () => {
+  const portrait = (id: string): FilmItem => ({ ...photo(id), width: 600, height: 900 })
+  const lots = [portrait('a'), ...Array.from({ length: 120 }, (_, i) => photo(`r${i}`))]
+  const single = filmSlides(lots, { style: 'single' }).filter((s) => s.kind === 'photos')
+  expect(single).toHaveLength(121)
+  expect(single.every((s) => s.kind === 'photos' && s.items.length === 1 && s.ms === SCREEN_MS && !s.motion)).toBe(true)
+  // A portrait on a wide screen is shown whole over a blurred copy.
+  expect(single[0].kind === 'photos' && single[0].fit).toBe(true)
+
+  const moving = filmSlides(lots, { style: 'dynamic' }).filter((s) => s.kind === 'photos')
+  expect(moving).toHaveLength(121)
+  expect(moving.every((s) => s.kind === 'photos' && s.ms === MOVING_SCREEN_MS && s.motion && !s.fit)).toBe(true)
+  expect(moving[0].kind === 'photos' && moving[0].motion).toBe('pan-down') // along the portrait
+  expect(new Set(moving.map((s) => s.kind === 'photos' && s.motion)).size).toBeGreaterThan(4)
+  // Reduced motion: still photos.
+  expect(filmSlides(lots, { style: 'dynamic', reduced: true }).every((s) => s.kind !== 'photos' || !s.motion)).toBe(true)
 })

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import type { FilmMusic } from '../../shared/film'
+import type { FilmMusic, FilmStyle } from '../../shared/film'
 import { createFilmMusic, type FilmMusicPlayer } from '../lib/filmMusic'
 import { shortCaption } from '../lib/caption'
 import { formatRange } from '../lib/format'
@@ -34,6 +34,8 @@ export interface FilmInfo {
   startDate: string | null
   endDate: string | null
   music: FilmMusic
+  /** How the photos are shown (shared/film.ts); a mix when not given. */
+  style?: FilmStyle
 }
 
 /**
@@ -45,7 +47,17 @@ export type PhotoLayout = 'single' | 'pair-cols' | 'pair-rows' | 'trio-cols' | '
 
 export type FilmSlide =
   | { kind: 'title'; ms: number }
-  | { kind: 'photos'; items: FilmItem[]; layout: PhotoLayout; flip: boolean; ms: number }
+  | {
+      kind: 'photos'
+      items: FilmItem[]
+      layout: PhotoLayout
+      flip: boolean
+      ms: number
+      /** The "Moving" style's camera move for this photo (a `film-move-*` animation), instead of the gentle zoom. */
+      motion?: string
+      /** Show the whole photo over a blurred copy of itself, rather than filling the screen. */
+      fit?: boolean
+    }
   | { kind: 'video'; item: FilmItem }
   | { kind: 'end' }
 
@@ -96,6 +108,10 @@ function nextSize(target: number, lo: number, hi: number, previous: number, rand
 }
 
 const MOTIONS = ['kb-in-left', 'kb-out-right', 'kb-in-up', 'kb-out-down'] as const
+/** The "Moving" style's camera moves, in turn, for photos that match the screen's shape. */
+const MOVES = ['zoom-in', 'pan-right', 'zoom-out', 'pan-left', 'zoom-in-up', 'pan-down-wide'] as const
+/** Each photo's time in the "Moving" style. */
+export const MOVING_SCREEN_MS = 5000
 
 const isPortrait = (m: FilmItem) => Boolean(m.width && m.height && m.height > m.width * 1.05)
 
@@ -117,8 +133,9 @@ function layoutFor(count: number, wideScreen: boolean, nth = 0): { layout: Photo
  *    five, varied in size and arrangement (five only as overlapping prints);
  *  - each screen shows for 6 s (7 s with reduced motion), videos for up to 15 s, the title for 4.5 s.
  */
-export function filmSlides(items: FilmItem[], opts: { wideScreen?: boolean; reduced?: boolean } = {}): FilmSlide[] {
+export function filmSlides(items: FilmItem[], opts: { wideScreen?: boolean; reduced?: boolean; style?: FilmStyle } = {}): FilmSlide[] {
   const wide = opts.wideScreen ?? true
+  if (opts.style === 'single' || opts.style === 'dynamic') return oneByOne(items, wide, opts.style === 'dynamic' && !opts.reduced, Boolean(opts.reduced))
   const screenMs = opts.reduced ? STILL_SCREEN_MS : SCREEN_MS
   const videoMs = items.filter((m) => m.video).reduce((sum, m) => sum + Math.min(m.duration ?? VIDEO_MAX_S, VIDEO_MAX_S) * 1000, 0)
   const photoBudget = Math.max(TARGET_MS - TITLE_MS - videoMs, screenMs)
@@ -195,6 +212,33 @@ export function filmSlides(items: FilmItem[], opts: { wideScreen?: boolean; redu
   return slides
 }
 
+/**
+ * The "One at a time" and "Moving" styles: every photo has the screen to itself, however long the album.
+ *  - One at a time: the whole photo is shown (a portrait on a wide screen, or a landscape on an upright
+ *    phone, sits over a soft blurred copy of itself) with the usual gentle zoom, 6 s each.
+ *  - Moving: the photo fills the screen and the camera moves more: zooming in or out, or panning across
+ *    it, and along the hidden part of a photo that doesn't match the screen's shape. 5 s each.
+ * With reduced motion, Moving plays like One at a time, still.
+ */
+function oneByOne(items: FilmItem[], wide: boolean, moving: boolean, reduced: boolean): FilmSlide[] {
+  const slides: FilmSlide[] = [{ kind: 'title', ms: TITLE_MS }]
+  const ms = moving ? MOVING_SCREEN_MS : reduced ? STILL_SCREEN_MS : SCREEN_MS
+  // Separate turns for photos that match the screen and those that don't, so pans along portraits alternate.
+  let matched = 0
+  let other = 0
+  for (const m of items) {
+    if (m.video) {
+      slides.push({ kind: 'video', item: m })
+      continue
+    }
+    const mismatched = wide ? isPortrait(m) : !isPortrait(m) && Boolean(m.width && m.height)
+    const motion = !moving ? undefined : mismatched ? (wide ? ['pan-down', 'pan-up'] : ['pan-across', 'pan-back'])[other++ % 2] : MOVES[matched++ % MOVES.length]
+    slides.push({ kind: 'photos', items: [m], layout: 'single', flip: false, ms, motion, fit: !moving && mismatched })
+  }
+  slides.push({ kind: 'end' })
+  return slides
+}
+
 /** How long a slide stays on screen by itself; null when it decides (a video) or waits (the end). */
 export function slideMs(slide: FilmSlide): number | null {
   return slide.kind === 'title' || slide.kind === 'photos' ? slide.ms : null
@@ -210,7 +254,7 @@ export function MemoryFilm({ items, info, onClose, startPaused = false }: { item
   // The screen's shape when the film opens decides how photos pair up (side by side, or stacked).
   const [wideScreen] = useState(() => typeof window === 'undefined' || window.innerWidth >= window.innerHeight)
   const [reduced] = useState(() => typeof window !== 'undefined' && Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches))
-  const slides = useMemo(() => filmSlides(items, { wideScreen, reduced }), [items, wideScreen, reduced])
+  const slides = useMemo(() => filmSlides(items, { wideScreen, reduced, style: info.style }), [items, wideScreen, reduced, info.style])
   const [index, setIndex] = useState(0)
   const [previous, setPrevious] = useState<number | null>(null)
   const [paused, setPaused] = useState(startPaused)
@@ -396,12 +440,13 @@ export function MemoryFilm({ items, info, onClose, startPaused = false }: { item
       return (
         <div key={`photos-${s.items.map((m) => m.id).join('-')}`} className={`film-layer film-photos layout-${s.layout} n-${s.items.length} ${s.flip ? 'is-flipped' : ''} ${state}`} style={style}>
           {s.items.map((m, k) => (
-            <div key={m.id} className="film-cell" style={s.layout === 'scatter' && !reduced ? { animationDelay: `${fadeMs / 2 + k * 450}ms` } : undefined}>
+            <div key={m.id} className={`film-cell ${s.fit ? 'is-fit' : ''}`} style={s.layout === 'scatter' && !reduced ? { animationDelay: `${fadeMs / 2 + k * 450}ms` } : undefined}>
+              {s.fit && <img className="film-fit-bg" src={m.url} alt="" aria-hidden="true" draggable={false} />}
               <img
                 src={m.url}
                 alt={i === index ? m.alt : ''}
                 aria-hidden={i !== index}
-                className={reduced ? '' : MOTIONS[(i + k) % MOTIONS.length]}
+                className={reduced ? '' : s.motion ? `film-move-${s.motion}` : MOTIONS[(i + k) % MOTIONS.length]}
                 style={{ objectPosition: `${(m.focalX ?? 0.5) * 100}% ${(m.focalY ?? 0.5) * 100}%`, animationDuration: `${s.ms + fadeMs * 2}ms` }}
                 draggable={false}
               />

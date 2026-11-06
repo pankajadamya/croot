@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import type { Prisma } from '@prisma/client'
 import { defaultCategoriesFor, reconcileCategories, type FeedbackCategory, type RemovedFeedbackCategory } from '../../../../shared/categories.js'
-import { FILM_MUSIC_IDS } from '../../../../shared/film.js'
+import { FILM_MUSIC_IDS, FILM_STYLE_IDS } from '../../../../shared/film.js'
 import { slugify } from '../../../../shared/slug.js'
 import { audit } from '../../lib/audit.js'
 import { HttpError, parseBody, route, text, uuidParam } from '../../lib/http.js'
@@ -110,6 +110,7 @@ const retreatSchema = z.object({
   aggregateThreshold: z.number().int().min(3).max(50).optional(),
   feedbackCategories: z.array(categorySchema).max(20).optional(),
   filmMusic: z.enum(FILM_MUSIC_IDS).optional(),
+  filmStyle: z.enum(FILM_STYLE_IDS).optional(),
 })
 
 adminRouter.get(

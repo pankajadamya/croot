@@ -305,6 +305,8 @@ model Retreat {
   removedFeedbackCategories Json @default("[]")
   /// The album memory film's music (shared/film.ts): calm, warm, bright or none.
   filmMusic      String        @default("calm")
+  /// How the memory film shows the photos (shared/film.ts): mix, single or dynamic.
+  filmStyle      String        @default("mix")
   /// Below this many submitted responses, aggregate scores are hidden to protect identities.
   aggregateThreshold Int      @default(5)
   createdAt      DateTime      @default(now())

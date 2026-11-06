@@ -10,7 +10,7 @@ import { videoPoster } from '../../../lib/videoPoster'
 import { UploadZone } from '../../../components/UploadZone'
 import { IMAGE_ACCEPT, isImageFile, MAX_UPLOAD_MB, prepareImage, captureTimeOf } from '../../../lib/prepareImage'
 import { useConfirm } from '../../../components/ConfirmDialog'
-import { type FilmMusic } from '../../../../shared/film'
+import { FILM_STYLES, type FilmMusic } from '../../../../shared/film'
 import { FilmMusicPicker } from '../../../components/FilmMusicPicker'
 
 /** Matches the server's MAX_VIDEO_BYTES default. */
@@ -42,7 +42,7 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
   const [note, setNote] = useState(retreat.rewardAlbumNote ?? '')
   const [saved, setSaved] = useState<string | null>(null)
   const settings = useMutation({
-    mutationFn: (body: Partial<Pick<Retreat, 'rewardAlbumEnabled' | 'rewardAlbumUrl' | 'rewardAlbumNote' | 'filmMusic'>>) =>
+    mutationFn: (body: Partial<Pick<Retreat, 'rewardAlbumEnabled' | 'rewardAlbumUrl' | 'rewardAlbumNote' | 'filmMusic' | 'filmStyle'>>) =>
       patch(`${orgApi(orgSlug)}/retreats/${retreat.id}`, body),
     onSuccess: async () => {
       setSaved('Saved')
@@ -210,13 +210,31 @@ export function AlbumSection({ orgSlug, retreat }: { orgSlug: string; retreat: R
               below, with music. It plays in their browser and can’t be downloaded.
             </p>
           </div>
+          <fieldset className="film-music-picker">
+            <legend>How photos are shown</legend>
+            {FILM_STYLES.map((s) => (
+              <div key={s.id} className={`film-music-option ${(retreat.filmStyle ?? 'mix') === s.id ? 'is-chosen' : ''}`}>
+                <label>
+                  <input type="radio" name="film-style" value={s.id} checked={(retreat.filmStyle ?? 'mix') === s.id} disabled={settings.isPending} onChange={() => settings.mutate({ filmStyle: s.id })} />
+                  <span>
+                    <strong>{s.label}</strong>
+                    <small>{s.hint}</small>
+                  </span>
+                </label>
+              </div>
+            ))}
+          </fieldset>
           <FilmMusicPicker value={(retreat.filmMusic ?? 'calm') as FilmMusic} disabled={settings.isPending} onChange={(music) => settings.mutate({ filmMusic: music })} />
           <div>
             <a className="btn secondary small" href={`${pageLink}?film=1`} target="_blank" rel="noopener noreferrer">
               ▶ Play memories ↗
             </a>
             <p className="small muted" style={{ margin: '0.3rem 0 0' }}>
-              About a minute: up to 3 seconds per screen, portrait photos side by side, and collages for long albums.
+              {(retreat.filmStyle ?? 'mix') === 'mix'
+                ? '6 seconds per screen; a big album is gathered into collages so the film stays to a few minutes.'
+                : (retreat.filmStyle ?? 'mix') === 'single'
+                  ? '6 seconds per photo, so the film’s length grows with the album (100 photos ≈ 10 minutes).'
+                  : '5 seconds per photo, so the film’s length grows with the album (100 photos ≈ 8 minutes).'}
             </p>
           </div>
         </div>
