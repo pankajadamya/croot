@@ -131,21 +131,15 @@ export const organiserMails = {
       ],
       { url: `${env.WEB_ORIGIN}/signin?next=${encodeURIComponent(`/admin/${opts.orgSlug}`)}`, label: 'Sign in to Croot' },
     ),
-  /** For admins: someone started as an organiser by themselves. Nothing to approve; this is for awareness. */
-  newOrganiser: (to: string, who: string, orgName: string, orgSlug: string) =>
-    simpleMail(
-      to,
-      `New organiser on Croot: ${orgName}`,
-      [
-        `${who} became an organiser and created ${orgName} (/${orgSlug}). They can use it straight away.`,
-        'Their details are in the admin console, where you can suspend the organisation if anything looks wrong.',
-      ],
-      { url: `${env.WEB_ORIGIN}/platform`, label: 'Open the admin console' },
-    ),
+  newRequest: (to: string, who: string, orgName: string) =>
+    simpleMail(to, `New organiser request: ${orgName}`, [`${who} asked to become an organiser for ${orgName}.`], {
+      url: `${env.WEB_ORIGIN}/platform`,
+      label: 'Review the request',
+    }),
 }
 
-/** Tells every active admin about a new organiser (addresses never leave the server). */
-export async function notifyAdmins(who: string, orgName: string, orgSlug: string) {
+/** Tells every active admin about a new request (addresses never leave the server). */
+export async function notifyAdmins(who: string, orgName: string) {
   const admins = await prisma.user.findMany({ where: { isPlatformAdmin: true, active: true }, select: { email: true } })
-  for (const a of admins) sendQuietly(organiserMails.newOrganiser(a.email, who, orgName, orgSlug))
+  for (const a of admins) sendQuietly(organiserMails.newRequest(a.email, who, orgName))
 }

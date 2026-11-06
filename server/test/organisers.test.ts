@@ -41,8 +41,8 @@ describe('signing up', () => {
   })
 })
 
-describe('becoming an organiser', () => {
-  it('starts straight away: the person owns a new, active organisation; admins are told and can suspend it', async () => {
+describe('requesting organiser access', () => {
+  it('captures details, notifies admins, and creates the organisation on approval', async () => {
     await ensurePlatformAdmins(['boss@example.test'])
     const person = await signIn('priya@example.test')
 
@@ -50,37 +50,36 @@ describe('becoming an organiser', () => {
     expect(missing.status).toBe(400)
     const sent = await person.agent.post('/api/account/organiser-request').set('X-CSRF-Token', person.csrf).send(details)
     expect(sent.status).toBe(201)
-    expect(sent.body.organisation).toEqual({ slug: 'lakeside-wellness', name: 'Lakeside Wellness' })
+    expect(testOutbox.some((m) => m.to === 'boss@example.test' && m.subject.includes('Lakeside Wellness'))).toBe(true)
+    const again = await person.agent.post('/api/account/organiser-request').set('X-CSRF-Token', person.csrf).send(details)
+    expect(again.status).toBe(409)
+    expect((await person.agent.get('/api/account/organiser-request')).body.request.status).toBe('pending')
+
+    const admin = await signIn('boss@example.test')
+    const list = await admin.agent.get('/api/platform/tenant-requests')
+    const req = list.body.requests[0]
+    expect(req).toMatchObject({ phone: '+44 20 7946 0000', country: 'United Kingdom', source: 'request' })
+    const approved = await admin.agent.post(`/api/platform/tenant-requests/${req.id}/approve`).set('X-CSRF-Token', admin.csrf).send({})
+    expect(approved.status).toBe(200)
+    expect(approved.body.organisation.slug).toBe('lakeside-wellness')
+    expect(testOutbox.some((m) => m.to === 'priya@example.test' && m.subject.includes('organiser'))).toBe(true)
 
     const me = await person.agent.get('/api/auth/me')
-    expect(me.body.memberships).toEqual([expect.objectContaining({ slug: 'lakeside-wellness', role: 'owner', status: 'active' })])
+    expect(me.body.memberships).toEqual([expect.objectContaining({ slug: 'lakeside-wellness', role: 'owner' })])
     expect(me.body.user.name).toBe('Priya Organiser')
-    expect((await person.agent.get('/api/admin/orgs/lakeside-wellness')).status).toBe(200)
-    expect((await person.agent.post('/api/account/organiser-request').set('X-CSRF-Token', person.csrf).send(details)).status).toBe(409)
-
-    // Admins: an email to know, the details in the console (nothing waiting for them), and suspend.
-    const note = testOutbox.find((m) => m.to === 'boss@example.test')
-    expect(note?.subject).toBe('New organiser on Croot: Lakeside Wellness')
-    const admin = await signIn('boss@example.test')
-    const req = (await admin.agent.get('/api/platform/tenant-requests')).body.requests[0]
-    expect(req).toMatchObject({ status: 'approved', phone: '+44 20 7946 0000', country: 'United Kingdom', source: 'request' })
-    expect((await admin.agent.get('/api/attention')).body.items).toEqual([])
-    const org = await prisma.organisation.findUniqueOrThrow({ where: { slug: 'lakeside-wellness' } })
-    expect((await admin.agent.post(`/api/platform/orgs/${org.id}/status`).set('X-CSRF-Token', admin.csrf).send({ status: 'suspended' })).status).toBe(200)
   })
 
-  it('a request sent before self-service can still be approved or declined by an admin', async () => {
+  it('declines with an optional reason, which is emailed', async () => {
     await ensurePlatformAdmins(['boss@example.test'])
     const person = await signIn('priya@example.test')
-    const user = await prisma.user.findUniqueOrThrow({ where: { email: 'priya@example.test' } })
-    const old = await prisma.tenantRequest.create({ data: { orgName: 'Old Request', contactName: 'Priya', email: user.email, userId: user.id, status: 'pending', source: 'request' } })
+    await person.agent.post('/api/account/organiser-request').set('X-CSRF-Token', person.csrf).send(details)
     const admin = await signIn('boss@example.test')
-    const noReason = await admin.agent.post(`/api/platform/tenant-requests/${old.id}/decline`).set('X-CSRF-Token', admin.csrf).send({})
+    const id = (await admin.agent.get('/api/platform/tenant-requests')).body.requests[0].id
+    const noReason = await admin.agent.post(`/api/platform/tenant-requests/${id}/decline`).set('X-CSRF-Token', admin.csrf).send({})
     expect(noReason.status).toBe(400)
-    await admin.agent.post(`/api/platform/tenant-requests/${old.id}/decline`).set('X-CSRF-Token', admin.csrf).send({ reason: 'Not a retreat business' })
+    await admin.agent.post(`/api/platform/tenant-requests/${id}/decline`).set('X-CSRF-Token', admin.csrf).send({ reason: 'Not a retreat business' })
     expect(testOutbox.find((m) => m.to === 'priya@example.test' && m.text.includes('Not a retreat business'))).toBeTruthy()
-    // Declined earlier, they can still start by themselves now.
-    expect((await person.agent.post('/api/account/organiser-request').set('X-CSRF-Token', person.csrf).send(details)).status).toBe(201)
+    expect((await person.agent.get('/api/account/organiser-request')).body.request).toMatchObject({ status: 'declined', declineReason: 'Not a retreat business' })
   })
 })
 

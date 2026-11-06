@@ -8,7 +8,7 @@ import { HttpError, parseBody, route, text } from '../lib/http.js'
 import { prisma } from '../lib/prisma.js'
 import { requireCsrf, requireUser, SESSION_COOKIE } from '../middleware/auth.js'
 import { publicFormLimiter } from '../middleware/rateLimits.js'
-import { availableOrgSlug, grantOrganiser, notifyAdmins, organiserDetailsSchema } from '../lib/organisers.js'
+import { notifyAdmins, organiserDetailsSchema } from '../lib/organisers.js'
 
 /**
  * Self-service onboarding: a signed-in user creates an organisation and becomes its owner.
@@ -22,9 +22,7 @@ accountRouter.use(requireUser, requireCsrf)
 const MAX_OWNED = 5
 
 // ---------------------------------------------------------------------------------------------
-// "Become an organiser": a signed-in person with a verified email sends their details and is the
-// owner of a new, active organisation straight away. Admins are told, see it in the platform console
-// (the details are kept as an approved request) and can suspend it.
+// "Become an organiser": a signed-in person sends their details; an admin approves or declines.
 
 function requestView(r: Awaited<ReturnType<typeof prisma.tenantRequest.findFirst>>) {
   return (
@@ -63,29 +61,20 @@ accountRouter.post(
     if (!req.auth!.emailVerified) throw new HttpError(403, 'Sign in with an email code or Google first, so we know this address is yours')
     const body = parseBody(organiserDetailsSchema, req.body)
     if (await prisma.membership.count({ where: { userId: user.id } })) throw new HttpError(409, 'You’re already an organiser')
+    if (await prisma.tenantRequest.count({ where: { userId: user.id, status: 'pending' } })) {
+      throw new HttpError(409, 'Your request is already with the Croot team')
+    }
     const { acceptTerms: _a, contactName, phone, ...rest } = body
-    const slug = await availableOrgSlug(rest.orgName)
-    const { request, organisation } = await prisma.$transaction(async (tx) => {
+    const created = await prisma.$transaction(async (tx) => {
       await tx.user.update({ where: { id: user.id }, data: { name: contactName, phone: phone || null } })
-      const organisationId = await grantOrganiser(tx, {
-        userId: user.id,
-        actorUserId: user.id,
-        actorKind: 'user',
-        details: { orgName: rest.orgName, websiteUrl: rest.websiteUrl, email: user.email },
-        newSlug: slug,
+      const r = await tx.tenantRequest.create({
+        data: { ...rest, contactName, phone: phone || null, email: user.email, userId: user.id, source: 'request', termsVersion: PROCESSING_TERMS_VERSION },
       })
-      // Kept for the platform console: who joined, with what details, and when.
-      const request = await tx.tenantRequest.create({
-        data: { ...rest, contactName, phone: phone || null, email: user.email, userId: user.id, source: 'request', termsVersion: PROCESSING_TERMS_VERSION, status: 'approved', reviewedAt: new Date(), organisationId },
-      })
-      // Anything sent before self-service started is settled by this.
-      await tx.tenantRequest.updateMany({ where: { userId: user.id, status: 'pending' }, data: { status: 'approved', reviewedAt: new Date(), organisationId } })
-      await audit({ organisationId, actorUserId: user.id, actorKind: 'user', action: 'organiser.self_started', entityType: 'tenant_request', entityId: request.id }, tx)
-      const organisation = await tx.organisation.findUniqueOrThrow({ where: { id: organisationId }, select: { slug: true, name: true } })
-      return { request, organisation }
+      await audit({ actorUserId: user.id, actorKind: 'user', action: 'organiser_request.created', entityType: 'tenant_request', entityId: r.id }, tx)
+      return r
     })
-    await notifyAdmins(contactName, organisation.name, organisation.slug)
-    res.status(201).json({ request: requestView(request), organisation })
+    await notifyAdmins(contactName, created.orgName)
+    res.status(201).json({ request: requestView(created) })
   }),
 )
 
