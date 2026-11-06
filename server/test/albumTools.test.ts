@@ -7,7 +7,9 @@ import { app, invite, login, makeTenant, resetDatabase } from './helpers.js'
 beforeEach(resetDatabase)
 afterAll(closeDatabase)
 
-const png = (shade = 120) => sharp({ create: { width: 40, height: 30, channels: 3, background: { r: shade, g: 140, b: 130 } } }).png().toBuffer()
+// Each test image differs (the album shows a byte-identical picture only once).
+let nth = 0
+const png = (shade = 120) => sharp({ create: { width: 40 + nth++, height: 30, channels: 3, background: { r: shade, g: 140, b: 130 } } }).png().toBuffer()
 
 async function setup() {
   const { org, user, retreat } = await makeTenant('alpha')

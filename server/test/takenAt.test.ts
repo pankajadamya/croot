@@ -37,8 +37,8 @@ describe('time taken', () => {
   it('uses the browser’s reading when the file lost its EXIF (a converted iPhone photo), if it is sensible', async () => {
     const { user, retreat } = await makeTenant('alpha')
     const { agent, csrf } = await login(user.email)
-    const plain = await sharp({ create: { width: 64, height: 48, channels: 3, background: '#335544' } }).jpeg().toBuffer()
-    const send = (takenAt: string) => agent.post(`/api/admin/orgs/alpha/retreats/${retreat.id}/media?album=1`).set('X-CSRF-Token', csrf).field('rightsConfirmed', 'true').field('takenAt', takenAt).attach('image', plain, 'converted.jpg')
+    let width = 64
+    const send = async (takenAt: string) => agent.post(`/api/admin/orgs/alpha/retreats/${retreat.id}/media?album=1`).set('X-CSRF-Token', csrf).field('rightsConfirmed', 'true').field('takenAt', takenAt).attach('image', await sharp({ create: { width: width++, height: 48, channels: 3, background: '#335544' } }).jpeg().toBuffer(), 'converted.jpg')
     expect((await send('2026-10-28T09:13:15.000Z')).body.media.takenAt).toBe('2026-10-28T09:13:15.000Z')
     expect((await send('2199-01-01T00:00:00Z')).body.media.takenAt).toBeNull()
     expect((await send('')).body.media.takenAt).toBeNull()

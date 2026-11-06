@@ -8,7 +8,9 @@ import { login, makeTenant, resetDatabase } from './helpers.js'
 beforeEach(resetDatabase)
 afterAll(closeDatabase)
 
-const png = () => sharp({ create: { width: 64, height: 48, channels: 3, background: '#7a9a8a' } }).png().toBuffer()
+// Each test image differs (the album shows a byte-identical picture only once).
+let nth = 0
+const png = () => sharp({ create: { width: 64 + nth++, height: 48, channels: 3, background: '#7a9a8a' } }).png().toBuffer()
 
 describe('album limits', () => {
   it('defaults to 50 photos and 5 videos, can be changed by an admin only, and is enforced', async () => {
@@ -65,7 +67,8 @@ describe('stored image size', () => {
     expect([out.width, out.height]).toEqual([2560, 1707])
 
     // Small images aren't enlarged.
-    const small = await processImage(await png())
-    expect((await sharp(small.original).metadata()).width).toBe(64)
+    const input = await png()
+    const small = await processImage(input)
+    expect((await sharp(small.original).metadata()).width).toBe((await sharp(input).metadata()).width)
   })
 })
