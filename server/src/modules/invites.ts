@@ -16,7 +16,10 @@ import { publishedContent } from '../lib/site.js'
 import { storage } from '../lib/storage.js'
 import { removeObjects } from '../lib/storageCleanup.js'
 import { hashToken, receiptTokenFor } from '../lib/tokens.js'
-import { tokenLimiter, uploadLimiter } from '../middleware/rateLimits.js'
+import { loginLimiter, tokenLimiter, uploadLimiter } from '../middleware/rateLimits.js'
+import { emailProven, maskEmail, verifyResponse } from '../lib/verification.js'
+import { requestCode, verifyCode } from '../lib/loginCodes.js'
+import { signedIn } from './auth.js'
 
 /**
  * A guest's review, reached two ways:
@@ -207,9 +210,48 @@ async function draftView(r: Review, req: Request) {
       submittedAt: response.submittedAt,
       organiserMessage: response.status === 'changes_requested' ? response.organiserMessage : null,
       updatedAt: response.updatedAt,
+      // The published story's own page, for sharing (only while it's live).
+      storyPath: response.publicationStatus === 'published' && response.publicSlug ? `/stories/${response.publicSlug}` : null,
+    },
+    // "Verified email" on the public review: whether it is, and whether the guest can prove it now (a code
+    // to their address, shown masked so a forwarded link doesn't reveal it).
+    verification: {
+      verified: Boolean(response?.verifiedAt),
+      canVerify: Boolean(r.attendee.email && response?.submittedAt && !response.verifiedAt),
+      maskedEmail: r.attendee.email ? maskEmail(r.attendee.email) : null,
     },
   }
 }
+
+/**
+ * The thank-you page's "confirm it's you": a code to the guest's address, which marks the review
+ * "Verified email" and signs them in (so they can manage it from My reviews).
+ */
+reviewRoutes.post(
+  '/verify/send',
+  loginLimiter,
+  route(async (_req, res) => {
+    const r = current(res)
+    if (!r.attendee.email) throw new HttpError(400, 'There’s no email address to confirm. Ask the organiser to add yours.')
+    if (!r.response?.submittedAt) throw new HttpError(409, 'Send your review first.')
+    await requestCode(r.attendee.email, 'signin')
+    res.json({ sentTo: maskEmail(r.attendee.email) })
+  }),
+)
+
+reviewRoutes.post(
+  '/verify/confirm',
+  loginLimiter,
+  route(async (req, res) => {
+    const r = current(res)
+    if (!r.attendee.email) throw new HttpError(400, 'There’s no email address to confirm.')
+    const { code } = parseBody(z.object({ code: z.string().trim().max(12) }), req.body)
+    const result = await verifyCode(r.attendee.email, code.replace(/\s+/g, ''))
+    if (!result.ok) throw new HttpError(401, 'That code is not valid or has expired. Request a new one.')
+    await emailProven(r.attendee.id, 'code')
+    res.json(await signedIn(res, result.userId, 'code', result.created))
+  }),
+)
 
 reviewRoutes.get(
   '/',
@@ -550,6 +592,10 @@ reviewRoutes.post(
         tx,
       )
     })
+    // "Verified email": sent through a link Croot emailed to the address, while signed in with it, or
+    // after proving it with a code (the thank-you page, or joining by group link).
+    const how = signedInAsGuest(req, r) ? 'sign_in' : r.invitation?.emailedAt ? 'email_link' : r.attendee.emailVerifiedAt ? 'code' : null
+    if (how) await verifyResponse(response.id, how)
     res.json({ receiptToken, alreadySubmitted: false })
   }),
 )

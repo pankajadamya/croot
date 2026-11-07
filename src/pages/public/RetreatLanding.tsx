@@ -1,3 +1,4 @@
+import { VerifiedBadge } from '../../components/VerifiedBadge'
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
@@ -228,6 +229,7 @@ export default function RetreatLanding() {
                       <span>
                         <span className="review-name">
                           {s.displayName ?? 'A retreat guest'} <span className="review-badge">Invited by the organiser</span>
+                          {s.verified && <VerifiedBadge />}
                         </span>
                         {s.postedAt && (
                           <Link className="review-date" to={`/stories/${s.slug}`} title="Open this story on its own page">

@@ -168,6 +168,11 @@ export default function PrivacyNotice() {
           </li>
           <li>Photos: the file you upload isn’t kept. We keep only a web copy, made as it arrives, with location and camera details removed, and the date and time each photo was taken (to order the album). It’s deleted with your response, or when you remove the photo.</li>
           <li>Anonymous notes: deleted {c.anonymousNoteRetentionMonths} months after they’re sent.</li>
+          <li>
+            Verified reviews: when you confirm your email, we record how and when (not your address again), so your review can show “Verified
+            email” and we can check reviews are genuine. It’s deleted with your review. If you joined through a group link, your email is used only
+            to confirm and manage your review, never for marketing without your consent, and never shared with anyone else.
+          </li>
           <li>Next-retreat updates: deleted as soon as you unsubscribe, or after 30 days if you never confirm.</li>
         </ul>
 

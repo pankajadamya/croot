@@ -11,6 +11,8 @@ const RetreatLanding = lazy(() => import('./pages/public/RetreatLanding'))
 const StoryPage = lazy(() => import('./pages/public/StoryPage'))
 const PrivacyNotice = lazy(() => import('./pages/public/PrivacyNotice'))
 const Legal = lazy(() => import('./pages/public/Legal'))
+const VerifyReviewPage = lazy(() => import('./pages/attendee/VerifyReviewPage'))
+const GroupJoinPage = lazy(() => import('./pages/attendee/GroupJoinPage'))
 const AdminPrivacy = lazy(() => import('./pages/admin/Privacy'))
 const InviteFlow = lazy(() => import('./pages/attendee/InviteFlow'))
 const Receipt = lazy(() => import('./pages/attendee/Receipt'))
@@ -51,6 +53,8 @@ export function App() {
         <Route path="/stories/:slug" element={<StoryPage />} />
         <Route path="/o/:orgSlug/privacy" element={<PrivacyNotice />} />
         <Route path="/legal/:doc" element={<Legal />} />
+        <Route path="/verify/:token" element={<VerifyReviewPage />} />
+        <Route path="/join/:token" element={<GroupJoinPage />} />
 
         <Route path="/invite/:token" element={<InviteFlow />} />
         <Route path="/invite/:token/album" element={<InviteAlbumPage />} />

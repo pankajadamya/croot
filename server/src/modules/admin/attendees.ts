@@ -10,12 +10,13 @@ import { invitationEmail } from '../../lib/mailer.js'
 import { firstName } from '../../../../shared/slug.js'
 import { prisma } from '../../lib/prisma.js'
 import { tenantAttendee, tenantRetreat } from '../../lib/tenant.js'
+import { emailChanged } from '../../lib/verification.js'
 import { tenantOf } from '../../middleware/auth.js'
 
 export const attendeesRouter = Router({ mergeParams: true })
 
 /** Links point at the tenant's own domain when one is mapped, so guests see the organiser's brand. */
-async function siteOrigin(orgId: string) {
+export async function siteOrigin(orgId: string) {
   const domain = await prisma.orgDomain.findFirst({ where: { organisationId: orgId }, orderBy: { createdAt: 'asc' } })
   return domain ? `https://${domain.hostname}` : env.WEB_ORIGIN
 }
@@ -32,7 +33,7 @@ attendeesRouter.get(
       orderBy: { name: 'asc' },
       include: {
         invitations: { orderBy: { issuedAt: 'desc' }, take: 1 },
-        response: { select: { id: true, status: true, consentPublicText: true, publicationStatus: true, updatedAt: true } },
+        response: { select: { id: true, status: true, consentPublicText: true, publicationStatus: true, updatedAt: true, verifiedAt: true } },
       },
     })
     const now = new Date()
@@ -60,6 +61,10 @@ attendeesRouter.get(
           stayEnd: a.stayEnd,
           state,
           responseId: r && r.status !== 'draft' ? r.id : null,
+          // "Verified email" on their review; how they joined (group link guests need confirming before publishing).
+          verified: Boolean(r?.verifiedAt),
+          source: a.source,
+          guestConfirmed: a.source !== 'group_link' || Boolean(a.guestListConfirmedAt),
           invitation: inv
             ? { hint: inv.tokenHint, issuedAt: inv.issuedAt, expiresAt: inv.expiresAt, openedAt: inv.openedAt, lastUsedAt: inv.lastUsedAt, revoked: Boolean(inv.revokedAt), emailedAt: inv.emailedAt }
             : null,
@@ -286,6 +291,8 @@ attendeesRouter.patch(
       throw new HttpError(409, 'Another guest on this programme already has that address', { email: ['Already used by another guest'] })
     }
     const updated = await prisma.attendee.update({ where: { id: attendee.id }, data: { email } })
+    // A new address isn't proven yet: the review loses its "Verified email" badge until the guest proves it.
+    if (email !== attendee.email) await emailChanged(attendee.id)
     await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'attendee.email_corrected', entityType: 'attendee', entityId: attendee.id })
     const problem = (await suppressedAmong([email])).get(email) ?? null
     res.json({ attendee: { id: updated.id, email: updated.email, emailProblem: problem } })

@@ -147,3 +147,69 @@ export function loginCodeEmail(to: string, code: string, purpose: 'signin' | 'si
 </div>`
   return { to, subject: `${code} is your Croot code`, text, html, category: 'login_code' }
 }
+
+/** The organiser asked Croot to let a guest confirm their review is theirs (one link, single use). */
+export function verificationRequestEmail(opts: { to: string; firstName: string; retreatTitle: string; from: string; url: string; controller: string }): Mail {
+  const text = [
+    `Hello ${opts.firstName},`,
+    '',
+    `Thank you for your review of ${opts.retreatTitle}. To show future guests it’s genuine, please confirm it’s yours:`,
+    opts.url,
+    '',
+    'It takes one click. Confirming marks your review “Verified email”; nothing else changes. If you didn’t write a review, you can ignore this email.',
+    '',
+    '—',
+    `Sent by Croot on behalf of ${opts.controller} (${opts.from}).`,
+  ].join('\n')
+  const html = `<div style="font-family:system-ui,sans-serif;color:#183D3B;max-width:540px;line-height:1.55">
+<p>Hello ${escape(opts.firstName)},</p>
+<p>Thank you for your review of <strong>${escape(opts.retreatTitle)}</strong>. To show future guests it’s genuine, please confirm it’s yours.</p>
+<p><a href="${opts.url}" style="display:inline-block;background:#183D3B;color:#F8F5EF;padding:12px 22px;border-radius:999px;text-decoration:none;font-weight:600">Confirm my review</a></p>
+<p style="color:#4A5F5A;font-size:14px">It takes one click. Confirming marks your review “Verified email”; nothing else changes. If you didn’t write a review, you can ignore this email.</p>
+<hr style="border:0;border-top:1px solid #d9ded6;margin:24px 0">
+<p style="color:#4A5F5A;font-size:13px">Sent by Croot on behalf of ${escape(opts.controller)} (${escape(opts.from)}).</p>
+</div>`
+  return { to: opts.to, subject: `Please confirm your review of ${opts.retreatTitle}`, text, html, category: 'invitation' }
+}
+
+/** A code for someone joining a retreat's group link, before they're added as a guest. */
+export function groupJoinCodeEmail(to: string, code: string, retreatTitle: string, minutes: number): Mail {
+  const text = [
+    `Your code to share your review of ${retreatTitle} is: ${code}`,
+    '',
+    `It expires in ${minutes} minutes and can be used once.`,
+    'We use your email only to confirm and manage your review: no marketing without your consent, and it’s never shared with anyone else.',
+    'If you didn’t ask for this, you can ignore this email.',
+  ].join('\n')
+  const html = `<div style="font-family:system-ui,sans-serif;color:#183D3B;max-width:480px">
+<p>Your code to share your review of <strong>${escape(retreatTitle)}</strong> is:</p>
+<p style="font-size:32px;letter-spacing:8px;font-weight:700;margin:16px 0">${escape(code)}</p>
+<p>It expires in ${minutes} minutes and can be used once.</p>
+<p style="color:#4A5F5A;font-size:14px">We use your email only to confirm and manage your review: no marketing without your consent, and it’s never shared with anyone else. If you didn’t ask for this, you can ignore this email.</p>
+</div>`
+  return { to, subject: `${code} is your code for ${retreatTitle}`, text, html, category: 'login_code' }
+}
+
+/** To an organisation's owners when a group link is made: reviews must be genuine. */
+export function groupLinkWarningEmail(opts: { to: string; orgName: string; retreatTitle: string; createdBy: string; expiresAt: Date; manageUrl: string }): Mail {
+  const until = opts.expiresAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+  const text = [
+    `A group link was made for ${opts.retreatTitle} by ${opts.createdBy}. It works until ${until}.`,
+    '',
+    'Anyone with a group link can confirm their email and write a review, so please share it only with people who were there.',
+    '',
+    'Reviews must be genuine. Croot checks reviews for warning signs, such as addresses linked to your organisation or many reviews written in a burst. Organisations found posting or encouraging reviews that aren’t genuine can be suspended or removed from Croot, and their reviews taken down.',
+    '',
+    'Reviews from people not on your guest list can only be published after you confirm they were your guests.',
+    '',
+    `Manage or stop the link: ${opts.manageUrl}`,
+  ].join('\n')
+  const html = `<div style="font-family:system-ui,sans-serif;color:#183D3B;max-width:560px;line-height:1.55">
+<p>A group link was made for <strong>${escape(opts.retreatTitle)}</strong> by ${escape(opts.createdBy)}. It works until ${escape(until)}.</p>
+<p>Anyone with a group link can confirm their email and write a review, so please share it only with people who were there.</p>
+<p style="padding:12px 14px;background:#fdf3dc;border-left:4px solid #8a5a00"><strong>Reviews must be genuine.</strong> Croot checks reviews for warning signs, such as addresses linked to your organisation or many reviews written in a burst. Organisations found posting or encouraging reviews that aren’t genuine can be suspended or removed from Croot, and their reviews taken down.</p>
+<p>Reviews from people not on your guest list can only be published after you confirm they were your guests.</p>
+<p><a href="${opts.manageUrl}">Manage or stop the link</a></p>
+</div>`
+  return { to: opts.to, subject: `Group link made for ${opts.retreatTitle}: please keep reviews genuine`, text, html, category: 'organiser' }
+}

@@ -84,7 +84,7 @@ responsesRouter.get(
     const r = await prisma.response.findFirst({
       where: { id, organisationId: t.org.id, status: { not: 'draft' } },
       include: {
-        attendee: { select: { name: true, email: true, stayStart: true, stayEnd: true } },
+        attendee: { select: { id: true, name: true, email: true, stayStart: true, stayEnd: true, source: true, guestListConfirmedAt: true } },
         retreat: { select: { id: true, title: true, slug: true, kind: true, feedbackCategories: true } },
         ratings: true,
         media: { where: { removedAt: null }, orderBy: { displayOrder: 'asc' } },
@@ -108,6 +108,15 @@ responsesRouter.get(
       status: r.status,
       submittedAt: r.submittedAt,
       organiserMessage: r.organiserMessage,
+      // "Verified email", and whether the organiser can still ask the guest to confirm (2 emails at most).
+      verification: {
+        verified: Boolean(r.verifiedAt),
+        requestsSent: r.verifyRequestsSent,
+        hasEmail: Boolean(r.attendee.email),
+        joinedByGroupLink: r.attendee.source === 'group_link',
+        confirmedGuest: r.attendee.source !== 'group_link' || Boolean(r.attendee.guestListConfirmedAt),
+        attendeeId: r.attendee.id,
+      },
       publicStory: {
         title: r.storyTitle,
         text: r.storyText,

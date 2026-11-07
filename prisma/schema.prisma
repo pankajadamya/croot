@@ -283,6 +283,10 @@ model Retreat {
   inviteOpensAt  DateTime?
   inviteClosesAt DateTime?
   inviteTtlDays  Int           @default(60)
+  /// The group link (one link for the whole group): only its hash is kept. Null when there is none.
+  groupLinkTokenHash String?   @unique
+  groupLinkCreatedAt DateTime?
+  groupLinkExpiresAt DateTime?
   draftEditingEnabled      Boolean @default(true)
   publicReviewsEnabled     Boolean @default(true)
   writingSlideshowEnabled  Boolean @default(false)
@@ -339,6 +343,15 @@ model Attendee {
   stayStart      DateTime?     @db.Date
   stayEnd        DateTime?     @db.Date
   importBatch    String?
+  /// invited: on the organiser's guest list. group_link: joined through the retreat's group link
+  /// (the organiser confirms them as a guest before their review can be published).
+  source         String   @default("invited")
+  guestListConfirmedAt DateTime?
+  /// When the guest proved they own their email address (link from Croot, sign-in, or a code).
+  /// Cleared when the address changes.
+  emailVerifiedAt DateTime?
+  /// When the organiser last changed the address (a signal for the review-credibility checks).
+  emailChangedAt DateTime?
   createdAt      DateTime @default(now())
 
   retreat     Retreat      @relation(fields: [retreatId], references: [id], onDelete: Cascade)
@@ -428,6 +441,10 @@ model Response {
   /// Generated on first publication only; stable afterwards.
   publicSlug     String?        @unique
   pinned         Boolean        @default(false)
+  /// Shown publicly as "Verified email": the guest proved they own the invited address (ReviewVerification).
+  verifiedAt     DateTime?
+  /// Verification emails the organiser has sent for this review (at most 2).
+  verifyRequestsSent Int        @default(0)
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
@@ -439,6 +456,8 @@ model Response {
   publications PublicationRevision[]
   helpfulVotes ReviewHelpful[]
   changeRequests ChangeRequest[]
+  verifications ReviewVerification[]
+  verificationRequests VerificationRequest[]
 
   @@index([organisationId, retreatId, status])
   @@index([organisationId, retreatId, publicationStatus])
@@ -774,4 +793,68 @@ model EmailFeedback {
   createdAt      DateTime     @default(now())
 
   @@index([organisationId, createdAt])
+}
+
+enum VerificationMethod {
+  /// Sent through a link Croot emailed to the address.
+  email_link
+  /// Signed in with the address (email code or Google).
+  sign_in
+  /// Entered a code Croot emailed to the address (thank-you page, or joining by group link).
+  code
+  /// Confirmed from a verification email the organiser asked Croot to send.
+  organiser_request
+}
+
+/// One verification of a review: how, when, and signals for later credibility checks. Never the address
+/// itself, only its hash, so checks can match addresses across reviews without storing them again.
+model ReviewVerification {
+  id             String             @id @default(uuid()) @db.Uuid
+  organisationId String             @db.Uuid
+  responseId     String             @db.Uuid
+  method         VerificationMethod
+  emailHash      String
+  /// Who typed the address: the organiser (guest list) or the guest (group link).
+  addressSource  String
+  /// e.g. { addressIsMember, addressChangedAfterSent, sameDomainOnRetreat, minutesToWrite }
+  signals        Json               @default("{}")
+  createdAt      DateTime           @default(now())
+
+  response Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
+
+  @@index([responseId])
+  @@index([organisationId, createdAt])
+  @@index([emailHash])
+}
+
+/// A verification email the organiser asked Croot to send: one link, single use.
+model VerificationRequest {
+  id         String    @id @default(uuid()) @db.Uuid
+  responseId String    @db.Uuid
+  tokenHash  String    @unique
+  /// The address it was sent to (hash): it only verifies while the guest still has that address.
+  emailHash  String
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  response Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
+
+  @@index([responseId])
+}
+
+/// A code emailed to someone joining by a retreat's group link, before they're added as a guest.
+model GroupJoinCode {
+  id         String    @id @default(uuid()) @db.Uuid
+  retreatId  String    @db.Uuid
+  email      String
+  name       String
+  codeHash   String
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([retreatId, email, createdAt])
+  @@index([expiresAt])
 }

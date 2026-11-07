@@ -14,6 +14,8 @@ import { requireCsrf, requireOrgMember, requireOwner, tenantOf } from '../../mid
 import { attendeesRouter } from './attendees.js'
 import { privacyRouter } from './privacy.js'
 import { responsesRouter } from './responses.js'
+import { verifyRequestAdminRouter } from '../verifyRequests.js'
+import { groupLinkAdminRouter } from '../groupLink.js'
 import { interestRouter } from './interest.js'
 import { shareKitRouter } from './shareKit.js'
 import { siteRouter } from './site.js'
@@ -24,7 +26,7 @@ import { siteRouter } from './site.js'
  */
 export const adminRouter = Router({ mergeParams: true })
 adminRouter.use(requireOrgMember, requireCsrf)
-adminRouter.use(attendeesRouter, responsesRouter, siteRouter, privacyRouter, shareKitRouter, interestRouter)
+adminRouter.use(attendeesRouter, responsesRouter, siteRouter, privacyRouter, shareKitRouter, interestRouter, verifyRequestAdminRouter, groupLinkAdminRouter)
 
 adminRouter.get(
   '/',

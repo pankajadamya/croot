@@ -38,13 +38,17 @@ export async function publishResponse(input: PublishInput) {
   return prisma.$transaction(async (tx) => {
     const response = await tx.response.findFirst({
       where: { id: input.responseId, organisationId: input.organisationId },
-      include: { attendee: { select: { name: true } }, media: true, retreat: { select: { slug: true, showPublicRating: true } } },
+      include: { attendee: { select: { name: true, source: true, guestListConfirmedAt: true } }, media: true, retreat: { select: { slug: true, showPublicRating: true } } },
     })
     if (!response) throw new HttpError(404, 'Response not found')
     if (response.status !== 'submitted') throw new HttpError(409, 'Only submitted responses can be published')
     const story = response.storyText.trim()
     if (!story) throw new HttpError(409, 'This response has no public story')
     if (!response.consentPublicText) throw new HttpError(409, 'The guest has not consented to publishing their story')
+    // Someone who joined by the group link must be confirmed as a guest first (anyone with the link can write).
+    if (response.attendee.source === 'group_link' && !response.attendee.guestListConfirmedAt) {
+      throw new HttpError(409, `${response.attendee.name} joined by the group link. Confirm they were your guest before publishing their review.`)
+    }
 
     const excerpt = input.excerpt?.trim() ? input.excerpt.trim() : autoExcerpt(story)
     if (!isVerbatimExcerpt(story, excerpt)) throw new HttpError(400, "The excerpt must be the guest's exact words")

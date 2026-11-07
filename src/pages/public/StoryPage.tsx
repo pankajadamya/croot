@@ -1,3 +1,4 @@
+import { VerifiedBadge } from '../../components/VerifiedBadge'
 import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
@@ -27,6 +28,7 @@ interface StoryPublic {
     excerpt: string
     displayName: string | null
     overallRating: number | null
+    verified?: boolean
     photos: Array<{ url: string; alt: string; caption: string; width: number; height: number }>
   }
 }
@@ -105,7 +107,10 @@ export default function StoryPage() {
               <div className="story-panel-head">
                 <Avatar name={story.displayName} />
                 <span>
-                  <span className="story-byline-name">{name}</span>
+                  <span className="story-byline-name">
+                    {name}
+                    {story.verified && <VerifiedBadge />}
+                  </span>
                   <span className="muted small">
                     <time dateTime={story.postedAt}>{formatDate(story.postedAt)}</time> · <Link to={retreatPath}>{retreat.title}</Link>
                   </span>

@@ -8,6 +8,7 @@ import { ErrorNotice, Loading } from '../../../components/States'
 import { useConfirm } from '../../../components/ConfirmDialog'
 import { useAuth } from '../../../lib/auth'
 import { ShareLink } from './ShareLink'
+import { GroupLinkCard } from './GroupLinkCard'
 import { CopyButton, fieldError, InviteStateBadge, MutationError, orgKey } from '../adminUi'
 import type { AttendeeRowView, CsvPreviewRow, Retreat } from '../types'
 
@@ -128,6 +129,11 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
     mutationFn: (a: AttendeeRowView) => del(`${orgApi(orgSlug)}/attendees/${a.id}`),
     onSuccess: refresh,
   })
+  // Someone who joined by the group link was really a guest (their review can then be published).
+  const confirmGuest = useMutation({
+    mutationFn: (a: AttendeeRowView) => post(`${orgApi(orgSlug)}/attendees/${a.id}/confirm-guest`),
+    onSuccess: refresh,
+  })
   // A guest who has sent a review: removed with everything they sent (the same erasure as the Privacy page).
   const erase = useMutation({
     mutationFn: (a: AttendeeRowView) => post(`${orgApi(orgSlug)}/attendees/${a.id}/erase`, { confirm: 'DELETE', reason: 'Removed from the guest list' }),
@@ -183,7 +189,7 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
 
   const withoutLink = attendees.data?.filter((a) => !a.invitation).length ?? 0
   const allLinksText = issued.map((l) => `${l.name}\t${l.email ?? 'no email'}\t${l.url}`).join('\n')
-  const rowError = issue.error || revoke.error || remove.error || erase.error || emailOne.error || emailAll.error
+  const rowError = issue.error || revoke.error || remove.error || erase.error || confirmGuest.error || emailOne.error || emailAll.error
 
   return (
     <div className="stack">
@@ -302,6 +308,30 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
                       {a.responseId ? <Link to={`/admin/${orgSlug}/responses/${a.responseId}`}>{a.name}</Link> : a.name}
                       {a.email ? <div className="small muted">{a.email}</div> : <AddEmail orgSlug={orgSlug} attendee={a} onAdded={refresh} />}
                       {a.emailProblem && <EmailProblem orgSlug={orgSlug} attendee={a} onFixed={refresh} />}
+                      {(a.verified || a.source === 'group_link') && (
+                        <div className="row small" style={{ gap: '0.35rem', marginTop: '0.25rem' }}>
+                          {a.verified && (
+                            <span className="review-badge is-verified" style={{ marginLeft: 0 }}>
+                              <span aria-hidden="true">✓</span> Verified email
+                            </span>
+                          )}
+                          {a.source === 'group_link' &&
+                            (a.guestConfirmed ? (
+                              <span className="review-badge" style={{ marginLeft: 0 }}>
+                                Joined by group link
+                              </span>
+                            ) : (
+                              <>
+                                <span className="review-badge" style={{ marginLeft: 0 }}>
+                                  Joined by group link · not confirmed
+                                </span>
+                                <button type="button" className="link-button" disabled={confirmGuest.isPending} onClick={() => confirmGuest.mutate(a)}>
+                                  Confirm they were your guest
+                                </button>
+                              </>
+                            ))}
+                        </div>
+                      )}
                     </td>
                     {isProperty && (
                       <td className="small">
@@ -409,6 +439,7 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
         <CsvImport orgSlug={orgSlug} retreat={retreat} onDone={refresh} />
         <AddAttendee orgSlug={orgSlug} retreat={retreat} onDone={refresh} />
       </div>
+      <GroupLinkCard orgSlug={orgSlug} retreat={retreat} />
     </div>
   )
 }

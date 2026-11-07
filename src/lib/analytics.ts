@@ -42,6 +42,8 @@ export const SCREENS = [
   '/interest/:token',
   '/invite/:token/album',
   '/invite/:token',
+  '/join/:token',
+  '/verify/:token',
   '/response/:token/album',
   '/response/:token',
   '/signin',

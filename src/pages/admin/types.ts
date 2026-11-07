@@ -95,6 +95,9 @@ export interface AttendeeRowView {
   stayStart?: string | null
   stayEnd?: string | null
   responseId: string | null
+  verified?: boolean
+  source?: 'invited' | 'group_link'
+  guestConfirmed?: boolean
   invitation: { hint: string; issuedAt: string; expiresAt: string; openedAt: string | null; lastUsedAt: string | null; revoked: boolean; emailedAt?: string | null } | null
 }
 
@@ -134,6 +137,7 @@ export interface ResponseDetailData {
   status: ResponseStatus
   submittedAt: string | null
   organiserMessage: string | null
+  verification?: { verified: boolean; requestsSent: number; hasEmail: boolean; joinedByGroupLink: boolean; confirmedGuest: boolean; attendeeId: string }
   publicStory: { title: string; text: string; submittedText: string | null; overallRating: number | null; suggestedExcerpt: string }
   privateFeedback: {
     ratings: Array<{ key: string; label: string; score: number | null; notApplicable: boolean; comment: string }>

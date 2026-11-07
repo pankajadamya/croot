@@ -11,6 +11,7 @@ import { LinkUnavailable, Loading } from '../../components/States'
 import { PhotoPanel } from './PhotoPanel'
 import { AlbumLinkCard, AlbumTeaser, type AlbumSummary } from '../../components/AlbumGallery'
 import { RetreatPageLink } from '../../components/RetreatPageLink'
+import { ShareJourney, VerifyPrompt } from './ThankYouExtras'
 import { useChoice, useConfirm } from '../../components/ConfirmDialog'
 
 interface Rating {
@@ -77,7 +78,11 @@ interface InviteView {
     photos: Photo[]
     submittedAt: string | null
     organiserMessage: string | null
+    /** The published story's page, while it's live. */
+    storyPath?: string | null
   } | null
+  /** "Verified email" on the public review, and whether the guest can confirm it now (masked address). */
+  verification?: { verified: boolean; canVerify: boolean; maskedEmail: string | null }
 }
 
 interface Draft {
@@ -466,7 +471,23 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
           <h1>{submitted ? `Thank you, ${view.firstName}` : 'This form is closed'}</h1>
           {submitted ? (
             <>
+              {/* Share first, at the top; the same again in the verification pop-up once confirmed. */}
+              <ShareJourney compact title={view.retreat.title} organiser={organiser} pagePath={view.retreat.publicPagePath} storyPath={view.response?.storyPath ?? null} />
               <p>We’ve received your review. If you agreed to publish it, it will appear on the retreat page soon, once it has been checked.</p>
+              {/* Not verified yet: a pop-up (people overlook a card). Already verified: just a note, nothing to do. */}
+              {view.verification?.canVerify && view.verification.maskedEmail && (
+                <VerifyPrompt
+                  base={base}
+                  maskedEmail={view.verification.maskedEmail}
+                  onVerified={() => void load()}
+                  share={<ShareJourney title={view.retreat.title} organiser={organiser} pagePath={view.retreat.publicPagePath} storyPath={view.response?.storyPath ?? null} />}
+                />
+              )}
+              {view.verification?.verified && (
+                <p className="verify-done-note small" role="status">
+                  <span aria-hidden="true">✓</span> Your review shows as <strong>Verified email</strong>.
+                </p>
+              )}
               {canSignIn && <p>You can view it, change your permissions or ask for an edit from your private response page.</p>}
               {view.retreat.album?.unlocked && (
                 <div style={{ margin: '1.5rem 0' }}>

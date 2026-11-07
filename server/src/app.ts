@@ -23,6 +23,8 @@ import { sharedAlbumsRouter } from './modules/sharedAlbums.js'
 import { receiptsRouter } from './modules/receipts.js'
 import { attentionRouter } from './modules/attention.js'
 import { sesWebhookRouter } from './modules/sesWebhook.js'
+import { verifyRequestRouter } from './modules/verifyRequests.js'
+import { groupLinkRouter } from './modules/groupLink.js'
 
 export function createApp() {
   const app = express()
@@ -84,6 +86,8 @@ export function createApp() {
   api.use('/invites', invitesRouter)
   api.use('/me/reviews', requireUser, requireCsrf, myReviewsRouter)
   api.use('/responses', receiptsRouter)
+  api.use('/verify', verifyRequestRouter)
+  api.use('/group', groupLinkRouter)
   api.use('/auth', authRouter)
   api.use('/account', accountRouter)
   api.use('/attention', attentionRouter)

@@ -2,6 +2,7 @@ import { Router, type Response } from 'express'
 import { z } from 'zod'
 import { landingFor } from '../../../shared/landing.js'
 import { audit } from '../lib/audit.js'
+import { signedInWithEmail } from '../lib/verification.js'
 import { env, googleCallbackUrl, googleEnabled, isProduction } from '../lib/env.js'
 import { authorisationUrl, exchangeCode, OAUTH_COOKIE, openState, safeNext } from '../lib/google.js'
 import { HttpError, parseBody, route, text } from '../lib/http.js'
@@ -23,10 +24,12 @@ async function membershipsOf(userId: string) {
   return rows.map((m) => ({ slug: m.organisation.slug, name: m.organisation.name, status: m.organisation.status, role: m.role }))
 }
 
-async function signedIn(res: Response, userId: string, method: 'code' | 'google' | 'password', created = false) {
+export async function signedIn(res: Response, userId: string, method: 'code' | 'google' | 'password', created = false) {
   const user = await prisma.user.update({ where: { id: userId }, data: { lastLoginAt: new Date() } })
   const { csrfToken } = await createSession(res, user.id)
   await audit({ actorUserId: user.id, actorKind: 'user', action: created ? `auth.signup.${method}` : `auth.login.${method}`, entityType: 'user', entityId: user.id })
+  // Signing in proves the address: any review sent from it shows "Verified email".
+  if (user.emailVerifiedAt) await signedInWithEmail(user.email)
   return {
     user: { id: user.id, email: user.email, name: user.name, isPlatformAdmin: user.isPlatformAdmin },
     csrfToken,

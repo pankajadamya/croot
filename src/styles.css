@@ -5364,3 +5364,83 @@ a.review-date:hover {
 .share-link-qr figcaption {
   max-width: 22rem;
 }
+
+/* "Verified email" on a public review (VerifiedBadge): green, and a link to how reviews are verified. */
+.review-badge.is-verified {
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+  color: var(--ok);
+  font-weight: 600;
+  text-decoration: none;
+}
+.review-badge.is-verified:hover {
+  text-decoration: underline;
+}
+.story-byline-name .review-badge {
+  font-size: 0.75rem;
+  vertical-align: middle;
+}
+
+/* Thank-you page: confirm your email (VerifyCard) and share the journey (ShareJourney). */
+.verify-card {
+  margin: 1.5rem 0;
+  padding: 1.1rem 1.2rem;
+  border: 2px solid color-mix(in srgb, var(--ok) 55%, var(--border));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--ok) 6%, var(--surface));
+}
+.verify-card h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.2rem;
+}
+.verify-card.is-done {
+  border-color: var(--ok);
+}
+.verify-code-form {
+  display: grid;
+  gap: 0.4rem;
+  justify-items: start;
+}
+.verify-code-form input {
+  width: 8.5rem;
+  font-size: 1.25rem;
+  letter-spacing: 0.25em;
+  text-align: center;
+}
+.verify-done-note {
+  color: var(--ok);
+  font-weight: 600;
+}
+.share-journey {
+  margin: 1.5rem 0;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--border);
+}
+.share-journey h2 {
+  margin: 0 0 0.3rem;
+  font-size: 1.1rem;
+}
+.verification-status {
+  margin-top: 0.45rem;
+}
+.share-journey.is-compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.8rem;
+  margin: 0.4rem 0 1.4rem;
+  padding: 0;
+  border: 0;
+}
+.share-journey h3 {
+  margin: 0 0 0.3rem;
+  font-size: 1.05rem;
+}
+.verify-dialog .confirm-dialog-body h2 {
+  margin-top: 0;
+}
+.verify-reminder {
+  padding: 0.7rem 0.9rem;
+  border-left: 4px solid var(--ok);
+  background: color-mix(in srgb, var(--ok) 7%, var(--surface));
+  border-radius: var(--radius-sm);
+}

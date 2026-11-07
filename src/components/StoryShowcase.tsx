@@ -7,6 +7,8 @@ export interface ShowcaseStory {
   excerpt: string
   excerptIsFull: boolean
   displayName: string | null
+  /** The guest proved they own the address the review came from. */
+  verified?: boolean
   photo: { url: string } | null
   photos?: Array<{ id: string; url: string; alt: string; caption: string; hearts: number }>
   title?: string | null

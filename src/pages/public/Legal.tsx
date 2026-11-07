@@ -25,6 +25,7 @@ function Shell({ title, version, children }: { title: string; version: string; c
           <Link to="/legal/privacy">Platform privacy notice</Link>
           <Link to="/legal/terms">Data processing terms</Link>
           <Link to="/legal/cookies">Cookies</Link>
+          <Link to="/legal/verification">How we verify reviews</Link>
         </nav>
       </article>
     </main>
@@ -165,8 +166,46 @@ function Cookies() {
   )
 }
 
+function Verification() {
+  return (
+    <Shell title="How we verify reviews" version="2026-11-1">
+      <p>
+        Reviews on Croot are written by guests an organiser invited (or confirmed as a guest), through a private link. Some reviews also show{' '}
+        <strong>✓ Verified email</strong>. This page explains what that means, and what it doesn’t.
+      </p>
+      <h2>What “Verified email” means</h2>
+      <p>The guest proved they own the email address the review came from, in one of these ways:</p>
+      <ul>
+        <li>they wrote it through a private link Croot emailed to that address (the organiser never sees that link);</li>
+        <li>they signed in to Croot with that address, by an emailed code or Google;</li>
+        <li>they entered a one-time code Croot emailed to that address;</li>
+        <li>they confirmed it from a verification email Croot sent to that address.</li>
+      </ul>
+      <p>If the organiser later changes a guest’s address, the badge is removed until the guest proves the new one.</p>
+      <h2>What it doesn’t mean</h2>
+      <p>
+        It shows the reviewer controls that email address. It doesn’t prove on its own that they attended, or that they are independent of the
+        organiser. Organisers add their guests’ addresses themselves, so we also look for warning signs, for example an address that belongs to
+        someone in the organisation, or one changed after the review was sent. Organisations found posting reviews that aren’t genuine can be
+        suspended or removed from Croot.
+      </p>
+      <h2>What we never do</h2>
+      <ul>
+        <li>Organisers can’t edit a guest’s words. To change them, they ask the guest, who rewrites them.</li>
+        <li>Reviews are shown newest first, never sorted by rating.</li>
+        <li>We don’t pay or reward guests for reviews, or for good ratings.</li>
+      </ul>
+      <h2>Something not right?</h2>
+      <p>
+        If you think a review isn’t genuine, tell us at <a href={`mailto:${PLATFORM_OPERATOR.email}`}>{PLATFORM_OPERATOR.email}</a> with a link to it.
+      </p>
+    </Shell>
+  )
+}
+
 export default function Legal() {
   const { doc } = useParams()
+  if (doc === 'verification') return <Verification />
   if (doc === 'privacy') return <PlatformPrivacy />
   if (doc === 'terms') return <ProcessingTerms />
   if (doc === 'cookies') return <Cookies />

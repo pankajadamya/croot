@@ -55,6 +55,67 @@ function Section({ id, title, children, note }: { id: string; title: string; chi
   )
 }
 
+/**
+ * "Verified email" on this review, or a way to ask the guest to confirm it's theirs (Croot emails them a
+ * one-click link; twice at most). A guest who joined by the group link must be confirmed as a guest
+ * before their review can be published.
+ */
+function VerificationStatus({ orgSlug, r, refresh }: { orgSlug: string; r: ResponseDetailData; refresh: () => void }) {
+  const v = r.verification!
+  const [note, setNote] = useState<string | null>(null)
+  const ask = useMutation({
+    mutationFn: () => post<{ remaining: number }>(`${orgApi(orgSlug)}/responses/${r.id}/request-verification`),
+    onSuccess: (d) => {
+      setNote(`Sent. ${r.attendee.name} gets a one-click link to confirm.${d.remaining ? '' : ' That was the last request Croot will send.'}`)
+      refresh()
+    },
+  })
+  const confirmGuest = useMutation({
+    mutationFn: () => post(`${orgApi(orgSlug)}/attendees/${v.attendeeId}/confirm-guest`),
+    onSuccess: refresh,
+  })
+  return (
+    <div className="verification-status small">
+      {v.verified ? (
+        <span className="review-badge is-verified">
+          <span aria-hidden="true">✓</span> Verified email
+        </span>
+      ) : (
+        <span>
+          <span className="review-badge">Email not verified</span>{' '}
+          {r.submittedAt && v.hasEmail && v.requestsSent < 2 && (
+            <button type="button" className="link-button" disabled={ask.isPending} onClick={() => ask.mutate()}>
+              {ask.isPending ? 'Sending…' : v.requestsSent ? 'Ask again to confirm it’s theirs' : 'Ask them to confirm it’s theirs'}
+            </button>
+          )}
+          {v.hasEmail && v.requestsSent >= 2 && <span className="muted"> Asked twice already.</span>}
+          {!v.hasEmail && <span className="muted"> No email address to confirm.</span>}
+        </span>
+      )}
+      {v.joinedByGroupLink && (
+        <span style={{ marginLeft: '0.5rem' }}>
+          {v.confirmedGuest ? (
+            <span className="review-badge">Joined by group link · confirmed guest</span>
+          ) : (
+            <>
+              <span className="review-badge">Joined by group link · not on your guest list</span>{' '}
+              <button type="button" className="link-button" disabled={confirmGuest.isPending} onClick={() => confirmGuest.mutate()}>
+                Confirm they were your guest
+              </button>
+            </>
+          )}
+        </span>
+      )}
+      {note && (
+        <span role="status" className="muted" style={{ display: 'block', marginTop: '0.3rem' }}>
+          {note}
+        </span>
+      )}
+      <MutationError error={ask.error || confirmGuest.error} />
+    </div>
+  )
+}
+
 function Detail({ orgSlug, r, refresh }: { orgSlug: string; r: ResponseDetailData; refresh: () => void }) {
   const story = r.publicStory
   const hasStory = story.text.trim().length > 0
@@ -79,6 +140,7 @@ function Detail({ orgSlug, r, refresh }: { orgSlug: string; r: ResponseDetailDat
               </>
             )}
           </p>
+          {r.verification && <VerificationStatus orgSlug={orgSlug} r={r} refresh={refresh} />}
         </div>
         <div className="row">
           <ResponseStatusBadge status={r.status} />
