@@ -33,7 +33,7 @@ attendeesRouter.get(
       orderBy: { name: 'asc' },
       include: {
         invitations: { orderBy: { issuedAt: 'desc' }, take: 1 },
-        response: { select: { id: true, status: true, consentPublicText: true, publicationStatus: true, updatedAt: true, verifiedAt: true } },
+        response: { select: { id: true, status: true, consentPublicText: true, publicationStatus: true, updatedAt: true, verifiedAt: true, submittedAt: true } },
       },
     })
     const now = new Date()
@@ -65,6 +65,9 @@ attendeesRouter.get(
           verified: Boolean(r?.verifiedAt),
           source: a.source,
           guestConfirmed: a.source !== 'group_link' || Boolean(a.guestListConfirmedAt),
+          // Guests who came together (organiser-grouped): one review from the party counts it as responded.
+          partyId: a.partyId,
+          sent: Boolean(r?.submittedAt),
           invitation: inv
             ? { hint: inv.tokenHint, issuedAt: inv.issuedAt, expiresAt: inv.expiresAt, openedAt: inv.openedAt, lastUsedAt: inv.lastUsedAt, revoked: Boolean(inv.revokedAt), emailedAt: inv.emailedAt }
             : null,
@@ -217,10 +220,12 @@ attendeesRouter.post(
     const t = tenantOf(req)
     const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
     if (retreat.status !== 'collecting') throw new HttpError(409, 'Start collecting reviews first, so the links work.')
+    const partiesDone = await partiesThatReviewed(retreat.id)
     const attendees = await prisma.attendee.findMany({
       where: {
         organisationId: t.org.id,
         retreatId: retreat.id,
+        AND: [{ OR: [{ partyId: null }, { partyId: { notIn: partiesDone } }] }],
         email: { not: null }, // guests without an email get their link from the organiser
         invitations: { none: { emailedAt: { not: null }, revokedAt: null } },
         OR: [{ response: null }, { response: { submittedAt: null } }],
@@ -308,6 +313,55 @@ attendeesRouter.delete(
     if (response && response.status !== 'draft') throw new HttpError(409, 'This guest has submitted a response; remove it through the retention process instead.')
     await prisma.attendee.delete({ where: { id: attendee.id } })
     await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'attendee.removed', entityType: 'attendee', entityId: attendee.id })
+    res.status(204).end()
+  }),
+)
+
+/** Parties on a retreat where at least one member has sent a review. */
+export async function partiesThatReviewed(retreatId: string): Promise<string[]> {
+  const rows = await prisma.attendee.findMany({
+    where: { retreatId, partyId: { not: null }, response: { submittedAt: { not: null } } },
+    select: { partyId: true },
+    distinct: ['partyId'],
+  })
+  return rows.map((r) => r.partyId!)
+}
+
+/**
+ * Groups guests who came together (a couple, a family) into one party. Anyone already in a party brings
+ * their whole party along, so groups merge rather than split.
+ */
+attendeesRouter.post(
+  '/retreats/:retreatId/parties',
+  route(async (req, res) => {
+    const t = tenantOf(req)
+    const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
+    const { attendeeIds } = parseBody(z.object({ attendeeIds: z.array(z.uuid()).min(2, 'Choose at least two guests').max(50) }), req.body)
+    const chosen = await prisma.attendee.findMany({ where: { id: { in: attendeeIds }, organisationId: t.org.id, retreatId: retreat.id }, select: { id: true, partyId: true } })
+    if (chosen.length !== new Set(attendeeIds).size) throw new HttpError(404, 'Some of those guests aren’t on this list')
+    const existing = [...new Set(chosen.map((a) => a.partyId).filter((p): p is string => Boolean(p)))]
+    const partyId = existing[0] ?? crypto.randomUUID()
+    await prisma.attendee.updateMany({
+      where: { retreatId: retreat.id, OR: [{ id: { in: attendeeIds } }, ...(existing.length ? [{ partyId: { in: existing } }] : [])] },
+      data: { partyId },
+    })
+    await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'attendees.grouped', entityType: 'retreat', entityId: retreat.id, metadata: { count: attendeeIds.length } })
+    res.json({ partyId })
+  }),
+)
+
+/** Takes a guest out of their party (a party of one isn't a party, so the last member leaves too). */
+attendeesRouter.delete(
+  '/attendees/:attendeeId/party',
+  route(async (req, res) => {
+    const t = tenantOf(req)
+    const attendee = await tenantAttendee(t.org.id, uuidParam(req, 'attendeeId'))
+    if (attendee.partyId) {
+      await prisma.attendee.update({ where: { id: attendee.id }, data: { partyId: null } })
+      const left = await prisma.attendee.findMany({ where: { partyId: attendee.partyId }, select: { id: true } })
+      if (left.length === 1) await prisma.attendee.update({ where: { id: left[0].id }, data: { partyId: null } })
+      await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'attendees.ungrouped', entityType: 'attendee', entityId: attendee.id })
+    }
     res.status(204).end()
   }),
 )

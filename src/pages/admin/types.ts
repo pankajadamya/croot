@@ -52,6 +52,9 @@ export interface RetreatStats {
   published: number
   anonymousNotes: number
   openRequests?: number
+  /** Guests who came together count once (a guest on their own is a party of one). */
+  parties?: number
+  partiesResponded?: number
 }
 
 export interface RetreatSummary {
@@ -96,6 +99,9 @@ export interface AttendeeRowView {
   stayEnd?: string | null
   responseId: string | null
   verified?: boolean
+  /** Guests who came together share a party; sent: this guest has sent their review. */
+  partyId?: string | null
+  sent?: boolean
   source?: 'invited' | 'group_link'
   guestConfirmed?: boolean
   invitation: { hint: string; issuedAt: string; expiresAt: string; openedAt: string | null; lastUsedAt: string | null; revoked: boolean; emailedAt?: string | null } | null
@@ -138,7 +144,7 @@ export interface ResponseDetailData {
   submittedAt: string | null
   organiserMessage: string | null
   verification?: { verified: boolean; requestsSent: number; hasEmail: boolean; joinedByGroupLink: boolean; confirmedGuest: boolean; attendeeId: string }
-  publicStory: { title: string; text: string; submittedText: string | null; overallRating: number | null; suggestedExcerpt: string }
+  publicStory: { title: string; text: string; submittedText: string | null; overallRating: number | null; suggestedExcerpt: string; company?: string }
   privateFeedback: {
     ratings: Array<{ key: string; label: string; score: number | null; notApplicable: boolean; comment: string }>
     keepText: string | null

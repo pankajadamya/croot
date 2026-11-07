@@ -352,6 +352,9 @@ model Attendee {
   emailVerifiedAt DateTime?
   /// When the organiser last changed the address (a signal for the review-credibility checks).
   emailChangedAt DateTime?
+  /// Guests who came together (a couple, a family) share a party: the organiser groups them. One review
+  /// from the party counts it as responded, and the others aren't chased by bulk emails (they may still write).
+  partyId        String?  @db.Uuid
   createdAt      DateTime @default(now())
 
   retreat     Retreat      @relation(fields: [retreatId], references: [id], onDelete: Cascade)
@@ -359,6 +362,7 @@ model Attendee {
   response    Response?
 
   @@unique([retreatId, email])
+  @@index([partyId])
   @@index([organisationId, retreatId])
 }
 
@@ -414,6 +418,10 @@ model Response {
   storyTitle     String         @default("")
   storyText      String         @default("")
   overallRating  Int?
+  /// "Who did you go with?": solo (the default), partner, friends, family or colleagues; and how many in all.
+  /// Shown on the public review as e.g. "Travelled as a couple" (never who with). One review is one vote.
+  travelledWith  String         @default("solo")
+  partySize      Int            @default(1)
 
   // 2. Private feedback (ratings are FeedbackRating rows)
   keepText       String         @default("")

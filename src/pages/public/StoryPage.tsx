@@ -29,6 +29,7 @@ interface StoryPublic {
     displayName: string | null
     overallRating: number | null
     verified?: boolean
+    company?: string | null
     photos: Array<{ url: string; alt: string; caption: string; width: number; height: number }>
   }
 }
@@ -113,6 +114,7 @@ export default function StoryPage() {
                   </span>
                   <span className="muted small">
                     <time dateTime={story.postedAt}>{formatDate(story.postedAt)}</time> · <Link to={retreatPath}>{retreat.title}</Link>
+                    {story.company && <> · {story.company}</>}
                   </span>
                 </span>
               </div>

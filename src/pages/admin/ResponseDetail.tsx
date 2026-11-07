@@ -180,6 +180,11 @@ function Detail({ orgSlug, r, refresh }: { orgSlug: string; r: ResponseDetailDat
               'Not given'
             )}
           </p>
+          {story.company && (
+            <p>
+              <strong>Who they went with:</strong> {story.company}
+            </p>
+          )}
         </Section>
 
         <Section id="sec-private" title="Private feedback" note="Never published. Visible only to your team.">

@@ -5444,3 +5444,72 @@ a.review-date:hover {
   background: color-mix(in srgb, var(--ok) 7%, var(--surface));
   border-radius: var(--radius-sm);
 }
+
+/* Review form: "Who did you go with?" (On my own pre-selected), as compact pills. */
+.company-question {
+  border: 0;
+  padding: 0;
+  margin: 1.4rem 0 0.4rem;
+}
+.company-question legend {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+.company-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+.company-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.85rem;
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-weight: 500;
+  cursor: pointer;
+}
+.company-option input {
+  margin: 0;
+  accent-color: var(--button);
+}
+.company-option.is-chosen {
+  border-color: var(--button);
+  background: color-mix(in srgb, var(--button) 8%, var(--surface));
+}
+.company-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+  font-weight: 500;
+}
+.company-size input {
+  width: 4.5rem;
+}
+/* On public reviews: "Travelled as a couple". */
+.review-company {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+/* Invitations: grouping guests who came together into a party. */
+.party-bar {
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+  margin: 0.4rem 0 0.8rem;
+}
+.party-bar .muted {
+  flex: 1 1 22rem;
+}
+.select-cell {
+  width: 2rem;
+}
+.party-note {
+  margin-top: 0.2rem;
+  color: var(--text);
+}

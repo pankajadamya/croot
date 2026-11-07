@@ -9,6 +9,8 @@ export interface ShowcaseStory {
   displayName: string | null
   /** The guest proved they own the address the review came from. */
   verified?: boolean
+  /** "Travelled as a couple" and the like; null for the default, on their own. */
+  company?: string | null
   photo: { url: string } | null
   photos?: Array<{ id: string; url: string; alt: string; caption: string; hearts: number }>
   title?: string | null

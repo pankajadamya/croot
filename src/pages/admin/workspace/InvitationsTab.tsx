@@ -176,8 +176,36 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
     },
   })
   const collecting = retreat.status === 'collecting'
+  const partiesReviewed = new Set((attendees.data ?? []).filter((a) => a.partyId && a.sent).map((a) => a.partyId!))
+  const membersOf = (a: AttendeeRowView) => (a.partyId ? (attendees.data ?? []).filter((b) => b.partyId === a.partyId && b.id !== a.id) : [])
   const toEmail =
-    attendees.data?.filter((a) => a.email && !(a.invitation?.emailedAt && !a.invitation.revoked) && !['submitted', 'consented', 'published', 'withdrawn'].includes(a.state)).length ?? 0
+    attendees.data?.filter(
+      (a) =>
+        a.email &&
+        !(a.partyId && partiesReviewed.has(a.partyId)) &&
+        !(a.invitation?.emailedAt && !a.invitation.revoked) &&
+        !['submitted', 'consented', 'published', 'withdrawn'].includes(a.state),
+    ).length ?? 0
+  // Grouping guests who came together into a party.
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const toggle = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  const group = useMutation({
+    mutationFn: (ids: string[]) => post(`${base}/parties`, { attendeeIds: ids }),
+    onSuccess: () => {
+      setSelected(new Set())
+      refresh()
+    },
+  })
+  const ungroup = useMutation({
+    mutationFn: (a: AttendeeRowView) => del(`${orgApi(orgSlug)}/attendees/${a.id}/party`),
+    onSuccess: refresh,
+  })
 
   // Copied-but-not-sent links can't be shown again, so warn before leaving with them on screen.
   useEffect(() => {
@@ -189,7 +217,7 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
 
   const withoutLink = attendees.data?.filter((a) => !a.invitation).length ?? 0
   const allLinksText = issued.map((l) => `${l.name}\t${l.email ?? 'no email'}\t${l.url}`).join('\n')
-  const rowError = issue.error || revoke.error || remove.error || erase.error || confirmGuest.error || emailOne.error || emailAll.error
+  const rowError = issue.error || revoke.error || remove.error || erase.error || confirmGuest.error || group.error || ungroup.error || emailOne.error || emailAll.error
 
   return (
     <div className="stack">
@@ -289,11 +317,25 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
         {attendees.isLoading && <Loading />}
         {attendees.error && <ErrorNotice error={attendees.error} />}
         {attendees.data && attendees.data.length === 0 && <p className="muted">No guests yet. Import a list or add someone below.</p>}
+        {attendees.data && attendees.data.length > 1 && (
+          <div className="party-bar row small">
+            <span className="muted">
+              Came together (a couple, a family)? Tick them and group them: one review then counts the party as responded, and the others aren’t
+              chased by “Email invitations”. Each still has their own link and may write too.
+            </span>
+            <button type="button" className="btn secondary small" disabled={selected.size < 2 || group.isPending} onClick={() => group.mutate([...selected])}>
+              {group.isPending ? 'Grouping…' : selected.size >= 2 ? `Group ${selected.size} as one party` : 'Group as one party'}
+            </button>
+          </div>
+        )}
         {attendees.data && attendees.data.length > 0 && (
           <div className="table-wrap">
             <table className="data stack-mobile">
               <thead>
                 <tr>
+                  <th scope="col">
+                    <span className="sr-only">Select to group</span>
+                  </th>
                   <th scope="col">Guest</th>
                   {isProperty && <th scope="col">Stay</th>}
                   <th scope="col">Status</th>
@@ -304,8 +346,20 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
               <tbody>
                 {attendees.data.map((a) => (
                   <tr key={a.id}>
+                    <td className="select-cell">
+                      <input type="checkbox" aria-label={`Select ${a.name} to group`} checked={selected.has(a.id)} onChange={() => toggle(a.id)} />
+                    </td>
                     <td>
                       {a.responseId ? <Link to={`/admin/${orgSlug}/responses/${a.responseId}`}>{a.name}</Link> : a.name}
+                      {a.partyId && (
+                        <div className="small party-note">
+                          Came with {membersOf(a).map((b) => b.name).join(', ') || 'their party'}
+                          {!a.sent && partiesReviewed.has(a.partyId) && <span className="muted"> · their party has reviewed</span>}{' '}
+                          <button type="button" className="link-button" disabled={ungroup.isPending} onClick={() => ungroup.mutate(a)}>
+                            Ungroup
+                          </button>
+                        </div>
+                      )}
                       {a.email ? <div className="small muted">{a.email}</div> : <AddEmail orgSlug={orgSlug} attendee={a} onAdded={refresh} />}
                       {a.emailProblem && <EmailProblem orgSlug={orgSlug} attendee={a} onFixed={refresh} />}
                       {(a.verified || a.source === 'group_link') && (

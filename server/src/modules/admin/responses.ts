@@ -3,6 +3,7 @@ import { z } from 'zod'
 import type { Prisma } from '@prisma/client'
 import { SCALE_LABELS, type FeedbackCategory } from '../../../../shared/categories.js'
 import { autoExcerpt } from '../../../../shared/excerpt.js'
+import { companyLabel } from '../../../../shared/company.js'
 import { audit } from '../../lib/audit.js'
 import { toCsv } from '../../lib/csv.js'
 import { HttpError, parseBody, route, text, uuidParam } from '../../lib/http.js'
@@ -123,6 +124,7 @@ responsesRouter.get(
         submittedText: (r.submittedSnapshot as { storyText?: string } | null)?.storyText ?? null,
         overallRating: r.overallRating,
         suggestedExcerpt: autoExcerpt(r.storyText),
+        company: companyLabel(r.retreat.kind, r.travelledWith, r.partySize) ?? 'Came on their own (or didn’t say)',
       },
       privateFeedback: {
         ratings: categories.map((c) => {

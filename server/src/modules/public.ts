@@ -1,3 +1,4 @@
+import { companyLabel } from '../../../shared/company.js'
 import { Router } from 'express'
 import { z } from 'zod'
 import type { PublicationRevision } from '@prisma/client'
@@ -60,10 +61,12 @@ publicRouter.get(
   }),
 )
 
-async function liveStories(retreatId: string): Promise<Array<PublicationRevision & { publicSlug: string; pinned: boolean; postedAt: Date; verified: boolean }>> {
+async function liveStories(
+  retreatId: string,
+): Promise<Array<PublicationRevision & { publicSlug: string; pinned: boolean; postedAt: Date; verified: boolean; travelledWith: string; partySize: number }>> {
   const responses = await prisma.response.findMany({
     where: { retreatId, publicationStatus: 'published', publicSlug: { not: null } },
-    select: { id: true, publicSlug: true, pinned: true, submittedAt: true, verifiedAt: true },
+    select: { id: true, publicSlug: true, pinned: true, submittedAt: true, verifiedAt: true, travelledWith: true, partySize: true },
   })
   if (!responses.length) return []
   const revisions = await prisma.publicationRevision.findMany({
@@ -82,7 +85,7 @@ async function liveStories(retreatId: string): Promise<Array<PublicationRevision
       (a, b) =>
         (b.meta.submittedAt?.getTime() ?? firstPublished.get(b.meta.id) ?? 0) - (a.meta.submittedAt?.getTime() ?? firstPublished.get(a.meta.id) ?? 0),
     )
-    .map(({ meta, rev }) => ({ ...rev, publicSlug: meta.publicSlug!, pinned: meta.pinned, postedAt: meta.submittedAt ?? rev.createdAt, verified: Boolean(meta.verifiedAt) }))
+    .map(({ meta, rev }) => ({ ...rev, publicSlug: meta.publicSlug!, pinned: meta.pinned, postedAt: meta.submittedAt ?? rev.createdAt, verified: Boolean(meta.verifiedAt), travelledWith: meta.travelledWith, partySize: meta.partySize }))
 }
 
 async function heroImages(retreatId: string) {
@@ -139,6 +142,8 @@ publicRouter.get(
         displayName: s.displayName,
         // "Verified email": the guest proved they own the address the review came from (see /legal/verification).
         verified: s.verified,
+        // "Travelled as a couple" and the like; none for the default, "on my own".
+        company: companyLabel(retreat.kind, s.travelledWith, s.partySize),
         photo: s.photoIds[0] && visible.has(s.photoIds[0]) ? { url: `/media/${s.photoIds[0]}` } : null,
         // The guest's own published photos, shown alongside their review.
         photos: s.photoIds
@@ -297,7 +302,7 @@ publicRouter.get(
     }
     const photos = await prisma.mediaAsset.findMany({ where: { id: { in: live.photoIds }, publishConsent: true, moderation: 'approved', removedAt: null } })
     const byId = new Map(photos.map((p) => [p.id, p]))
-    const submitted = await prisma.response.findUnique({ where: { id: response.id }, select: { submittedAt: true, verifiedAt: true } })
+    const submitted = await prisma.response.findUnique({ where: { id: response.id }, select: { submittedAt: true, verifiedAt: true, travelledWith: true, partySize: true } })
 
     // When the guest shared no photos, the viewer uses the organiser's own public retreat photos (in a
     // shuffled order). Never the thank-you album: that is private to guests who reviewed.
@@ -343,6 +348,7 @@ publicRouter.get(
         slug,
         postedAt: submitted?.submittedAt ?? live.createdAt,
         verified: Boolean(submitted?.verifiedAt),
+        company: submitted ? companyLabel(retreat.kind, submitted.travelledWith, submitted.partySize) : null,
         helpful: (await helpfulCounts([response.id])).get(response.id) ?? 0,
         title: live.title,
         text: live.storyText,

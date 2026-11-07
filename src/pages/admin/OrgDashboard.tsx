@@ -84,6 +84,11 @@ export default function OrgDashboard() {
                         <dt className="small muted">{label}</dt>
                         <dd style={{ margin: 0 }}>
                           <b>{r.stats[key]}</b>
+                          {key === 'submitted' && r.stats.parties !== undefined && r.stats.parties !== r.stats.attendees && (
+                            <span className="small muted" style={{ display: 'block' }}>
+                              {r.stats.partiesResponded} of {r.stats.parties} parties
+                            </span>
+                          )}
                         </dd>
                       </div>
                     ))}

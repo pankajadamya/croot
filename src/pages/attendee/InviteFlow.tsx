@@ -1,3 +1,4 @@
+import { MAX_PARTY_SIZE, TRAVELLED_WITH, type TravelledWith } from '../../../shared/company'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { UploadZone } from '../../components/UploadZone'
 import { IMAGE_ACCEPT, MAX_UPLOAD_MB, prepareImage, captureTimeOf } from '../../lib/prepareImage'
@@ -71,6 +72,8 @@ interface InviteView {
     storyTitle: string
     storyText: string
     overallRating: number | null
+    travelledWith?: TravelledWith
+    partySize?: number
     keepText: string
     changeText: string
     consents: Consents
@@ -89,6 +92,8 @@ interface Draft {
   storyTitle: string
   storyText: string
   overallRating: number | null
+  travelledWith: TravelledWith
+  partySize: number
   keepText: string
   changeText: string
   consents: Consents
@@ -128,6 +133,9 @@ function emptyDraft(view: InviteView): Draft {
     storyTitle: r?.storyTitle ?? '',
     storyText: r?.storyText ?? '',
     overallRating: r?.overallRating ?? null,
+    // "On my own" unless they say otherwise: nothing to do for most guests.
+    travelledWith: r?.travelledWith ?? 'solo',
+    partySize: r?.partySize ?? 1,
     keepText: r?.keepText ?? '',
     changeText: r?.changeText ?? '',
     consents: r?.consents ?? { publicText: false, firstName: false, followUp: false, marketing: false, photoMarketing: null },
@@ -231,6 +239,8 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
         storyTitle: draft.storyTitle,
         storyText: draft.storyText,
         overallRating: draft.overallRating,
+        travelledWith: draft.travelledWith,
+        partySize: draft.partySize,
         keepText: draft.keepText,
         changeText: draft.changeText,
         consents: draft.consents,
@@ -765,6 +775,40 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                 allowNotApplicable={false}
                 onChange={({ score }) => update({ overallRating: score })}
               />
+              <fieldset className="company-question">
+                <legend>Who did you go with?</legend>
+                <div className="company-options" role="radiogroup">
+                  {TRAVELLED_WITH.map((o) => (
+                    <label key={o.id} className={`company-option ${draft.travelledWith === o.id ? 'is-chosen' : ''}`}>
+                      <input
+                        type="radio"
+                        name="travelled-with"
+                        value={o.id}
+                        checked={draft.travelledWith === o.id}
+                        onChange={() =>
+                          update({ travelledWith: o.id, partySize: o.id === 'solo' ? 1 : o.id === 'partner' ? 2 : Math.max(draft.partySize, 2) })
+                        }
+                      />
+                      {o.label}
+                    </label>
+                  ))}
+                </div>
+                {['friends', 'family', 'colleagues'].includes(draft.travelledWith) && (
+                  <label className="company-size">
+                    How many of you, including you?{' '}
+                    <input
+                      type="number"
+                      min={2}
+                      max={MAX_PARTY_SIZE}
+                      value={draft.partySize}
+                      onChange={(e) => update({ partySize: Math.min(MAX_PARTY_SIZE, Math.max(2, Number(e.target.value) || 2)) })}
+                    />
+                  </label>
+                )}
+                <p className="small muted" style={{ margin: '0.4rem 0 0' }}>
+                  If you share your story, it shows a short note like “Travelled as a couple”, never who you went with.
+                </p>
+              </fieldset>
               <Actions step={step} goTo={goTo} saveLabel={saveLabel[saveState]} />
             </section>
           )}

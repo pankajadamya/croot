@@ -34,7 +34,7 @@ adminRouter.get(
     const t = tenantOf(req)
     const retreats = await prisma.retreat.findMany({ where: { organisationId: t.org.id }, orderBy: [{ startDate: { sort: 'desc', nulls: 'first' } }, { createdAt: 'desc' }] })
     const ids = retreats.map((r) => r.id)
-    const [attendees, opened, byStatus, published, notes, openRequests] = await Promise.all([
+    const [attendees, opened, byStatus, published, notes, openRequests, guests] = await Promise.all([
       prisma.attendee.groupBy({ by: ['retreatId'], where: { organisationId: t.org.id, retreatId: { in: ids } }, _count: true }),
       prisma.invitation.findMany({
         where: { organisationId: t.org.id, revokedAt: null, openedAt: { not: null } },
@@ -44,7 +44,18 @@ adminRouter.get(
       prisma.response.groupBy({ by: ['retreatId'], where: { organisationId: t.org.id, publicationStatus: 'published' }, _count: true }),
       prisma.anonymousNote.groupBy({ by: ['retreatId'], where: { organisationId: t.org.id }, _count: true }),
       prisma.changeRequest.findMany({ where: { organisationId: t.org.id, status: 'open' }, select: { response: { select: { retreatId: true } } } }),
+      prisma.attendee.findMany({ where: { organisationId: t.org.id, retreatId: { in: ids } }, select: { id: true, retreatId: true, partyId: true, response: { select: { submittedAt: true } } } }),
     ])
+    // Guests who came together count once: a party has responded when any of them has sent a review.
+    const partiesOf = (retreatId: string) => {
+      const groups = new Map<string, boolean>()
+      for (const g of guests) {
+        if (g.retreatId !== retreatId) continue
+        const key = g.partyId ?? g.id
+        groups.set(key, (groups.get(key) ?? false) || Boolean(g.response?.submittedAt))
+      }
+      return { parties: groups.size, partiesResponded: [...groups.values()].filter(Boolean).length }
+    }
     const count = <T extends { retreatId: string; _count: number }>(rows: T[], id: string, pred: (r: T) => boolean = () => true) =>
       rows.filter((r) => r.retreatId === id && pred(r)).reduce((n, r) => n + r._count, 0)
     res.json({
@@ -66,6 +77,7 @@ adminRouter.get(
           published: count(published, r.id),
           anonymousNotes: count(notes, r.id),
           openRequests: openRequests.filter((o) => o.response.retreatId === r.id).length,
+          ...partiesOf(r.id),
         },
       })),
     })

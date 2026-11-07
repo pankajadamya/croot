@@ -20,6 +20,7 @@ import { loginLimiter, tokenLimiter, uploadLimiter } from '../middleware/rateLim
 import { emailProven, maskEmail, verifyResponse } from '../lib/verification.js'
 import { requestCode, verifyCode } from '../lib/loginCodes.js'
 import { signedIn } from './auth.js'
+import { MAX_PARTY_SIZE, TRAVELLED_WITH_IDS } from '../../../shared/company.js'
 
 /**
  * A guest's review, reached two ways:
@@ -196,6 +197,8 @@ async function draftView(r: Review, req: Request) {
       storyTitle: response.storyTitle,
       storyText: response.storyText,
       overallRating: response.overallRating,
+      travelledWith: response.travelledWith,
+      partySize: response.partySize,
       keepText: response.keepText,
       changeText: response.changeText,
       consents: {
@@ -278,6 +281,8 @@ const draftSchema = z.object({
   storyTitle: text(120).optional(),
   storyText: text(8000).optional(),
   overallRating: z.number().int().min(1).max(5).nullable().optional(),
+  travelledWith: z.enum(TRAVELLED_WITH_IDS).optional(),
+  partySize: z.number().int().min(1).max(MAX_PARTY_SIZE).optional(),
   keepText: text(2000).optional(),
   changeText: text(2000).optional(),
   ratings: z.array(ratingSchema).max(30).optional(),
@@ -310,6 +315,11 @@ reviewRoutes.put(
     if (body.storyTitle !== undefined) data.storyTitle = body.storyTitle
     if (body.storyText !== undefined) data.storyText = body.storyText
     if (body.overallRating !== undefined) data.overallRating = body.overallRating
+    if (body.travelledWith !== undefined) {
+      data.travelledWith = body.travelledWith
+      // Alone is one; a couple is two; a group is what they said (at least two).
+      data.partySize = body.travelledWith === 'solo' ? 1 : body.travelledWith === 'partner' ? 2 : Math.max(2, body.partySize ?? 2)
+    } else if (body.partySize !== undefined) data.partySize = body.partySize
     if (body.keepText !== undefined) data.keepText = body.keepText
     if (body.changeText !== undefined) data.changeText = body.changeText
     if (body.consents?.publicText !== undefined) data.consentPublicText = body.consents.publicText

@@ -171,7 +171,7 @@ export default function PrivacyNotice() {
           <li>
             Verified reviews: when you confirm your email, we record how and when (not your address again), so your review can show “Verified
             email” and we can check reviews are genuine. It’s deleted with your review. If you joined through a group link, your email is used only
-            to confirm and manage your review, never for marketing without your consent, and never shared with anyone else.
+            to confirm and manage your review, never for marketing without your consent, and never shared with anyone else. If you say who you went with (for example your partner), only a short note like “Travelled as a couple” appears with a published story, never who.
           </li>
           <li>Next-retreat updates: deleted as soon as you unsubscribe, or after 30 days if you never confirm.</li>
         </ul>

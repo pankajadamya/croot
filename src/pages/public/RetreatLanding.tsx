@@ -231,6 +231,7 @@ export default function RetreatLanding() {
                           {s.displayName ?? 'A retreat guest'} <span className="review-badge">Invited by the organiser</span>
                           {s.verified && <VerifiedBadge />}
                         </span>
+                        {s.company && <span className="review-company">{s.company}</span>}
                         {s.postedAt && (
                           <Link className="review-date" to={`/stories/${s.slug}`} title="Open this story on its own page">
                             <time dateTime={s.postedAt}>{formatDate(s.postedAt)}</time>
