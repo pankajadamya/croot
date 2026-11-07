@@ -39,7 +39,7 @@ interface Consents {
 interface InviteView {
   firstName: string
   editable: boolean
-  /** mayChange: may reopen and change a sent review (on the private link, or signed in). */
+  /** mayChange: may reopen and change a sent review (signed in; or on the link, for a guest without an email). */
   signIn: { required: boolean; signedIn: boolean; mayChange?: boolean; canReopen: boolean }
   retreat: {
     kind: ReviewKind
@@ -471,7 +471,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                 <p className="small muted" style={{ marginTop: '1rem' }}>
                   {mayChange
                     ? 'Editing reopens your review. If it’s already published, the published version stays up until the organiser approves your changes.'
-                    : 'To change a review you’ve already sent, open your private link or sign in with the email address your invitation was sent to.'}
+                    : 'To change a review you’ve already sent, sign in with the email address your invitation was sent to.'}
                 </p>
               )}
             </>

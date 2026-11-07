@@ -1,5 +1,6 @@
 import request from 'supertest'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import { issueInvitation } from '../src/lib/invites.js'
 import { testOutbox } from '../src/lib/mailer.js'
 import { closeDatabase, prisma } from '../src/lib/prisma.js'
 import { app, invite, makeTenant, resetDatabase } from './helpers.js'
@@ -107,21 +108,32 @@ describe('guest reviews: link or sign-in', () => {
     expect(resumed.body.signIn.required).toBe(false)
   })
 
-  it('lets the guest change a sent review on their own private link, without signing in', async () => {
+  it('once sent, the link shows the review but changing it needs sign-in', async () => {
     const { token } = await sentReview()
     const view = await request(app).get(`/api/invites/${token}`)
-    expect(view.body.editable).toBe(false) // sent: reopened first, so the published version stays until approved
-    expect(view.body.signIn).toMatchObject({ required: false, signedIn: false, mayChange: true, canReopen: true })
+    expect(view.status).toBe(200) // the link still opens the thank-you page
+    expect(view.body.editable).toBe(false)
+    expect(view.body.signIn).toMatchObject({ required: true, signedIn: false, mayChange: false, canReopen: true })
+    const reopen = await request(app).post(`/api/invites/${token}/reopen`)
+    expect(reopen.status).toBe(401)
+    expect(reopen.body.details.signInRequired).toBe(true)
+    expect((await request(app).put(`/api/invites/${token}/draft`).send({ revision: 1, storyText: 'Sneaky edit.' })).status).toBe(401)
+    expect((await prisma.response.findFirstOrThrow()).storyText).toBe('First words.')
+  })
+
+  it('a guest without an email (who can’t sign in) can still change a sent review on their link', async () => {
+    const { org, retreat } = await makeTenant('alpha')
+    const attendee = await prisma.attendee.create({ data: { organisationId: org.id, retreatId: retreat.id, name: 'Ravi' } })
+    const { token } = await issueInvitation(prisma, { organisationId: org.id, attendeeId: attendee.id, ttlDays: 30 })
+    const draft = await request(app).put(`/api/invites/${token}/draft`).send({ revision: 0, storyText: 'First words.' })
+    await request(app).post(`/api/invites/${token}/submit`).send({ revision: draft.body.revision })
+    expect((await request(app).get(`/api/invites/${token}`)).body.signIn).toMatchObject({ required: false, mayChange: true })
     expect((await request(app).post(`/api/invites/${token}/reopen`)).status).toBe(200)
     const open = await request(app).get(`/api/invites/${token}`)
-    expect(open.body.editable).toBe(true)
     const saved = await request(app).put(`/api/invites/${token}/draft`).send({ revision: open.body.response.revision, storyText: 'Changed on my link.' })
     expect(saved.status).toBe(200)
     expect((await request(app).post(`/api/invites/${token}/submit`).send({ revision: saved.body.revision })).status).toBe(200)
     expect((await prisma.response.findFirstOrThrow()).storyText).toBe('Changed on my link.')
-    // The private response page (export, erase) still needs sign-in: a link can be forwarded.
-    const again = await request(app).post(`/api/invites/${token}/submit`).send({ revision: 0 })
-    expect(again.status).toBe(401)
   })
 
   it('stops a revoked link from changing a sent review', async () => {
