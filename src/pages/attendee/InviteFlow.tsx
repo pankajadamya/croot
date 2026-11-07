@@ -85,7 +85,7 @@ interface InviteView {
     storyPath?: string | null
   } | null
   /** "Verified email" on the public review, and whether the guest can confirm it now (masked address). */
-  verification?: { verified: boolean; canVerify: boolean; maskedEmail: string | null }
+  verification?: { verified: boolean; canVerify: boolean; maskedEmail: string | null; needsEmail?: boolean }
 }
 
 interface Draft {
@@ -485,7 +485,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
               <ShareJourney compact title={view.retreat.title} organiser={organiser} pagePath={view.retreat.publicPagePath} storyPath={view.response?.storyPath ?? null} />
               <p>We’ve received your review. If you agreed to publish it, it will appear on the retreat page soon, once it has been checked.</p>
               {/* Not verified yet: a pop-up (people overlook a card). Already verified: just a note, nothing to do. */}
-              {view.verification?.canVerify && view.verification.maskedEmail && (
+              {view.verification?.canVerify && (view.verification.maskedEmail || view.verification.needsEmail) && (
                 <VerifyPrompt
                   base={base}
                   maskedEmail={view.verification.maskedEmail}

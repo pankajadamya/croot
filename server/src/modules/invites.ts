@@ -20,6 +20,8 @@ import { loginLimiter, tokenLimiter, uploadLimiter } from '../middleware/rateLim
 import { emailProven, maskEmail, verifyResponse } from '../lib/verification.js'
 import { requestCode, verifyCode } from '../lib/loginCodes.js'
 import { signedIn } from './auth.js'
+import { checkGroupCode, sendGroupCode, verifiedUserFor } from '../lib/groupCodes.js'
+import { normaliseEmail } from '../lib/emailGuard.js'
 import { MAX_PARTY_SIZE, TRAVELLED_WITH_IDS } from '../../../shared/company.js'
 
 /**
@@ -218,10 +220,12 @@ async function draftView(r: Review, req: Request) {
     },
     // "Verified email" on the public review: whether it is, and whether the guest can prove it now (a code
     // to their address, shown masked so a forwarded link doesn't reveal it).
+    // A guest who joined by group link gave only a name: they add their email here (needsEmail).
     verification: {
       verified: Boolean(response?.verifiedAt),
-      canVerify: Boolean(r.attendee.email && response?.submittedAt && !response.verifiedAt),
+      canVerify: Boolean((r.attendee.email || r.attendee.source === 'group_link') && response?.submittedAt && !response.verifiedAt),
       maskedEmail: r.attendee.email ? maskEmail(r.attendee.email) : null,
+      needsEmail: !r.attendee.email && r.attendee.source === 'group_link',
     },
   }
 }
@@ -233,12 +237,20 @@ async function draftView(r: Review, req: Request) {
 reviewRoutes.post(
   '/verify/send',
   loginLimiter,
-  route(async (_req, res) => {
+  route(async (req, res) => {
     const r = current(res)
-    if (!r.attendee.email) throw new HttpError(400, 'There’s no email address to confirm. Ask the organiser to add yours.')
     if (!r.response?.submittedAt) throw new HttpError(409, 'Send your review first.')
-    await requestCode(r.attendee.email, 'signin')
-    res.json({ sentTo: maskEmail(r.attendee.email) })
+    if (r.attendee.email) {
+      await requestCode(r.attendee.email, 'signin')
+      return res.json({ sentTo: maskEmail(r.attendee.email) })
+    }
+    // Joined by group link with just a name: they give the address to confirm.
+    if (r.attendee.source !== 'group_link') throw new HttpError(400, 'There’s no email address to confirm. Ask the organiser to add yours.')
+    const { email } = parseBody(z.object({ email: z.email().max(200) }), req.body)
+    const address = normaliseEmail(email)
+    await assertAddressFree(r, address)
+    await sendGroupCode({ organisationId: r.retreat.organisationId, retreatId: r.retreat.id, retreatTitle: r.retreat.title, email: address, name: r.attendee.name })
+    res.json({ sentTo: maskEmail(address) })
   }),
 )
 
@@ -247,14 +259,31 @@ reviewRoutes.post(
   loginLimiter,
   route(async (req, res) => {
     const r = current(res)
-    if (!r.attendee.email) throw new HttpError(400, 'There’s no email address to confirm.')
-    const { code } = parseBody(z.object({ code: z.string().trim().max(12) }), req.body)
-    const result = await verifyCode(r.attendee.email, code.replace(/\s+/g, ''))
-    if (!result.ok) throw new HttpError(401, 'That code is not valid or has expired. Request a new one.')
+    const body = parseBody(z.object({ code: z.string().trim().max(12), email: z.email().max(200).optional() }), req.body)
+    if (r.attendee.email) {
+      const result = await verifyCode(r.attendee.email, body.code.replace(/\s+/g, ''))
+      if (!result.ok) throw new HttpError(401, 'That code is not valid or has expired. Request a new one.')
+      await emailProven(r.attendee.id, 'code')
+      return res.json(await signedIn(res, result.userId, 'code', result.created))
+    }
+    if (r.attendee.source !== 'group_link' || !body.email) throw new HttpError(400, 'There’s no email address to confirm.')
+    const address = await checkGroupCode(r.retreat.id, body.email, body.code)
+    await assertAddressFree(r, address)
+    // The proven address becomes theirs; the guest typed it (the verification record says so).
+    await prisma.attendee.update({ where: { id: r.attendee.id }, data: { email: address } })
     await emailProven(r.attendee.id, 'code')
-    res.json(await signedIn(res, result.userId, 'code', result.created))
+    const user = await verifiedUserFor(address, r.attendee.name)
+    res.json(await signedIn(res, user.id, 'code', false))
   }),
 )
+
+/** One review per email per retreat: an address already on the guest list can't be added again. */
+async function assertAddressFree(r: Review, address: string) {
+  const taken = await prisma.attendee.findUnique({ where: { retreatId_email: { retreatId: r.retreat.id, email: address } }, select: { id: true } })
+  if (taken && taken.id !== r.attendee.id) {
+    throw new HttpError(409, 'That email already has its own review for this retreat. Use the link sent to it, or sign in with it to manage that review.')
+  }
+}
 
 reviewRoutes.get(
   '/',

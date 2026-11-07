@@ -191,12 +191,13 @@ export function groupJoinCodeEmail(to: string, code: string, retreatTitle: strin
 }
 
 /** To an organisation's owners when a group link is made: reviews must be genuine. */
-export function groupLinkWarningEmail(opts: { to: string; orgName: string; retreatTitle: string; createdBy: string; expiresAt: Date; manageUrl: string }): Mail {
-  const until = opts.expiresAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+export function groupLinkWarningEmail(opts: { to: string; orgName: string; retreatTitle: string; createdBy: string; expiresAt: Date; maxJoins: number; manageUrl: string }): Mail {
+  // A link can last as little as an hour, so the time matters (UK time).
+  const until = opts.expiresAt.toLocaleString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London', timeZoneName: 'short' })
   const text = [
-    `A group link was made for ${opts.retreatTitle} by ${opts.createdBy}. It works until ${until}.`,
+    `A group link was made for ${opts.retreatTitle} by ${opts.createdBy}. It works until ${until}, for up to ${opts.maxJoins} people.`,
     '',
-    'Anyone with a group link can confirm their email and write a review, so please share it only with people who were there.',
+    'Anyone with a group link can give their name and write a review, so please share it only with people who were there.',
     '',
     'Reviews must be genuine. Croot checks reviews for warning signs, such as addresses linked to your organisation or many reviews written in a burst. Organisations found posting or encouraging reviews that aren’t genuine can be suspended or removed from Croot, and their reviews taken down.',
     '',
@@ -205,8 +206,8 @@ export function groupLinkWarningEmail(opts: { to: string; orgName: string; retre
     `Manage or stop the link: ${opts.manageUrl}`,
   ].join('\n')
   const html = `<div style="font-family:system-ui,sans-serif;color:#183D3B;max-width:560px;line-height:1.55">
-<p>A group link was made for <strong>${escape(opts.retreatTitle)}</strong> by ${escape(opts.createdBy)}. It works until ${escape(until)}.</p>
-<p>Anyone with a group link can confirm their email and write a review, so please share it only with people who were there.</p>
+<p>A group link was made for <strong>${escape(opts.retreatTitle)}</strong> by ${escape(opts.createdBy)}. It works until ${escape(until)}, for up to ${opts.maxJoins} people.</p>
+<p>Anyone with a group link can give their name and write a review, so please share it only with people who were there.</p>
 <p style="padding:12px 14px;background:#fdf3dc;border-left:4px solid #8a5a00"><strong>Reviews must be genuine.</strong> Croot checks reviews for warning signs, such as addresses linked to your organisation or many reviews written in a burst. Organisations found posting or encouraging reviews that aren’t genuine can be suspended or removed from Croot, and their reviews taken down.</p>
 <p>Reviews from people not on your guest list can only be published after you confirm they were your guests.</p>
 <p><a href="${opts.manageUrl}">Manage or stop the link</a></p>

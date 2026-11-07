@@ -76,7 +76,7 @@ describe('verified reviews', () => {
     const { token } = await invite(org.id, retreat.id, 'Ravi', 'ravi@example.test')
     await send(token)
     const view = await request(app).get(`/api/invites/${token}`)
-    expect(view.body.verification).toEqual({ verified: false, canVerify: true, maskedEmail: 'r•••@example.test' })
+    expect(view.body.verification).toEqual({ verified: false, canVerify: true, maskedEmail: 'r•••@example.test', needsEmail: false })
 
     const sent = await request(app).post(`/api/invites/${token}/verify/send`)
     expect(sent.body.sentTo).toBe('r•••@example.test')
@@ -125,56 +125,100 @@ describe('verified reviews', () => {
 })
 
 describe('group link', () => {
-  it('needs the organiser’s acknowledgement, warns the owners, and lets people join only with an email code', async () => {
-    const { org, user, retreat } = await makeTenant('alpha')
-    const { agent, csrf } = await login(user.email)
-    const api = `/api/admin/orgs/alpha/retreats/${retreat.id}/group-link`
-    expect((await agent.post(api).set('X-CSRF-Token', csrf).send({})).status).toBe(400)
+  async function makeLink() {
+    const t = await makeTenant('alpha')
+    const { agent, csrf } = await login(t.user.email)
+    const api = `/api/admin/orgs/alpha/retreats/${t.retreat.id}/group-link`
+    expect((await agent.post(api).set('X-CSRF-Token', csrf).send({})).status).toBe(400) // must acknowledge
     const made = await agent.post(api).set('X-CSRF-Token', csrf).send({ acknowledge: true })
     expect(made.status).toBe(200)
-    expect(testOutbox.find((m) => m.to === user.email)?.text).toMatch(/Reviews must be genuine.*suspended or removed/s)
-    const gt = new URL(made.body.url).pathname.split('/').pop()!
+    return { ...t, agent, csrf, api, gt: new URL(made.body.url).pathname.split('/').pop()! }
+  }
+  const join = (gt: string, name: string) => request(app).post(`/api/group/${gt}/join`).send({ name })
 
-    // Joining: name and email, then the code.
-    expect((await request(app).get(`/api/group/${gt}`)).body.retreatTitle).toBe(retreat.title)
-    expect((await request(app).post(`/api/group/${gt}/start`).send({ name: 'Meera', email: 'Meera@Example.test' })).body.sentTo).toBe('m•••@example.test')
-    expect((await request(app).post(`/api/group/${gt}/confirm`).send({ email: 'meera@example.test', code: '000000' })).status).toBe(401)
+  it('asks only for a name; the email is optional, on the thank-you page; publishing waits for the organiser', async () => {
+    const { user, agent, csrf, gt } = await makeLink()
+    expect(testOutbox.find((m) => m.to === user.email)?.text).toMatch(/up to 20 people.*Reviews must be genuine.*suspended or removed/s)
+
+    const joined = await join(gt, 'Meera')
+    expect(joined.status).toBe(201)
+    const token = joined.body.reviewPath.match(/\/invite\/([\w-]+)/)[1]
+    const meera = await prisma.attendee.findFirstOrThrow({ where: { name: 'Meera' } })
+    expect(meera).toMatchObject({ source: 'group_link', email: null, guestListConfirmedAt: null })
+
+    await send(token)
+    const view = await request(app).get(`/api/invites/${token}`)
+    expect(view.body.verification).toEqual({ verified: false, canVerify: true, maskedEmail: null, needsEmail: true })
+
+    // Optional verification on the thank-you page: they give an email, then the code.
+    expect((await request(app).post(`/api/invites/${token}/verify/send`).send({ email: 'Meera@Example.test' })).body.sentTo).toBe('m•••@example.test')
+    expect((await request(app).post(`/api/invites/${token}/verify/confirm`).send({ email: 'meera@example.test', code: '000000' })).status).toBe(401)
     const guest = request.agent(app)
-    const joined = await guest.post(`/api/group/${gt}/confirm`).send({ email: 'meera@example.test', code: codeIn('meera@example.test') })
-    expect(joined.status).toBe(200)
-    const personal = joined.body.reviewPath.match(/\/invite\/([\w-]+)/)[1]
-    const meera = await prisma.attendee.findFirstOrThrow({ where: { email: 'meera@example.test' } })
-    expect(meera).toMatchObject({ source: 'group_link', guestListConfirmedAt: null })
-
-    // Their review is verified, but can't be published until the organiser confirms them as a guest.
-    await send(personal, guest)
-    const response = await prisma.response.findFirstOrThrow({ where: { attendeeId: meera.id }, include: { verifications: true } })
+    const ok = await guest.post(`/api/invites/${token}/verify/confirm`).send({ email: 'meera@example.test', code: codeIn('meera@example.test') })
+    expect(ok.status).toBe(200)
+    const response = await prisma.response.findFirstOrThrow({ where: { attendeeId: meera.id }, include: { verifications: true, attendee: true } })
+    expect(response.attendee.email).toBe('meera@example.test')
     expect(response.verifiedAt).not.toBeNull()
-    expect(response.verifications[0]).toMatchObject({ addressSource: 'guest', signals: { joinedByGroupLink: true, confirmedGuest: false } })
+    expect(response.verifications[0]).toMatchObject({ method: 'code', addressSource: 'guest', signals: { joinedByGroupLink: true, confirmedGuest: false } })
+    expect((await guest.get('/api/me/reviews')).body.reviews).toHaveLength(1) // signed in to manage it
+
     const publish = () => agent.post(`/api/admin/orgs/alpha/responses/${response.id}/publish`).set('X-CSRF-Token', csrf).send({})
     expect((await publish()).status).toBe(409)
     await agent.post(`/api/admin/orgs/alpha/attendees/${meera.id}/confirm-guest`).set('X-CSRF-Token', csrf)
     expect((await publish()).status).toBe(200)
+  })
 
-    // Someone already on the guest list gets their own place back, not a second review.
-    const { attendee: asha } = await invite(org.id, retreat.id, 'Asha', 'asha@example.test')
-    await request(app).post(`/api/group/${gt}/start`).send({ name: 'Asha P', email: 'asha@example.test' })
-    await request(app).post(`/api/group/${gt}/confirm`).send({ email: 'asha@example.test', code: codeIn('asha@example.test') })
-    expect(await prisma.attendee.count({ where: { email: 'asha@example.test' } })).toBe(1)
-    expect((await prisma.attendee.findUniqueOrThrow({ where: { id: asha.id } })).emailVerifiedAt).not.toBeNull()
+  it('won’t take an email that already has its own review on the retreat', async () => {
+    const { org, retreat, gt } = await makeLink()
+    await invite(org.id, retreat.id, 'Asha', 'asha@example.test')
+    const token = (await join(gt, 'Asha again')).body.reviewPath.match(/\/invite\/([\w-]+)/)[1]
+    await send(token)
+    expect((await request(app).post(`/api/invites/${token}/verify/send`).send({ email: 'asha@example.test' })).status).toBe(409)
+  })
 
-    // Stopped: the link no longer works.
+  it('takes at most 20 people', async () => {
+    const { gt } = await makeLink()
+    for (let i = 0; i < 20; i++) expect((await join(gt, `Guest ${i}`)).status).toBe(201)
+    const over = await join(gt, 'One too many')
+    expect(over.status).toBe(409)
+    expect(over.body.error).toMatch(/used by 20 people.*contact/)
+    expect((await request(app).get(`/api/group/${gt}`)).body.full).toBe(true)
+  })
+
+  it('lasts as long as the organiser chooses, from 1 hour to 7 days', async () => {
+    const { retreat, agent, csrf, api } = await makeLink()
+    const lifetime = async () => {
+      const r = await prisma.retreat.findUniqueOrThrow({ where: { id: retreat.id } })
+      return Math.round((r.groupLinkExpiresAt!.getTime() - r.groupLinkCreatedAt!.getTime()) / 3_600_000)
+    }
+    expect(await lifetime()).toBe(168) // the default: 7 days
+    expect((await agent.post(api).set('X-CSRF-Token', csrf).send({ acknowledge: true, hours: 1 })).status).toBe(200)
+    expect(await lifetime()).toBe(1)
+    expect((await agent.post(api).set('X-CSRF-Token', csrf).send({ acknowledge: true, hours: 169 })).status).toBe(400)
+    expect((await agent.post(api).set('X-CSRF-Token', csrf).send({ acknowledge: true, hours: 0 })).status).toBe(400)
+  })
+
+  it('after it runs out, points people to the organiser; a stopped link is gone', async () => {
+    const { retreat, agent, csrf, api, gt } = await makeLink()
+    const live = await prisma.retreat.findUniqueOrThrow({ where: { id: retreat.id } })
+    const days = (live.groupLinkExpiresAt!.getTime() - live.groupLinkCreatedAt!.getTime()) / 86_400_000
+    expect(Math.round(days)).toBe(7)
+    await prisma.retreat.update({ where: { id: retreat.id }, data: { groupLinkExpiresAt: new Date(Date.now() - 1000) } })
+    const expired = await request(app).get(`/api/group/${gt}`)
+    expect(expired.status).toBe(410)
+    expect(expired.body.error).toMatch(/expired\. Please contact .* for a new link/)
+    expect((await join(gt, 'Late')).status).toBe(410)
+
     await agent.delete(api).set('X-CSRF-Token', csrf)
     expect((await request(app).get(`/api/group/${gt}`)).status).toBe(404)
   })
 
-  it('limits codes per address', async () => {
-    const { user, retreat } = await makeTenant('alpha')
-    const { agent, csrf } = await login(user.email)
-    const made = await agent.post(`/api/admin/orgs/alpha/retreats/${retreat.id}/group-link`).set('X-CSRF-Token', csrf).send({ acknowledge: true })
-    const gt = new URL(made.body.url).pathname.split('/').pop()!
+  it('limits verification codes per address', async () => {
+    const { gt } = await makeLink()
+    const token = (await join(gt, 'Spam')).body.reviewPath.match(/\/invite\/([\w-]+)/)[1]
+    await send(token)
     testOutbox.length = 0
-    for (let i = 0; i < 7; i++) await request(app).post(`/api/group/${gt}/start`).send({ name: 'Spam', email: 'spam@example.test' })
+    for (let i = 0; i < 7; i++) await request(app).post(`/api/invites/${token}/verify/send`).send({ email: 'spam@example.test' })
     expect(testOutbox.filter((m) => m.to === 'spam@example.test')).toHaveLength(5)
   })
 })

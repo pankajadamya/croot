@@ -2,56 +2,54 @@ import { useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router'
 import { get, post } from '../../lib/api'
-import { useAuth, type Session } from '../../lib/auth'
 import { GuestHeader } from '../../components/AppHeader'
 import { Field } from '../../components/Controls'
 import { LinkUnavailable, Loading } from '../../components/States'
 
 /**
- * Joining by a retreat's group link: name and email, then a code emailed to that address. Only then
- * does the person get their own review link (signed in, so their review shows "Verified email").
+ * Joining by a retreat's group link: just a name, then straight into their own review. Confirming an
+ * email comes later, optionally, on the thank-you page, like everyone else. The page remembers, on this
+ * device, whose review it opened, so coming back to the group link continues it instead of adding
+ * someone new (with no email yet, this device is how they find their review again).
  */
+const remembered = (token: string) => {
+  try {
+    return window.localStorage.getItem(`croot:group:${token}`)
+  } catch {
+    return null
+  }
+}
+
 export default function GroupJoinPage() {
   const { token = '' } = useParams()
   const navigate = useNavigate()
-  const { setSession } = useAuth()
   const info = useQuery({
     queryKey: ['group', token],
-    queryFn: () => get<{ retreatTitle: string; organiser: string; kind: 'itinerary' | 'property'; privacyNoticePath: string }>(`/api/group/${token}`),
+    queryFn: () => get<{ retreatTitle: string; organiser: string; kind: 'itinerary' | 'property'; privacyNoticePath: string; full: boolean }>(`/api/group/${token}`),
     retry: false,
   })
   const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [code, setCode] = useState('')
-  const [sentTo, setSentTo] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const mine = remembered(token)
 
   if (info.error) return <LinkUnavailable message={(info.error as Error).message} />
   if (!info.data) return <Loading />
   const d = info.data
+  const visit = d.kind === 'property' ? 'stay' : 'retreat'
 
-  async function start(e?: FormEvent) {
-    e?.preventDefault()
-    setBusy(true)
-    setError(null)
-    try {
-      const r = await post<{ sentTo: string }>(`/api/group/${token}/start`, { name, email })
-      setSentTo(r.sentTo)
-    } catch (err) {
-      setError((err as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
-  async function confirm(e: FormEvent) {
+  async function join(e: FormEvent) {
     e.preventDefault()
     setBusy(true)
     setError(null)
     try {
-      const r = await post<Session & { reviewPath: string }>(`/api/group/${token}/confirm`, { email, code })
-      setSession(r)
-      navigate(r.reviewPath, { replace: true })
+      const r = await post<{ reviewPath: string }>(`/api/group/${token}/join`, { name })
+      try {
+        window.localStorage.setItem(`croot:group:${token}`, r.reviewPath)
+      } catch {
+        /* private mode: they just won't be taken back automatically */
+      }
+      navigate(r.reviewPath)
     } catch (err) {
       setError((err as Error).message)
       setBusy(false)
@@ -63,54 +61,32 @@ export default function GroupJoinPage() {
       <GuestHeader />
       <div className="narrow stack" style={{ padding: '3rem 0 4rem' }}>
         <p className="eyebrow">{d.retreatTitle}</p>
-        <h1>Share how your {d.kind === 'property' ? 'stay' : 'retreat'} was</h1>
-        <p>
-          {d.organiser} would love to hear from you. First, confirm your email: your review then shows as <strong>✓ Verified email</strong>, so future
-          guests know it’s genuine, and you can come back to change it any time.
-        </p>
-        {!sentTo ? (
-          <form className="stack" onSubmit={(e) => void start(e)} noValidate>
-            <Field id="join-name" label="Your name">
-              <input id="join-name" type="text" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} required />
-            </Field>
-            <Field id="join-email" label="Your email" hint="We email you a 6-digit code to confirm it’s yours.">
-              <input id="join-email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-            </Field>
+        <h1>How was your {visit}?</h1>
+        {mine ? (
+          <>
+            <p>You’ve already started your review on this device.</p>
             <div className="row">
-              <button type="submit" className="btn" disabled={busy || !name.trim() || !email.trim()}>
-                {busy ? 'Sending…' : 'Email me a code'}
-              </button>
+              <Link className="btn" to={mine}>
+                Continue my review
+              </Link>
             </div>
-          </form>
+          </>
+        ) : d.full ? (
+          <p className="notice warn">This link has been used by as many people as it allows. Please contact {d.organiser} for your own link.</p>
         ) : (
-          <form className="stack" onSubmit={(e) => void confirm(e)}>
-            <p role="status">
-              We’ve sent a code to <strong>{sentTo}</strong>. It expires in a few minutes.
-            </p>
-            <Field id="join-code" label="Code from the email">
-              <input
-                id="join-code"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={6}
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-                autoFocus
-                style={{ maxWidth: '9rem', fontSize: '1.25rem', letterSpacing: '0.25em', textAlign: 'center' }}
-              />
-            </Field>
-            <div className="row">
-              <button type="submit" className="btn" disabled={busy || code.length !== 6}>
-                {busy ? 'Checking…' : 'Continue to my review'}
-              </button>
-              <button type="button" className="link-button" disabled={busy} onClick={() => void start()}>
-                Send a new code
-              </button>
-              <button type="button" className="link-button" disabled={busy} onClick={() => setSentTo(null)}>
-                Use a different email
-              </button>
-            </div>
-          </form>
+          <>
+            <p>{d.organiser} would love to hear how it went. It takes a few minutes, every question is optional, and nothing is published unless you choose.</p>
+            <form className="stack" onSubmit={(e) => void join(e)} noValidate>
+              <Field id="join-name" label="Your name" hint="So the organiser knows who the review is from.">
+                <input id="join-name" type="text" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
+              </Field>
+              <div className="row">
+                <button type="submit" className="btn" disabled={busy || !name.trim()}>
+                  {busy ? 'Starting…' : 'Start my review'}
+                </button>
+              </div>
+            </form>
+          </>
         )}
         {error && (
           <p className="error" role="alert">
@@ -118,8 +94,7 @@ export default function GroupJoinPage() {
           </p>
         )}
         <p className="small muted">
-          We use your email only to confirm and manage your review. We won’t send you marketing without your consent, and we never share your email
-          with anyone else. <Link to={d.privacyNoticePath}>How your information is used</Link>
+          <Link to={d.privacyNoticePath}>How your information is used</Link>
         </p>
       </div>
     </main>

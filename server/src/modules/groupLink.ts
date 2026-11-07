@@ -1,47 +1,44 @@
-import { createHmac, randomInt } from 'node:crypto'
 import { Router } from 'express'
 import { z } from 'zod'
 import { audit } from '../lib/audit.js'
-import { normaliseEmail, sendOrgMail } from '../lib/emailGuard.js'
-import { authSecret, env } from '../lib/env.js'
+import { env } from '../lib/env.js'
 import { HttpError, parseBody, route, text, uuidParam } from '../lib/http.js'
 import { issueInvitation } from '../lib/invites.js'
-import { groupJoinCodeEmail, groupLinkWarningEmail, sendMail } from '../lib/mailer.js'
+import { groupLinkWarningEmail, sendMail } from '../lib/mailer.js'
 import { prisma } from '../lib/prisma.js'
 import { tenantAttendee, tenantRetreat } from '../lib/tenant.js'
-import { hashToken, looksLikeToken, newToken, safeEqual } from '../lib/tokens.js'
-import { maskEmail } from '../lib/verification.js'
+import { hashToken, looksLikeToken, newToken } from '../lib/tokens.js'
 import { tenantOf } from '../middleware/auth.js'
 import { loginLimiter, tokenLimiter } from '../middleware/rateLimits.js'
 import { siteOrigin } from './admin/attendees.js'
-import { signedIn } from './auth.js'
 
 /**
- * The group link (point 4): one link an organiser can share with the whole group. It never lets
- * anyone write straight away. The person gives their name and email, proves the email with a code,
- * and only then gets their own personal review link (signed in, so the review is "Verified email").
+ * The group link: one link an organiser can share with the whole group. Joining asks only for a name,
+ * so people get to writing straight away; like every guest, they're asked on the thank-you page to
+ * confirm an email (optional), which makes the review "Verified email" and lets them manage it later.
  *
  * Safeguards, because anyone the link reaches can use it:
- *   - an email code is required; one review per email per retreat (the same person gets their own
- *     review back, not a second one);
- *   - someone not on the guest list is added as "joined by group link", and their review can't be
- *     published until the organiser confirms they were a guest;
- *   - codes are rate-limited per address and per retreat, and the codes count against the
- *     organisation's daily email limit;
- *   - the link expires (the retreat's link lifetime) and can be stopped at any time;
- *   - making one emails the organisation's owners that reviews must be genuine, and that
- *     organisations found posting reviews that aren't can be suspended or removed.
+ *   - at most MAX_JOINS people per link, and it lasts as long as the organiser chose (1 hour to 7 days); after that it explains itself and
+ *     points to the organiser for a new one. It can be stopped at any time; a new one replaces it;
+ *   - someone who joins is "Joined by group link", and their review can't be published until the
+ *     organiser confirms they were a guest;
+ *   - joining is rate-limited per device, and a device that already joined is taken back to its own
+ *     review (the page remembers it) rather than adding someone new;
+ *   - making one needs the organiser to acknowledge that reviews must be genuine, and emails the
+ *     owners the same, including that organisations posting reviews that aren't can be suspended.
  */
-const CODES_PER_ADDRESS_PER_HOUR = 5
-const CODES_PER_RETREAT_PER_DAY = 200
-const MAX_ATTEMPTS = 5
-
-const hmac = (retreatId: string, email: string, code: string) => createHmac('sha256', authSecret).update(`group:${retreatId}:${email}:${code}`).digest('hex')
+export const MAX_JOINS = 20
+/** How long a group link lasts: the organiser chooses, from 1 hour to 7 days (the default). */
+export const MAX_LINK_HOURS = 7 * 24
 
 // ---------------------------------------------------------------------------------------------
 // Organiser side (mounted under /api/admin/orgs/:orgSlug)
 
 export const groupLinkAdminRouter = Router({ mergeParams: true })
+
+/** People who joined through the link that's live now (an older, replaced link's joiners don't count). */
+const joinsOn = (retreat: { id: string; groupLinkCreatedAt: Date | null }) =>
+  retreat.groupLinkCreatedAt ? prisma.attendee.count({ where: { retreatId: retreat.id, source: 'group_link', createdAt: { gte: retreat.groupLinkCreatedAt } } }) : Promise.resolve(0)
 
 groupLinkAdminRouter.get(
   '/retreats/:retreatId/group-link',
@@ -50,7 +47,14 @@ groupLinkAdminRouter.get(
     const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
     const active = Boolean(retreat.groupLinkTokenHash && retreat.groupLinkExpiresAt && retreat.groupLinkExpiresAt > new Date())
     const joined = await prisma.attendee.count({ where: { retreatId: retreat.id, source: 'group_link' } })
-    res.json({ active, createdAt: active ? retreat.groupLinkCreatedAt : null, expiresAt: active ? retreat.groupLinkExpiresAt : null, joined })
+    res.json({
+      active,
+      createdAt: active ? retreat.groupLinkCreatedAt : null,
+      expiresAt: active ? retreat.groupLinkExpiresAt : null,
+      joinedOnLink: active ? await joinsOn(retreat) : 0,
+      maxJoins: MAX_JOINS,
+      joined,
+    })
   }),
 )
 
@@ -60,11 +64,17 @@ groupLinkAdminRouter.post(
   route(async (req, res) => {
     const t = tenantOf(req)
     const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
-    parseBody(z.object({ acknowledge: z.literal(true, { error: 'Confirm you’ll share it only with people who were there' }) }), req.body)
+    const body = parseBody(
+      z.object({
+        acknowledge: z.literal(true, { error: 'Confirm you’ll share it only with people who were there' }),
+        hours: z.number().int().min(1).max(MAX_LINK_HOURS).default(MAX_LINK_HOURS),
+      }),
+      req.body,
+    )
     if (retreat.status !== 'collecting') throw new HttpError(409, 'Start collecting reviews first, so the link works.')
     const token = newToken()
     const now = new Date()
-    const expiresAt = new Date(now.getTime() + retreat.inviteTtlDays * 86_400_000)
+    const expiresAt = new Date(now.getTime() + body.hours * 3_600_000)
     await prisma.retreat.update({ where: { id: retreat.id }, data: { groupLinkTokenHash: hashToken(token), groupLinkCreatedAt: now, groupLinkExpiresAt: expiresAt } })
     await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'group_link.created', entityType: 'retreat', entityId: retreat.id })
 
@@ -83,11 +93,12 @@ groupLinkAdminRouter.post(
           retreatTitle: retreat.title,
           createdBy: creator.name || creator.email,
           expiresAt,
+          maxJoins: MAX_JOINS,
           manageUrl: `${env.WEB_ORIGIN}/admin/${t.org.slug}/retreats/${retreat.id}/invitations`,
         }),
       ).catch((e) => console.error('group link warning email failed:', (e as Error).message))
     }
-    res.json({ url: `${origin}/join/${token}`, expiresAt })
+    res.json({ url: `${origin}/join/${token}`, expiresAt, maxJoins: MAX_JOINS })
   }),
 )
 
@@ -122,93 +133,50 @@ groupLinkAdminRouter.post(
 export const groupLinkRouter = Router()
 
 async function openGroupLink(token: string) {
-  if (!looksLikeToken(token)) throw new HttpError(404, 'This link isn’t valid.')
+  const gone = new HttpError(404, 'This link is no longer valid. Please contact the organiser for a new link.')
+  if (!looksLikeToken(token)) throw gone
   const retreat = await prisma.retreat.findUnique({
     where: { groupLinkTokenHash: hashToken(token) },
     include: { organisation: { select: { id: true, name: true, slug: true, status: true } } },
   })
-  if (!retreat || !retreat.groupLinkExpiresAt || retreat.groupLinkExpiresAt < new Date() || retreat.organisation.status !== 'active') {
-    throw new HttpError(404, 'This link has expired or been stopped. Ask the organiser for your own link.')
+  if (!retreat || retreat.organisation.status !== 'active') throw gone
+  const organiser = retreat.organiserName || retreat.organisation.name
+  const contact = retreat.contactEmail ? ` at ${retreat.contactEmail}` : ''
+  if (!retreat.groupLinkExpiresAt || retreat.groupLinkExpiresAt < new Date()) {
+    throw new HttpError(410, `This link has expired. Please contact ${organiser}${contact} for a new link.`)
   }
   if (retreat.status !== 'collecting') throw new HttpError(409, 'Reviews for this retreat aren’t being collected at the moment.')
-  return retreat
+  return { retreat, organiser, contact }
 }
 
 groupLinkRouter.get(
   '/:token',
   tokenLimiter,
   route(async (req, res) => {
-    const retreat = await openGroupLink(String(req.params.token))
+    const { retreat, organiser } = await openGroupLink(String(req.params.token))
     res.json({
       retreatTitle: retreat.title,
-      organiser: retreat.organiserName || retreat.organisation.name,
+      organiser,
       kind: retreat.kind,
       privacyNoticePath: `/o/${retreat.organisation.slug}/privacy?programme=${retreat.slug}`,
+      full: (await joinsOn(retreat)) >= MAX_JOINS,
     })
   }),
 )
 
-const startSchema = z.object({ name: text(120).refine((v) => v.length > 0, 'Required'), email: z.email().max(200) })
-
-/** Step 1: name and email. Emails a code; always answers the same way (never says who's on the list). */
+/** Joining: just a name. The person gets their own review link straight away. */
 groupLinkRouter.post(
-  '/:token/start',
+  '/:token/join',
   loginLimiter,
   route(async (req, res) => {
-    const retreat = await openGroupLink(String(req.params.token))
-    const body = parseBody(startSchema, req.body)
-    const email = normaliseEmail(body.email)
-    const hourAgo = new Date(Date.now() - 3600_000)
-    const [forAddress, forRetreat] = await Promise.all([
-      prisma.groupJoinCode.count({ where: { retreatId: retreat.id, email, createdAt: { gt: hourAgo } } }),
-      prisma.groupJoinCode.count({ where: { retreatId: retreat.id, createdAt: { gt: new Date(Date.now() - 86_400_000) } } }),
-    ])
-    if (forRetreat >= CODES_PER_RETREAT_PER_DAY) throw new HttpError(429, 'Too many people are joining right now. Please try again tomorrow, or ask the organiser for your own link.')
-    if (forAddress < CODES_PER_ADDRESS_PER_HOUR) {
-      await prisma.groupJoinCode.updateMany({ where: { retreatId: retreat.id, email, consumedAt: null }, data: { consumedAt: new Date() } })
-      const code = String(randomInt(0, 1_000_000)).padStart(6, '0')
-      await prisma.groupJoinCode.create({
-        data: { retreatId: retreat.id, email, name: body.name, codeHash: hmac(retreat.id, email, code), expiresAt: new Date(Date.now() + env.LOGIN_CODE_TTL_MINUTES * 60_000) },
-      })
-      await sendOrgMail(retreat.organisation.id, groupJoinCodeEmail(email, code, retreat.title, env.LOGIN_CODE_TTL_MINUTES))
+    const { retreat, organiser, contact } = await openGroupLink(String(req.params.token))
+    const { name } = parseBody(z.object({ name: text(120).refine((v) => v.length > 0, 'Required') }), req.body)
+    if ((await joinsOn(retreat)) >= MAX_JOINS) {
+      throw new HttpError(409, `This link has been used by ${MAX_JOINS} people already. Please contact ${organiser}${contact} for your own link.`)
     }
-    res.json({ sentTo: maskEmail(email) })
-  }),
-)
-
-/**
- * Step 2: the code. The person becomes a guest (or is matched to their place on the guest list), is
- * signed in with their now-proven address, and gets their own personal review link.
- */
-groupLinkRouter.post(
-  '/:token/confirm',
-  loginLimiter,
-  route(async (req, res) => {
-    const retreat = await openGroupLink(String(req.params.token))
-    const body = parseBody(z.object({ email: z.email().max(200), code: z.string().trim().max(12) }), req.body)
-    const email = normaliseEmail(body.email)
-    const code = body.code.replace(/\s+/g, '')
-    const invalid = new HttpError(401, 'That code is not valid or has expired. Request a new one.')
-    const row = await prisma.groupJoinCode.findFirst({ where: { retreatId: retreat.id, email, consumedAt: null }, orderBy: { createdAt: 'desc' } })
-    if (!row || row.expiresAt < new Date() || row.attempts >= MAX_ATTEMPTS) throw invalid
-    const claimed = await prisma.groupJoinCode.updateMany({ where: { id: row.id, attempts: { lt: MAX_ATTEMPTS } }, data: { attempts: { increment: 1 } } })
-    if (!claimed.count || !/^\d{6}$/.test(code) || !safeEqual(hmac(retreat.id, email, code), row.codeHash)) throw invalid
-    const consumed = await prisma.groupJoinCode.updateMany({ where: { id: row.id, consumedAt: null }, data: { consumedAt: new Date() } })
-    if (!consumed.count) throw invalid
-
-    // One review per email per retreat: someone already on the list gets their own place back.
-    const attendee =
-      (await prisma.attendee.findUnique({ where: { retreatId_email: { retreatId: retreat.id, email } } })) ??
-      (await prisma.attendee.create({ data: { organisationId: retreat.organisationId, retreatId: retreat.id, name: row.name, email, source: 'group_link' } }))
+    const attendee = await prisma.attendee.create({ data: { organisationId: retreat.organisationId, retreatId: retreat.id, name, source: 'group_link' } })
     const { token } = await prisma.$transaction((tx) => issueInvitation(tx, { organisationId: retreat.organisationId, attendeeId: attendee.id, ttlDays: retreat.inviteTtlDays }))
     await audit({ organisationId: retreat.organisationId, actorKind: 'attendee', action: 'group_link.joined', entityType: 'attendee', entityId: attendee.id })
-
-    // Signed in with the proven address (the same as an email code sign-in), which also marks it proven.
-    const user =
-      (await prisma.user.findUnique({ where: { email } })) ?? (await prisma.user.create({ data: { email, name: row.name, emailVerifiedAt: new Date() } }))
-    if (!user.active) throw new HttpError(403, 'This account is not active.')
-    if (!user.emailVerifiedAt) await prisma.user.update({ where: { id: user.id }, data: { emailVerifiedAt: new Date() } })
-    const session = await signedIn(res, user.id, 'code', false)
-    res.json({ ...session, reviewPath: `/invite/${token}?via=group` })
+    res.status(201).json({ reviewPath: `/invite/${token}?via=group` })
   }),
 )

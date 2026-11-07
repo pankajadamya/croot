@@ -7,10 +7,26 @@ import { useAuth, type Session } from '../../lib/auth'
  * masked, so a forwarded link doesn't reveal it) marks the review "Verified email" and signs them in,
  * so they can manage it later from My reviews. Skipping it is fine: the review is posted either way.
  */
-function VerifySteps({ base, maskedEmail, onDone, onSkip, afterDone }: { base: string; maskedEmail: string; onDone: () => void; onSkip?: () => void; afterDone?: ReactNode }) {
+function VerifySteps({
+  base,
+  maskedEmail,
+  onDone,
+  onSkip,
+  afterDone,
+}: {
+  base: string
+  /** The address on file, masked; null when the guest gives one here (joined by group link). */
+  maskedEmail: string | null
+  onDone: () => void
+  onSkip?: () => void
+  afterDone?: ReactNode
+}) {
   const { setSession } = useAuth()
   const [stage, setStage] = useState<'start' | 'sent' | 'done'>('start')
   const [code, setCode] = useState('')
+  const [email, setEmail] = useState('')
+  const [sentTo, setSentTo] = useState<string | null>(maskedEmail)
+  const needsEmail = !maskedEmail
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -18,7 +34,8 @@ function VerifySteps({ base, maskedEmail, onDone, onSkip, afterDone }: { base: s
     setBusy(true)
     setError(null)
     try {
-      await post(`${base}/verify/send`)
+      const r = await post<{ sentTo: string }>(`${base}/verify/send`, needsEmail ? { email } : undefined)
+      setSentTo(r.sentTo)
       setStage('sent')
     } catch (e) {
       setError((e as Error).message)
@@ -30,7 +47,7 @@ function VerifySteps({ base, maskedEmail, onDone, onSkip, afterDone }: { base: s
     setBusy(true)
     setError(null)
     try {
-      setSession(await post<Session>(`${base}/verify/confirm`, { code }))
+      setSession(await post<Session>(`${base}/verify/confirm`, needsEmail ? { code, email } : { code }))
       setStage('done')
     } catch (e) {
       setError((e as Error).message)
@@ -60,20 +77,35 @@ function VerifySteps({ base, maskedEmail, onDone, onSkip, afterDone }: { base: s
   return (
     <>
       <h2 id="verify-title">Make your review count</h2>
-      <p>
-        Reviews from guests who confirm their email show as <strong>✓ Verified email</strong>, so future guests know they’re genuine. It takes a
-        moment: we’ll email a 6-digit code to <strong>{maskedEmail}</strong>.
-      </p>
+      {needsEmail && stage === 'start' ? (
+        <p>
+          Reviews from guests who confirm their email show as <strong>✓ Verified email</strong>, so future guests know they’re genuine. Add your
+          email and we’ll send a 6-digit code. You’ll also be able to come back and change your review.
+        </p>
+      ) : (
+        <p>
+          Reviews from guests who confirm their email show as <strong>✓ Verified email</strong>, so future guests know they’re genuine. It takes a
+          moment: we’ll email a 6-digit code to <strong>{sentTo}</strong>.
+        </p>
+      )}
       {stage === 'start' ? (
-        <div className="row" style={{ gap: '0.6rem' }}>
-          <button type="button" className="btn" onClick={() => void send()} disabled={busy}>
-            {busy ? 'Sending…' : 'Email me a code'}
-          </button>
-          {onSkip && (
-            <button type="button" className="btn ghost" onClick={onSkip}>
-              Not now
-            </button>
+        <div className="stack" style={{ gap: '0.6rem' }}>
+          {needsEmail && (
+            <div className="field" style={{ margin: 0 }}>
+              <label htmlFor="verify-email">Your email</label>
+              <input id="verify-email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus />
+            </div>
           )}
+          <div className="row" style={{ gap: '0.6rem' }}>
+            <button type="button" className="btn" onClick={() => void send()} disabled={busy || (needsEmail && !email.includes('@'))}>
+              {busy ? 'Sending…' : 'Email me a code'}
+            </button>
+            {onSkip && (
+              <button type="button" className="btn ghost" onClick={onSkip}>
+                Not now
+              </button>
+            )}
+          </div>
         </div>
       ) : (
         <form
@@ -116,7 +148,8 @@ function VerifySteps({ base, maskedEmail, onDone, onSkip, afterDone }: { base: s
         </p>
       )}
       <p className="small muted" style={{ margin: '0.8rem 0 0' }}>
-        Optional: your review is posted either way. We use your email only to confirm and manage your review.
+        Optional: your review is posted either way. We use your email only to confirm and manage your review: no marketing without your consent,
+        and it’s never shared with anyone else.
       </p>
     </>
   )
@@ -127,7 +160,7 @@ function VerifySteps({ base, maskedEmail, onDone, onSkip, afterDone }: { base: s
  * once per visit. "Not now" closes it and leaves a reminder line on the page that reopens it. After
  * confirming, it offers sharing, and the page refreshes when it closes.
  */
-export function VerifyPrompt({ base, maskedEmail, onVerified, share }: { base: string; maskedEmail: string; onVerified: () => void; share: ReactNode }) {
+export function VerifyPrompt({ base, maskedEmail, onVerified, share }: { base: string; maskedEmail: string | null; onVerified: () => void; share: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null)
   const key = `verify-dismissed:${base}`
   const [open, setOpen] = useState(() => {
