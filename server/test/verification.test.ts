@@ -266,3 +266,40 @@ describe('group link', () => {
     expect(testOutbox.filter((m) => m.to === 'spam@example.test')).toHaveLength(5)
   })
 })
+
+describe('verifying right after sending (the private response page)', () => {
+  it('offers the step on the page guests land on after Send, for invited and group-link guests alike', async () => {
+    const { org, retreat } = await makeTenant('alpha')
+    const { token } = await invite(org.id, retreat.id, 'Ravi', 'ravi@example.test')
+    const draft = await request(app).put(`/api/invites/${token}/draft`).send({ revision: 0, storyText: 'Lovely.' })
+    const sent = await request(app).post(`/api/invites/${token}/submit`).send({ revision: draft.body.revision })
+    const receipt = `/api/responses/${sent.body.receiptToken}`
+
+    expect((await request(app).get(receipt)).body.verification).toEqual({ verified: false, canVerify: true, maskedEmail: 'r•••@example.test', needsEmail: false })
+    expect((await request(app).post(`${receipt}/verify/send`)).body.sentTo).toBe('r•••@example.test')
+    const ok = await request(app).post(`${receipt}/verify/confirm`).send({ code: codeIn('ravi@example.test') })
+    expect(ok.status).toBe(200)
+    expect((await request(app).get(receipt)).body.verification).toMatchObject({ verified: true, canVerify: false })
+    expect((await prisma.reviewVerification.findFirstOrThrow()).method).toBe('code')
+  })
+
+  it('a group-link guest types their email there, and is matched to the guest list', async () => {
+    const t = await makeTenant('alpha')
+    const { agent, csrf } = await login(t.user.email)
+    const made = await agent.post(`/api/admin/orgs/alpha/retreats/${t.retreat.id}/group-link`).set('X-CSRF-Token', csrf).send({ acknowledge: true })
+    const gt = new URL(made.body.url).pathname.split('/').pop()!
+    const { attendee: meera } = await invite(t.org.id, t.retreat.id, 'Meera', 'meera@example.test')
+    const token = (await request(app).post(`/api/group/${gt}/join`).send({ name: 'Meera' })).body.reviewPath.match(/\/invite\/([\w-]+)/)[1]
+    const draft = await request(app).put(`/api/invites/${token}/draft`).send({ revision: 0, storyText: 'Lovely.' })
+    const sent = await request(app).post(`/api/invites/${token}/submit`).send({ revision: draft.body.revision })
+    const receipt = `/api/responses/${sent.body.receiptToken}`
+
+    expect((await request(app).get(receipt)).body.verification).toMatchObject({ canVerify: true, maskedEmail: null, needsEmail: true })
+    await request(app).post(`${receipt}/verify/send`).send({ email: 'meera@example.test' })
+    const ok = await request(app).post(`${receipt}/verify/confirm`).send({ email: 'meera@example.test', code: codeIn('meera@example.test') })
+    expect(ok.body.movedTo).toBe(`/my-reviews/${meera.id}`)
+    // The private response link still works after the match (it belongs to the review, not the joiner).
+    expect((await request(app).get(receipt)).body.verification).toMatchObject({ verified: true })
+    expect(await prisma.attendee.count()).toBe(1)
+  })
+})

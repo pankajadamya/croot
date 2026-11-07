@@ -9,6 +9,7 @@ import { AlbumLinkCard, type AlbumSummary } from '../../components/AlbumGallery'
 import { GuestHeader } from '../../components/AppHeader'
 import { RetreatPageLink } from '../../components/RetreatPageLink'
 import { useConfirm } from '../../components/ConfirmDialog'
+import { ShareJourney, VerifyPrompt } from './ThankYouExtras'
 
 interface ReceiptView {
   retreat: { title: string; organiserName: string; organisationName: string; contactEmail: string | null; privacyNoticePath: string; publicPagePath: string | null }
@@ -23,6 +24,8 @@ interface ReceiptView {
   organiserMessage: string | null
   changeRequests: Array<{ kind: 'edit' | 'withdraw'; message: string; status: 'open' | 'resolved'; createdAt: string }>
   album: AlbumSummary | null
+  /** "Make your review count": confirm the email right here (lib/ownVerify.ts on the server). */
+  verification?: { verified: boolean; canVerify: boolean; maskedEmail: string | null; needsEmail: boolean }
 }
 
 const PUBLICATION_LABEL: Record<ReceiptView['publication']['status'], string> = {
@@ -105,6 +108,7 @@ export default function Receipt() {
   if (q.error) return <LinkUnavailable message={(q.error as Error).message} />
   const d = q.data!
   const c = d.consents
+  const organiser = d.retreat.organiserName || d.retreat.organisationName
 
   return (
     <div className="calm">
@@ -112,6 +116,24 @@ export default function Receipt() {
       <main className="narrow stack" style={{ padding: '3rem 0 5rem' }}>
         <p className="eyebrow">{d.retreat.title}</p>
         <h1>{justSubmitted ? 'Thank you, your response has been sent' : 'Your response'}</h1>
+        {/* Share first, at the top; the same again in the verification pop-up once confirmed. */}
+        {d.status !== 'draft' && (
+          <ShareJourney compact title={d.retreat.title} organiser={organiser} pagePath={d.retreat.publicPagePath} storyPath={d.publication.url} />
+        )}
+        {/* Not verified yet: the pop-up (it opens by itself, once per visit). Verified: just a note. */}
+        {d.verification?.canVerify && (d.verification.maskedEmail || d.verification.needsEmail) && (
+          <VerifyPrompt
+            base={base}
+            maskedEmail={d.verification.maskedEmail}
+            onVerified={() => void qc.invalidateQueries({ queryKey: ['receipt', token] })}
+            share={<ShareJourney title={d.retreat.title} organiser={organiser} pagePath={d.retreat.publicPagePath} storyPath={d.publication.url} />}
+          />
+        )}
+        {d.verification?.verified && (
+          <p className="verify-done-note small" role="status" style={{ margin: 0 }}>
+            <span aria-hidden="true">✓</span> Your review shows as <strong>Verified email</strong>.
+          </p>
+        )}
         {justSubmitted && (
           <p style={{ fontSize: '1.1rem', margin: 0 }}>
             {c.publicText

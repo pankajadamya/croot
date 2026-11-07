@@ -1,3 +1,4 @@
+import { confirmOwnCode, sendOwnCode, verificationView } from '../lib/ownVerify.js'
 import { imageKey } from '../lib/images.js'
 import { Router } from 'express'
 import { z } from 'zod'
@@ -12,7 +13,7 @@ import { prisma } from '../lib/prisma.js'
 import { storage } from '../lib/storage.js'
 import { dropNameFromLive, dropPhotoFromLive, livePublication, takeDown } from '../lib/publication.js'
 import { hashToken, looksLikeToken } from '../lib/tokens.js'
-import { linkGuessLimiter, linkLimiter, linkUploadLimiter } from '../middleware/rateLimits.js'
+import { linkCodeLimiter, linkGuessLimiter, linkLimiter, linkUploadLimiter } from '../middleware/rateLimits.js'
 
 const albumUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: env.MAX_UPLOAD_BYTES, files: 1 } })
 
@@ -54,6 +55,7 @@ async function resolveReceipt(token: unknown) {
       },
       media: { where: { removedAt: null }, orderBy: { displayOrder: 'asc' } },
       changeRequests: { orderBy: { createdAt: 'desc' }, take: 10 },
+      attendee: { select: { id: true, name: true, email: true, source: true } },
     },
   })
   if (!response) throw new HttpError(404, INVALID)
@@ -92,7 +94,32 @@ receiptsRouter.get(
       organiserMessage: response.organiserMessage,
       album: await albumSummary(response.retreat, response, req.baseUrl + '/' + req.params.token),
       changeRequests: response.changeRequests.map((c) => ({ kind: c.kind, message: c.message, status: c.status, createdAt: c.createdAt })),
+      verification: verificationView(ownReview(response)),
     })
+  }),
+)
+
+/** The receipt's review, in the shape the "Make your review count" steps take (lib/ownVerify.ts). */
+const ownReview = (response: Awaited<ReturnType<typeof resolveReceipt>>) => ({
+  attendee: response.attendee,
+  retreat: { id: response.retreat.id, organisationId: response.retreat.organisationId, title: response.retreat.title },
+  response: { id: response.id, submittedAt: response.submittedAt, verifiedAt: response.verifiedAt },
+})
+
+/** Right after sending: confirm the email here (code to the guest's address), as on the thank-you page. */
+receiptsRouter.post(
+  '/:token/verify/send',
+  linkCodeLimiter,
+  route(async (req, res) => {
+    res.json(await sendOwnCode(ownReview(await resolveReceipt(req.params.token)), req.body))
+  }),
+)
+
+receiptsRouter.post(
+  '/:token/verify/confirm',
+  linkCodeLimiter,
+  route(async (req, res) => {
+    res.json(await confirmOwnCode(ownReview(await resolveReceipt(req.params.token)), req.body, res))
   }),
 )
 

@@ -1,3 +1,4 @@
+import { confirmOwnCode, sendOwnCode, verificationView } from '../lib/ownVerify.js'
 import { imageKey } from '../lib/images.js'
 import { Router, type Request, type Response } from 'express'
 import multer from 'multer'
@@ -18,11 +19,7 @@ import { storage } from '../lib/storage.js'
 import { removeObjects } from '../lib/storageCleanup.js'
 import { hashToken, receiptTokenFor } from '../lib/tokens.js'
 import { linkCodeLimiter, linkGuessLimiter, linkLimiter, linkUploadLimiter } from '../middleware/rateLimits.js'
-import { emailProven, maskEmail, verifyResponse } from '../lib/verification.js'
-import { requestCode, verifyCode } from '../lib/loginCodes.js'
-import { signedIn } from './auth.js'
-import { checkGroupCode, sendGroupCode, verifiedUserFor } from '../lib/groupCodes.js'
-import { normaliseEmail } from '../lib/emailGuard.js'
+import { emailProven, verifyResponse } from '../lib/verification.js'
 import { MAX_PARTY_SIZE, TRAVELLED_WITH_IDS } from '../../../shared/company.js'
 
 /**
@@ -225,13 +222,8 @@ async function draftView(r: Review, req: Request) {
     },
     // "Verified email" on the public review: whether it is, and whether the guest can prove it now (a code
     // to their address, shown masked so a forwarded link doesn't reveal it).
-    // A guest who joined by group link gave only a name: they add their email here (needsEmail).
-    verification: {
-      verified: Boolean(response?.verifiedAt),
-      canVerify: Boolean((r.attendee.email || r.attendee.source === 'group_link') && response?.submittedAt && !response.verifiedAt),
-      maskedEmail: r.attendee.email ? maskEmail(r.attendee.email) : null,
-      needsEmail: !r.attendee.email && r.attendee.source === 'group_link',
-    },
+    // A guest who joined by group link gave only a name: they add their email there (needsEmail).
+    verification: verificationView({ ...r, response: response ?? null }),
   }
 }
 
@@ -251,26 +243,14 @@ reviewRoutes.post(
 )
 
 /**
- * The thank-you page's "confirm it's you": a code to the guest's address, which marks the review
- * "Verified email" and signs them in (so they can manage it from My reviews).
+ * The thank-you page's "confirm it's you" (lib/ownVerify.ts): a code to the guest's address, which marks
+ * the review "Verified email" and signs them in. The private response page offers the same steps.
  */
 reviewRoutes.post(
   '/verify/send',
   linkCodeLimiter,
   route(async (req, res) => {
-    const r = current(res)
-    if (!r.response?.submittedAt) throw new HttpError(409, 'Send your review first.')
-    if (r.attendee.email) {
-      await requestCode(r.attendee.email, 'signin')
-      return res.json({ sentTo: maskEmail(r.attendee.email) })
-    }
-    // Joined by group link with just a name: they give the address to confirm.
-    if (r.attendee.source !== 'group_link') throw new HttpError(400, 'There’s no email address to confirm. Ask the organiser to add yours.')
-    const { email } = parseBody(z.object({ email: z.email().max(200) }), req.body)
-    const address = normaliseEmail(email)
-    await assertAddressFree(r, address)
-    await sendGroupCode({ organisationId: r.retreat.organisationId, retreatId: r.retreat.id, retreatTitle: r.retreat.title, email: address, name: r.attendee.name, attendeeId: r.attendee.id })
-    res.json({ sentTo: maskEmail(address) })
+    res.json(await sendOwnCode(current(res), req.body))
   }),
 )
 
@@ -278,64 +258,9 @@ reviewRoutes.post(
   '/verify/confirm',
   linkCodeLimiter,
   route(async (req, res) => {
-    const r = current(res)
-    const body = parseBody(z.object({ code: z.string().trim().max(12), email: z.email().max(200).optional() }), req.body)
-    if (r.attendee.email) {
-      const result = await verifyCode(r.attendee.email, body.code.replace(/\s+/g, ''))
-      if (!result.ok) throw new HttpError(401, 'That code is not valid or has expired. Request a new one.')
-      await emailProven(r.attendee.id, 'code')
-      return res.json(await signedIn(res, result.userId, 'code', result.created))
-    }
-    if (r.attendee.source !== 'group_link' || !body.email) throw new HttpError(400, 'There’s no email address to confirm.')
-    const address = await checkGroupCode(r.retreat.id, body.email, body.code)
-    await assertAddressFree(r, address)
-    const onList = await prisma.attendee.findUnique({ where: { retreatId_email: { retreatId: r.retreat.id, email: address } }, select: { id: true } })
-    let guestId = r.attendee.id
-    if (onList && onList.id !== r.attendee.id) {
-      // Already on the guest list (the organiser added them): the review moves to their place there,
-      // so they're a confirmed guest and the review is matched to them, with nothing for anyone to do.
-      guestId = await matchToGuestList(r, onList.id)
-    } else {
-      // The proven address becomes theirs; the guest typed it (the verification record says so).
-      await prisma.attendee.update({ where: { id: r.attendee.id }, data: { email: address } })
-    }
-    await emailProven(guestId, 'code')
-    const user = await verifiedUserFor(address, r.attendee.name)
-    const session = await signedIn(res, user.id, 'code', false)
-    // Their link was the group-link one, which is gone now: the page carries on from My reviews.
-    res.json(guestId === r.attendee.id ? session : { ...session, movedTo: `/my-reviews/${guestId}` })
+    res.json(await confirmOwnCode(current(res), req.body, res))
   }),
 )
-
-/**
- * Moves a group-link joiner's review onto their place on the guest list (same retreat, same proven
- * address) and removes the temporary group-link entry. An unsent draft in that place is replaced; a
- * sent review there is never overwritten (assertAddressFree refuses that before we get here).
- */
-async function matchToGuestList(r: Review, guestId: string): Promise<string> {
-  const joiner = r.attendee.id
-  const old = await prisma.response.findUnique({ where: { attendeeId: guestId }, include: { media: true } })
-  await prisma.$transaction(async (tx) => {
-    if (old) await tx.response.delete({ where: { id: old.id } })
-    if (r.response) await tx.response.update({ where: { id: r.response.id }, data: { attendeeId: guestId } })
-    await tx.attendee.delete({ where: { id: joiner } })
-  })
-  if (old?.media.length) await removeObjects(old.media.flatMap((m) => [m.originalKey, m.derivativeKey, m.thumbKey]))
-  await audit({ organisationId: r.retreat.organisationId, actorKind: 'attendee', action: 'group_link.matched_to_guest', entityType: 'attendee', entityId: guestId })
-  return guestId
-}
-
-/** One review per email per retreat: an address already on the guest list can't be added again. */
-async function assertAddressFree(r: Review, address: string) {
-  const taken = await prisma.attendee.findUnique({
-    where: { retreatId_email: { retreatId: r.retreat.id, email: address } },
-    select: { id: true, response: { select: { submittedAt: true } } },
-  })
-  // On the guest list but no review sent yet: fine, this review will be matched to them.
-  if (taken && taken.id !== r.attendee.id && taken.response?.submittedAt) {
-    throw new HttpError(409, 'That email already has its own review for this retreat. Use the link sent to it, or sign in with it to manage that review.')
-  }
-}
 
 reviewRoutes.get(
   '/',
