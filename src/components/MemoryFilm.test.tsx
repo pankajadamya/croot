@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { filmLengthMs, filmSlides, MemoryFilm, MOVING_SCREEN_MS, SCREEN_MS, slideMs, STILL_SCREEN_MS, TARGET_MS, TITLE_MS, type FilmItem } from './MemoryFilm'
+import { filmLengthMs, filmScreen, filmSlides, MemoryFilm, MOVING_SCREEN_MS, SCREEN_MS, slideMs, STILL_SCREEN_MS, TARGET_MS, TITLE_MS, type FilmItem } from './MemoryFilm'
 
 afterEach(() => {
   cleanup()
@@ -129,4 +129,45 @@ test('in a collage each photo carries its own caption, inside its own cell', () 
     // No screen-wide caption for a collage, which could be read as any of its photos'.
     expect(container.querySelector('.film-caption')).toBeNull()
   }
+})
+
+test('on a phone photos are never small: up to three stacked upright, two side by side turned, no overlapping prints', () => {
+  const lots = Array.from({ length: 150 }, (_, i) => photo(`m${i}`))
+  const upright = filmSlides(lots, { screen: filmScreen(390, 844) }).flatMap((s) => (s.kind === 'photos' ? [s] : []))
+  expect(Math.max(...upright.map((s) => s.items.length))).toBe(3)
+  expect(new Set(upright.map((s) => s.layout))).toEqual(new Set(['single', 'pair-rows', 'trio-rows']))
+  const turned = filmSlides(lots, { screen: filmScreen(844, 390) }).flatMap((s) => (s.kind === 'photos' ? [s] : []))
+  expect(Math.max(...turned.map((s) => s.items.length))).toBe(2)
+  expect(new Set(turned.map((s) => s.layout))).toEqual(new Set(['single', 'pair-cols']))
+  // Every photo is still in the film, in order; it just runs longer than on a laptop.
+  expect(upright.flatMap((s) => s.items.map((m) => m.id))).toEqual(lots.map((m) => m.id))
+  const laptop = filmSlides(lots, { screen: filmScreen(1440, 900) })
+  expect(filmLengthMs(filmSlides(lots, { screen: filmScreen(390, 844) }))).toBeGreaterThan(filmLengthMs(laptop))
+  expect(Math.max(...laptop.flatMap((s) => (s.kind === 'photos' ? [s.items.length] : [])))).toBe(5)
+  // An upright tablet: up to four; a 1366 × 768 laptop keeps the full mix.
+  expect(Math.max(...filmSlides(lots, { screen: filmScreen(1366, 768) }).flatMap((s) => (s.kind === 'photos' ? [s.items.length] : [])))).toBe(5)
+  expect(Math.max(...filmSlides(lots, { screen: filmScreen(820, 1180) }).flatMap((s) => (s.kind === 'photos' ? [s.items.length] : [])))).toBe(4)
+})
+
+test('turning the phone lays the film out again and carries on from the same photo', () => {
+  vi.useFakeTimers()
+  const lots = Array.from({ length: 150 }, (_, i) => photo(`t${i}`))
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 })
+  Object.defineProperty(window, 'innerHeight', { configurable: true, value: 844 })
+  const { container } = render(<MemoryFilm items={lots} info={info} onClose={() => undefined} startPaused />)
+  for (let i = 0; i < 6; i++) fireEvent.keyDown(document, { key: 'ArrowRight' })
+  const shown = () => [...container.querySelectorAll('.film-layer.active .film-cell img')].map((img) => img.getAttribute('src'))
+  const before = shown()
+  expect(before.length).toBeLessThanOrEqual(3)
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 844 })
+  Object.defineProperty(window, 'innerHeight', { configurable: true, value: 390 })
+  act(() => {
+    window.dispatchEvent(new Event('resize'))
+    vi.advanceTimersByTime(250)
+  })
+  const after = shown()
+  expect(after.length).toBeLessThanOrEqual(2)
+  expect(after).toContain(before[0])
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 })
+  Object.defineProperty(window, 'innerHeight', { configurable: true, value: 768 })
 })

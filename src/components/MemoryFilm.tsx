@@ -78,6 +78,25 @@ const MAX_PER_SCREEN = 5
  */
 const MAX_AVERAGE = 3.2
 
+/**
+ * The screen the film plays on, which decides how many photos share a screen so none gets small:
+ *  - phone, upright: up to three, stacked (one above the other);
+ *  - phone, on its side: up to two, side by side;
+ *  - an upright tablet or a small window: up to four;
+ *  - laptop, or a tablet on its side: up to five, as the organiser's chosen style has it.
+ * A phone is played longer rather than squeezing photos in. It's worked out again when the phone turns
+ * or the window changes size.
+ */
+export type FilmScreen = { wide: boolean; size: 'phone' | 'tablet' | 'large'; maxPerScreen: number }
+export function filmScreen(width: number, height: number): FilmScreen {
+  const wide = width >= height
+  const short = Math.min(width, height)
+  if (short < 520) return { wide, size: 'phone', maxPerScreen: wide ? 2 : 3 }
+  // Laptops (even 1366 × 768) and tablets on their side keep the full mix.
+  if (wide && width >= 1024 && height >= 600) return { wide, size: 'large', maxPerScreen: MAX_PER_SCREEN }
+  return { wide, size: 'tablet', maxPerScreen: 4 }
+}
+
 /** A small seeded random generator, so an album's film comes out the same every time it's played. */
 function seeded(seed: number) {
   let a = seed >>> 0
@@ -115,11 +134,15 @@ export const MOVING_SCREEN_MS = 5000
 
 const isPortrait = (m: FilmItem) => Boolean(m.width && m.height && m.height > m.width * 1.05)
 
-/** The layout for the nth screen of this many photos: trios and fours take turns between their arrangements. */
-function layoutFor(count: number, wideScreen: boolean, nth = 0): { layout: PhotoLayout; flip: boolean } {
+/**
+ * The layout for the nth screen of this many photos: trios and fours take turns between their
+ * arrangements. On a phone, photos only ever stack or sit side by side, never as small overlapping prints.
+ */
+function layoutFor(count: number, wideScreen: boolean, nth = 0, phone = false): { layout: PhotoLayout; flip: boolean } {
   const flip = nth % 2 === 1
   if (count === 1) return { layout: 'single', flip: false }
   if (count === 2) return { layout: wideScreen ? 'pair-cols' : 'pair-rows', flip: false }
+  if (count === 3 && phone) return { layout: wideScreen ? 'trio-cols' : 'trio-rows', flip }
   if (count === 3) return nth % 3 === 2 ? { layout: 'scatter', flip } : { layout: wideScreen ? 'trio-cols' : 'trio-rows', flip }
   if (count === 4) return { layout: (['quad', 'scatter', 'feature'] as const)[nth % 3], flip: Math.floor(nth / 3) % 2 === 1 }
   return { layout: 'scatter', flip }
@@ -130,11 +153,14 @@ function layoutFor(count: number, wideScreen: boolean, nth = 0): { layout: Photo
  *  - two photos in a row that would each waste the screen (portraits on a wide screen, landscapes on
  *    an upright phone) share one screen;
  *  - if the film would still run past about three minutes, photos are grouped into collages of one to
- *    five, varied in size and arrangement (five only as overlapping prints);
+ *    five, varied in size and arrangement (five only as overlapping prints), fewer on a smaller screen
+ *    (filmScreen), where the film runs longer instead;
  *  - each screen shows for 6 s (7 s with reduced motion), videos for up to 15 s, the title for 4.5 s.
  */
-export function filmSlides(items: FilmItem[], opts: { wideScreen?: boolean; reduced?: boolean; style?: FilmStyle } = {}): FilmSlide[] {
-  const wide = opts.wideScreen ?? true
+export function filmSlides(items: FilmItem[], opts: { wideScreen?: boolean; reduced?: boolean; style?: FilmStyle; screen?: FilmScreen } = {}): FilmSlide[] {
+  const wide = opts.screen?.wide ?? opts.wideScreen ?? true
+  const maxPer = Math.min(MAX_PER_SCREEN, opts.screen?.maxPerScreen ?? MAX_PER_SCREEN)
+  const phone = opts.screen?.size === 'phone'
   if (opts.style === 'single' || opts.style === 'dynamic') return oneByOne(items, wide, opts.style === 'dynamic' && !opts.reduced, Boolean(opts.reduced))
   const screenMs = opts.reduced ? STILL_SCREEN_MS : SCREEN_MS
   const videoMs = items.filter((m) => m.video).reduce((sum, m) => sum + Math.min(m.duration ?? VIDEO_MAX_S, VIDEO_MAX_S) * 1000, 0)
@@ -167,18 +193,18 @@ export function filmSlides(items: FilmItem[], opts: { wideScreen?: boolean; redu
   if (screens() > maxScreens) {
     // Too long: collages of varied sizes (a photo on its own, then three, two, four, five
     // overlapping…), averaging what fits the length, and never the same size twice in a row.
-    const average = Math.min(MAX_AVERAGE, photoCount / maxScreens)
+    const average = Math.min(MAX_AVERAGE, maxPer - 0.8, photoCount / maxScreens)
     const random = seeded(photoCount * 7919 + 17)
     let previous = 0
     groups = runs.map((r) => {
       if (!Array.isArray(r)) return r
       const chunks: FilmItem[][] = []
-      const n = Math.min(r.length, Math.max(Math.ceil(r.length / MAX_PER_SCREEN), Math.floor(r.length / average)))
+      const n = Math.min(r.length, Math.max(Math.ceil(r.length / maxPer), Math.floor(r.length / average)))
       for (let k = 0, at = 0; k < n; k++) {
         const left = r.length - at
         const screensLeft = n - k
-        const lo = Math.max(1, left - (screensLeft - 1) * MAX_PER_SCREEN)
-        const hi = Math.min(MAX_PER_SCREEN, left - (screensLeft - 1))
+        const lo = Math.max(1, left - (screensLeft - 1) * maxPer)
+        const hi = Math.min(maxPer, left - (screensLeft - 1))
         const size = nextSize(left / screensLeft, lo, hi, previous, random)
         chunks.push(r.slice(at, at + size))
         at += size
@@ -187,7 +213,7 @@ export function filmSlides(items: FilmItem[], opts: { wideScreen?: boolean; redu
       // The last screens can be forced to a size; where two neighbours match, move a photo across.
       for (let k = 1; k < chunks.length; k++) {
         const [a, b] = [chunks[k - 1], chunks[k]]
-        if (a.length !== b.length || a.length <= 1 || b.length >= MAX_PER_SCREEN) continue
+        if (a.length !== b.length || a.length <= 1 || b.length >= maxPer) continue
         const moved = a.length - 1
         if (chunks[k - 2]?.length === moved || chunks[k + 1]?.length === b.length + 1) continue
         chunks[k - 1] = a.slice(0, -1)
@@ -205,7 +231,7 @@ export function filmSlides(items: FilmItem[], opts: { wideScreen?: boolean; redu
     else
       for (const screen of g) {
         const nth = (seen[screen.length] = (seen[screen.length] ?? -1) + 1)
-        slides.push({ kind: 'photos', items: screen, ms, ...layoutFor(screen.length, wide, nth) })
+        slides.push({ kind: 'photos', items: screen, ms, ...layoutFor(screen.length, wide, nth, phone) })
       }
   }
   slides.push({ kind: 'end' })
@@ -251,12 +277,44 @@ export function filmLengthMs(slides: FilmSlide[]): number {
 
 /** startPaused: opened from a link rather than a click, so sound isn't allowed until the viewer presses Play. */
 export function MemoryFilm({ items, info, onClose, startPaused = false }: { items: FilmItem[]; info: FilmInfo; onClose: () => void; startPaused?: boolean }) {
-  // The screen's shape when the film opens decides how photos pair up (side by side, or stacked).
-  const [wideScreen] = useState(() => typeof window === 'undefined' || window.innerWidth >= window.innerHeight)
+  // The screen decides how photos share it (stacked or side by side, and how many): worked out again when
+  // a phone turns or the window is resized, carrying on from the same photos.
+  const [screen, setScreen] = useState(() => (typeof window === 'undefined' ? filmScreen(1280, 800) : filmScreen(window.innerWidth, window.innerHeight)))
+  useEffect(() => {
+    let timer: number | undefined
+    const onResize = () => {
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => {
+        const next = filmScreen(window.innerWidth, window.innerHeight)
+        setScreen((prev) => (prev.wide === next.wide && prev.size === next.size ? prev : next))
+      }, 200)
+    }
+    window.addEventListener('resize', onResize)
+    window.addEventListener('orientationchange', onResize)
+    // Some browsers change the page's size without a resize event (embedded views, emulation): watch it too.
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(onResize)
+    observer?.observe(document.documentElement)
+    return () => {
+      window.clearTimeout(timer)
+      observer?.disconnect()
+      window.removeEventListener('resize', onResize)
+      window.removeEventListener('orientationchange', onResize)
+    }
+  }, [])
   const [reduced] = useState(() => typeof window !== 'undefined' && Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches))
-  const slides = useMemo(() => filmSlides(items, { wideScreen, reduced, style: info.style }), [items, wideScreen, reduced, info.style])
+  const slides = useMemo(() => filmSlides(items, { screen, reduced, style: info.style }), [items, screen, reduced, info.style])
   const [index, setIndex] = useState(0)
   const [previous, setPrevious] = useState<number | null>(null)
+  // New screens after a turn: stay on the screen that holds the photo being shown.
+  const [laidOut, setLaidOut] = useState(slides)
+  if (laidOut !== slides) {
+    const was = laidOut[index]
+    const anchor = was?.kind === 'photos' ? was.items[0].id : was?.kind === 'video' ? was.item.id : null
+    const found = anchor ? slides.findIndex((s) => (s.kind === 'photos' && s.items.some((m) => m.id === anchor)) || (s.kind === 'video' && s.item.id === anchor)) : -1
+    setLaidOut(slides)
+    setIndex(found >= 0 ? found : was?.kind === 'end' ? slides.length - 1 : 0)
+    setPrevious(null)
+  }
   const [paused, setPaused] = useState(startPaused)
   const [muted, setMuted] = useState(false)
   const [chrome, setChrome] = useState(true)
@@ -265,7 +323,7 @@ export function MemoryFilm({ items, info, onClose, startPaused = false }: { item
   const playButton = useRef<HTMLButtonElement>(null)
   const left = useRef<{ index: number; ms: number } | null>(null)
   const startX = useRef<number | null>(null)
-  const slide = slides[index]
+  const slide = slides[Math.min(index, slides.length - 1)]
   const atEnd = slide.kind === 'end'
 
   const go = useCallback(
