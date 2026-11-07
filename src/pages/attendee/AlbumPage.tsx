@@ -4,7 +4,7 @@ import { shortCaption } from '../../lib/caption'
 import { IMAGE_ACCEPT, prepareImage, captureTimeOf } from '../../lib/prepareImage'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, useLocation, useParams, useSearchParams } from 'react-router'
-import { api, ApiError, del, get } from '../../lib/api'
+import { api, ApiError, del, get, post } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
 import { LinkUnavailable, Loading } from '../../components/States'
 import { HeartButton, useHearts } from '../../components/Hearts'
@@ -375,8 +375,59 @@ function Lightbox({
             Stop sharing
           </button>
         )}
+        {!p.mine && <ReportLink key={p.id} mediaId={p.id} isVideo={Boolean(p.video)} />}
       </div>
     </div>
+  )
+}
+
+/**
+ * A quiet "Report" beside the caption: anyone viewing can flag a photo or video that shouldn't be
+ * there (not theirs, inappropriate). The organisers get an email; the reporter stays anonymous.
+ */
+function ReportLink({ mediaId, isVideo }: { mediaId: string; isVideo: boolean }) {
+  const [stage, setStage] = useState<'closed' | 'open' | 'sending' | 'sent'>('closed')
+  const [reason, setReason] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  if (stage === 'sent') return <span className="lightbox-report-done" role="status">Thanks, the organiser has been told.</span>
+  if (stage === 'closed') {
+    return (
+      <button type="button" className="lightbox-report" onClick={() => setStage('open')}>
+        Report
+      </button>
+    )
+  }
+  async function send() {
+    setStage('sending')
+    setError(null)
+    try {
+      await post(`/api/public/media/${mediaId}/report`, { reason: reason.trim() })
+      setStage('sent')
+    } catch (e) {
+      setError((e as Error).message)
+      setStage('open')
+    }
+  }
+  return (
+    <form
+      className="lightbox-report-form"
+      onSubmit={(e) => {
+        e.preventDefault()
+        void send()
+      }}
+    >
+      <label htmlFor="report-reason">What’s wrong with this {isVideo ? 'video' : 'photo'}? (optional)</label>
+      <input id="report-reason" value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} placeholder="For example: it’s me and I’d like it removed" autoFocus />
+      <div className="row" style={{ gap: '0.5rem' }}>
+        <button type="submit" className="album-btn small" disabled={stage === 'sending'}>
+          {stage === 'sending' ? 'Sending…' : 'Tell the organiser'}
+        </button>
+        <button type="button" className="album-btn ghost small" onClick={() => setStage('closed')}>
+          Cancel
+        </button>
+      </div>
+      {error && <p className="small" role="alert">{error}</p>}
+    </form>
   )
 }
 

@@ -214,3 +214,24 @@ export function groupLinkWarningEmail(opts: { to: string; orgName: string; retre
 </div>`
   return { to: opts.to, subject: `Group link made for ${opts.retreatTitle}: please keep reviews genuine`, text, html, category: 'organiser' }
 }
+
+/** A viewer reported a photo or video in an album: the organisers decide whether to take it down. */
+export function mediaReportEmail(opts: { to: string; retreatTitle: string; reason: string; manageUrl: string; isVideo: boolean }): Mail {
+  const what = opts.isVideo ? 'video' : 'photo'
+  const text = [
+    `Someone viewing the album for ${opts.retreatTitle} reported a ${what}.`,
+    '',
+    opts.reason ? `Their reason: ${opts.reason}` : 'They didn’t give a reason.',
+    '',
+    `Please have a look and remove it if it shouldn’t be there: ${opts.manageUrl}`,
+    '',
+    'Reports are anonymous. You’ll hear about the same item at most once a day.',
+  ].join('\n')
+  const html = `<div style="font-family:system-ui,sans-serif;color:#183D3B;max-width:560px;line-height:1.55">
+<p>Someone viewing the album for <strong>${escape(opts.retreatTitle)}</strong> reported a ${what}.</p>
+<p>${opts.reason ? `Their reason: <em>${escape(opts.reason)}</em>` : 'They didn’t give a reason.'}</p>
+<p><a href="${opts.manageUrl}">Look at the album</a> and remove it if it shouldn’t be there.</p>
+<p style="color:#5b6b66;font-size:13px">Reports are anonymous. You’ll hear about the same item at most once a day.</p>
+</div>`
+  return { to: opts.to, subject: `A ${what} in ${opts.retreatTitle} was reported`, text, html, category: 'organiser' }
+}

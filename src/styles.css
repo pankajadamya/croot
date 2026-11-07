@@ -2235,6 +2235,40 @@ ol.album-admin-grid {
   opacity: 0.7;
   font-size: 0.9rem;
 }
+/* "Report": quiet, so it's there when needed without competing with the photo. */
+.lightbox-report {
+  background: none;
+  border: 0;
+  padding: 0.2rem 0.3rem;
+  color: inherit;
+  opacity: 0.55;
+  font-size: 0.8rem;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.lightbox-report:hover,
+.lightbox-report:focus-visible {
+  opacity: 0.9;
+}
+.lightbox-report-done {
+  opacity: 0.75;
+  font-size: 0.85rem;
+}
+.lightbox-report-form {
+  display: grid;
+  gap: 0.45rem;
+  width: min(26rem, 100%);
+  font-size: 0.9rem;
+}
+.lightbox-report-form input {
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.95);
+  color: #183d3b;
+}
 @media (max-width: 640px) {
   .lightbox-edge {
     display: none;

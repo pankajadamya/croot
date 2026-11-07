@@ -1,6 +1,10 @@
 import { imageKey } from '../lib/images.js'
 import { companyLabel } from '../../../shared/company.js'
 import { Router } from 'express'
+import { env } from '../lib/env.js'
+import { audit } from '../lib/audit.js'
+import { sendOrgMail } from '../lib/emailGuard.js'
+import { mediaReportEmail } from '../lib/mailer.js'
 import { z } from 'zod'
 import type { PublicationRevision } from '@prisma/client'
 import { altFor } from '../lib/altText.js'
@@ -471,5 +475,41 @@ mediaRouter.get(
     if (!bytes) throw new HttpError(404, 'Not found')
     // Short cache so a withdrawal propagates quickly through browsers and any CDN.
     res.set({ 'Content-Type': 'image/webp', 'Cache-Control': 'public, max-age=300', 'Content-Disposition': 'inline' }).send(bytes)
+  }),
+)
+
+/**
+ * "Report": anyone who can see an album photo or video can flag it. The organisation's owners get an
+ * email linking to the album, at most once a day per item, so a report can't be used to flood them.
+ * The answer is the same whatever happens, and nothing about the reporter is kept.
+ */
+publicRouter.post(
+  '/media/:mediaId/report',
+  publicFormLimiter,
+  route(async (req, res) => {
+    const mediaId = uuidParam(req, 'mediaId')
+    const { reason } = parseBody(z.object({ reason: text(500).default('') }), req.body ?? {})
+    res.set('Cache-Control', 'no-store')
+    const media = await prisma.mediaAsset.findUnique({
+      where: { id: mediaId },
+      select: { id: true, organisationId: true, mime: true, retreat: { select: { id: true, title: true, organisation: { select: { slug: true } } } } },
+    })
+    if (media) {
+      const since = new Date(Date.now() - 24 * 3600_000)
+      const recent = await prisma.auditEvent.count({ where: { entityType: 'media', entityId: media.id, action: 'media.reported', createdAt: { gt: since } } })
+      await audit({ organisationId: media.organisationId, actorKind: 'system', action: 'media.reported', entityType: 'media', entityId: media.id, metadata: { reasonGiven: Boolean(reason) } })
+      if (recent === 0) {
+        const owners = await prisma.membership.findMany({ where: { organisationId: media.organisationId, role: 'owner' }, select: { user: { select: { email: true } } } })
+        const manageUrl = `${env.WEB_ORIGIN}/admin/${media.retreat.organisation.slug}/retreats/${media.retreat.id}/site`
+        for (const o of owners) {
+          await sendOrgMail(
+            media.organisationId,
+            mediaReportEmail({ to: o.user.email, retreatTitle: media.retreat.title, reason, manageUrl, isVideo: media.mime.startsWith('video/') }),
+            { trigger: 'public' },
+          ).catch(() => undefined)
+        }
+      }
+    }
+    res.status(202).json({ ok: true })
   }),
 )
