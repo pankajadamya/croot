@@ -25,7 +25,9 @@ import { tokenLimiter, uploadLimiter } from '../middleware/rateLimits.js'
  * The link is for writing: start, save and come back to a draft. Once the review has been sent, the
  * link still shows the thank-you page, but changing the review (text, ratings, photos, resubmitting)
  * needs signing in with the invited email address, which works without the link, since a link can be
- * forwarded. Guests added without an email can't sign in, so for them the link keeps working. See
+ * forwarded. Guests added without an email can't sign in: once they've sent, their link only shows the
+ * thank-you page too, and to change their review they ask the organiser, who makes them a new link.
+ * That link (made after the review was sent) lets them change it, until they send it again. See
  * mayChangeSent(). Opening the private response page (export, erase) needs sign-in too.
  */
 type Review = Omit<ResolvedInvite, 'invitation'> & { invitation: Invitation | null }
@@ -39,12 +41,15 @@ function signedInAsGuest(req: Request, r: Review) {
 }
 
 /**
- * May change a review that has already been sent: the guest signed in with their invited address.
- * A guest without an email address can't sign in, so for them their private link (it only resolves
- * while valid) is enough.
+ * May change a review that has already been sent: the guest signed in with their invited address. A
+ * guest without an email can't sign in, so for them it takes a link the organiser made after the
+ * review was last sent (their old link, or one forwarded, no longer changes anything). Sending again
+ * makes that link view-only too.
  */
 function mayChangeSent(req: Request, r: Review) {
-  return signedInAsGuest(req, r) || (Boolean(r.invitation) && !r.attendee.email)
+  if (signedInAsGuest(req, r)) return true
+  const sentAt = r.response?.submittedAt
+  return Boolean(!r.attendee.email && r.invitation && sentAt && r.invitation.issuedAt > sentAt)
 }
 
 export const invitesRouter = Router()
@@ -145,9 +150,11 @@ async function draftView(r: Review, req: Request) {
   return {
     firstName: firstName(r.attendee.name),
     editable: canEdit(r) && (!r.response?.submittedAt || mayChangeSent(req, r)),
-    // A sent review can be changed after signing in with the invited email address (or on the link, for a guest without one).
+    // A sent review can be changed after signing in with the invited email address; a guest without one
+    // asks the organiser for a new link instead (canSignIn false).
     signIn: {
       required: Boolean(r.response?.submittedAt) && !mayChangeSent(req, r),
+      canSignIn: Boolean(r.attendee.email),
       signedIn: signedInAsGuest(req, r),
       // mayChange: this visitor can reopen and change the sent review (link holder, or signed in).
       mayChange: mayChangeSent(req, r),
@@ -161,6 +168,8 @@ async function draftView(r: Review, req: Request) {
       endDate: r.retreat.kind === 'property' ? r.attendee.stayEnd : r.retreat.endDate,
       organiserName: r.retreat.organiserName,
       organisationName: r.retreat.organisation.name,
+      // How to reach the organiser (e.g. to ask to change a sent review without an email to sign in with).
+      contactEmail: r.retreat.contactEmail || null,
       categories: categoriesOf(r),
       privacyUrl: r.retreat.privacyUrl,
       // Where the anonymous note goes: by retreat only, so no token or attendee key crosses over.
@@ -448,7 +457,7 @@ reviewRoutes.get(
 )
 
 /**
- * A signed-in guest (or, without an email, one on their link) reopens their sent review to change it. The published
+ * A signed-in guest (or, without an email, one on a link made after they sent) reopens their sent review to change it. The published
  * version (the words they approved earlier) stays live until the organiser approves the update.
  */
 reviewRoutes.post(

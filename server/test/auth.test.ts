@@ -3,7 +3,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { issueInvitation } from '../src/lib/invites.js'
 import { testOutbox } from '../src/lib/mailer.js'
 import { closeDatabase, prisma } from '../src/lib/prisma.js'
-import { app, invite, makeTenant, resetDatabase } from './helpers.js'
+import { app, invite, login, makeTenant, resetDatabase } from './helpers.js'
 
 beforeEach(async () => {
   await resetDatabase()
@@ -121,19 +121,41 @@ describe('guest reviews: link or sign-in', () => {
     expect((await prisma.response.findFirstOrThrow()).storyText).toBe('First words.')
   })
 
-  it('a guest without an email (who can’t sign in) can still change a sent review on their link', async () => {
-    const { org, retreat } = await makeTenant('alpha')
+  it('a guest without an email: the link works until sending; to change it they need a new link from the organiser', async () => {
+    const { org, retreat, user } = await makeTenant('alpha')
     const attendee = await prisma.attendee.create({ data: { organisationId: org.id, retreatId: retreat.id, name: 'Ravi' } })
     const { token } = await issueInvitation(prisma, { organisationId: org.id, attendeeId: attendee.id, ttlDays: 30 })
     const draft = await request(app).put(`/api/invites/${token}/draft`).send({ revision: 0, storyText: 'First words.' })
     await request(app).post(`/api/invites/${token}/submit`).send({ revision: draft.body.revision })
-    expect((await request(app).get(`/api/invites/${token}`)).body.signIn).toMatchObject({ required: false, mayChange: true })
-    expect((await request(app).post(`/api/invites/${token}/reopen`)).status).toBe(200)
-    const open = await request(app).get(`/api/invites/${token}`)
-    const saved = await request(app).put(`/api/invites/${token}/draft`).send({ revision: open.body.response.revision, storyText: 'Changed on my link.' })
+
+    // Sent: the old link (or anyone it was forwarded to) only sees the thank-you page.
+    const sent = await request(app).get(`/api/invites/${token}`)
+    expect(sent.status).toBe(200)
+    expect(sent.body.signIn).toMatchObject({ canSignIn: false, mayChange: false })
+    expect((await request(app).post(`/api/invites/${token}/reopen`)).status).toBe(401)
+
+    // The organiser makes a new link: that one lets them change it (and the old one stops working).
+    const { agent, csrf } = await login(user.email)
+    const fresh = await agent.post(`/api/admin/orgs/alpha/attendees/${attendee.id}/invite`).set('X-CSRF-Token', csrf)
+    const newToken = new URL(fresh.body.url).pathname.split('/').pop()!
+    expect((await request(app).get(`/api/invites/${token}`)).status).toBe(404)
+    expect((await request(app).get(`/api/invites/${newToken}`)).body.signIn).toMatchObject({ mayChange: true })
+    expect((await request(app).post(`/api/invites/${newToken}/reopen`)).status).toBe(200)
+    const open = await request(app).get(`/api/invites/${newToken}`)
+    const saved = await request(app).put(`/api/invites/${newToken}/draft`).send({ revision: open.body.response.revision, storyText: 'Changed on my new link.' })
     expect(saved.status).toBe(200)
-    expect((await request(app).post(`/api/invites/${token}/submit`).send({ revision: saved.body.revision })).status).toBe(200)
-    expect((await prisma.response.findFirstOrThrow()).storyText).toBe('Changed on my link.')
+    expect((await request(app).post(`/api/invites/${newToken}/submit`).send({ revision: saved.body.revision })).status).toBe(200)
+    expect((await prisma.response.findFirstOrThrow()).storyText).toBe('Changed on my new link.')
+
+    // Sent again: that link is view-only now too.
+    expect((await request(app).get(`/api/invites/${newToken}`)).body.signIn).toMatchObject({ mayChange: false })
+    expect((await request(app).post(`/api/invites/${newToken}/reopen`)).status).toBe(401)
+
+    // The organiser adds their email: now they can sign in and manage it themselves.
+    await agent.patch(`/api/admin/orgs/alpha/attendees/${attendee.id}`).set('X-CSRF-Token', csrf).send({ email: 'ravi@example.test' })
+    const ravi = await signInWithCode('ravi@example.test')
+    expect((await ravi.agent.get('/api/me/reviews')).body.reviews).toMatchObject([{ attendeeId: attendee.id, status: 'submitted' }])
+    expect((await ravi.agent.post(`/api/me/reviews/${attendee.id}/reopen`).set('X-CSRF-Token', ravi.csrf)).status).toBe(200)
   })
 
   it('stops a revoked link from changing a sent review', async () => {

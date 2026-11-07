@@ -63,6 +63,24 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
   // Removing a guest who has sent a review erases it too, so it's for owners (as on the Privacy page).
   const isOwner = Boolean(session?.user.isPlatformAdmin || session?.memberships.find((m) => m.slug === orgSlug)?.role === 'owner')
   function copyLink(a: AttendeeRowView) {
+    // A guest without an email who has sent their review can't sign in to change it: a new link
+    // made now is what lets them (until they send it again).
+    if (!a.email && a.responseId) {
+      return void confirm({
+        title: `Make a link for ${a.name} to change their review?`,
+        message: (
+          <>
+            <p>
+              {a.name} has already sent their review, and their earlier link can’t change it. This new link lets them reopen it and make changes
+              {a.invitation && !a.invitation.revoked ? ` (their current link, ending …${a.invitation.hint}, stops working)` : ''}.
+            </p>
+            <p>Once they send it again, this link stops allowing changes too. If it was already published, the published version stays up until you approve their changes.</p>
+          </>
+        ),
+        confirmLabel: 'Make and copy link',
+        onConfirm: () => makeAndCopy(a),
+      })
+    }
     if (!a.invitation || a.invitation.revoked) return makeAndCopy(a)
     // The copy runs inside the dialog's own button click, so the browser still allows it.
     void confirm({
@@ -315,7 +333,13 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
                           </button>
                         )}
                         <button type="button" className="btn ghost small" disabled={issue.isPending} onClick={() => copyLink(a)}>
-                          {issue.isPending && issue.variables?.id === a.id ? 'Copying…' : a.invitation && !a.invitation.revoked ? 'Copy a new link' : 'Copy a link'}
+                          {issue.isPending && issue.variables?.id === a.id
+                            ? 'Copying…'
+                            : !a.email && a.responseId
+                              ? 'Copy a link to make changes'
+                              : a.invitation && !a.invitation.revoked
+                                ? 'Copy a new link'
+                                : 'Copy a link'}
                         </button>
                         {a.invitation && !a.invitation.revoked && (
                           <button
@@ -584,7 +608,8 @@ function AddEmail({ orgSlug, attendee, onAdded }: { orgSlug: string; attendee: A
         No email: send their link on WhatsApp or by QR code.{' '}
         <button type="button" className="link-button" onClick={() => setOpen(true)}>
           Add email
-        </button>
+        </button>{' '}
+        so they can sign in to manage their review.
       </div>
     )
   }

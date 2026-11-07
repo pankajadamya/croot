@@ -39,14 +39,18 @@ interface Consents {
 interface InviteView {
   firstName: string
   editable: boolean
-  /** mayChange: may reopen and change a sent review (signed in; or on the link, for a guest without an email). */
-  signIn: { required: boolean; signedIn: boolean; mayChange?: boolean; canReopen: boolean }
+  /**
+   * mayChange: may reopen and change a sent review (signed in; or, for a guest without an email, on a
+   * new link the organiser made after it was sent). canSignIn: false for a guest without an email.
+   */
+  signIn: { required: boolean; signedIn: boolean; mayChange?: boolean; canSignIn?: boolean; canReopen: boolean }
   retreat: {
     kind: ReviewKind
     title: string
     startDate: string | null
     endDate: string | null
     organiserName: string
+    contactEmail?: string | null
     organisationName: string
     categories: FeedbackCategory[]
     privacyUrl: string | null
@@ -407,6 +411,22 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
       </Link>
     )
     const mayChange = view.signIn.mayChange ?? view.signIn.signedIn
+    // A guest added without an email can't sign in: to change a sent review they ask the organiser,
+    // who sends them a new link that allows it.
+    const canSignIn = view.signIn.canSignIn ?? true
+    const organiser = view.retreat.organiserName || view.retreat.organisationName || 'the organiser'
+    const askOrganiser = (
+      <p>
+        To change your review, contact {organiser}
+        {view.retreat.contactEmail ? (
+          <>
+            {' '}
+            at <a href={`mailto:${view.retreat.contactEmail}`}>{view.retreat.contactEmail}</a>
+          </>
+        ) : null}
+        . They can send you a new link to make your changes.
+      </p>
+    )
     if (wantsEdit && mayChange && view.signIn.canReopen && submitted && !submitError) return <Loading />
     if (view.response?.status === 'changes_requested' && awaitingSignIn) {
       return (
@@ -419,8 +439,17 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                 <strong>A note from the organiser:</strong> {view.response.organiserMessage}
               </div>
             )}
-            <p>Because you’ve already sent this review, please sign in with the email address your invitation was sent to before changing it. This keeps anyone else with your link from altering your words.</p>
-            {signInLink}
+            {canSignIn ? (
+              <>
+                <p>Because you’ve already sent this review, please sign in with the email address your invitation was sent to before changing it. This keeps anyone else with your link from altering your words.</p>
+                {signInLink}
+              </>
+            ) : (
+              <p>
+                Because you’ve already sent this review, this link can’t change it, which keeps anyone else with it from altering your words. Ask {organiser} for
+                a new link to make your changes.
+              </p>
+            )}
           </div>
         </main>
       )
@@ -438,7 +467,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
           {submitted ? (
             <>
               <p>We’ve received your review. If you agreed to publish it, it will appear on the retreat page soon, once it has been checked.</p>
-              <p>You can view it, change your permissions or ask for an edit from your private response page.</p>
+              {canSignIn && <p>You can view it, change your permissions or ask for an edit from your private response page.</p>}
               {view.retreat.album?.unlocked && (
                 <div style={{ margin: '1.5rem 0' }}>
                   <AlbumLinkCard album={view.retreat.album} href={albumPagePath(base)} />
@@ -452,7 +481,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                   <button className="btn" onClick={openReceipt}>
                     Open my private response page
                   </button>
-                ) : (
+                ) : !canSignIn ? null : (
                   // The invitation link alone doesn't open it: someone may have forwarded the email.
                   <Link className="btn" to={`/signin?next=${encodeURIComponent(`${location.pathname}?receipt=1`)}`}>
                     Sign in to open my private response page
@@ -463,17 +492,24 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                     <button className="btn secondary" onClick={reopen} disabled={reopening}>
                       {reopening ? 'Opening…' : 'Edit my review'}
                     </button>
-                  ) : (
+                  ) : canSignIn ? (
                     signInLink
-                  ))}
+                  ) : null)}
               </div>
-              {view.signIn.canReopen && (
-                <p className="small muted" style={{ marginTop: '1rem' }}>
-                  {mayChange
-                    ? 'Editing reopens your review. If it’s already published, the published version stays up until the organiser approves your changes.'
-                    : 'To change a review you’ve already sent, sign in with the email address your invitation was sent to.'}
-                </p>
-              )}
+              {view.signIn.canReopen &&
+                (mayChange ? (
+                  <p className="small muted" style={{ marginTop: '1rem' }}>
+                    Editing reopens your review. If it’s already published, the published version stays up until the organiser approves your changes.
+                  </p>
+                ) : canSignIn ? (
+                  <p className="small muted" style={{ marginTop: '1rem' }}>
+                    To change a review you’ve already sent, sign in with the email address your invitation was sent to.
+                  </p>
+                ) : (
+                  <div className="small muted" style={{ marginTop: '1rem' }}>
+                    {askOrganiser}
+                  </div>
+                ))}
             </>
           ) : (
             <>
