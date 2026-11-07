@@ -4418,6 +4418,17 @@ a.review-date:hover {
   gap: 0.6rem;
   margin-top: 1.4rem;
 }
+/* A question's answers (useChoice): stacked, full width and alike, so none is pushed. */
+.confirm-dialog-choices {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 1.4rem;
+}
+.confirm-dialog-choices .btn {
+  width: 100%;
+  justify-content: center;
+  text-align: center;
+}
 @media (max-width: 480px) {
   .confirm-dialog-actions > .btn {
     flex: 1 1 auto;

@@ -15,16 +15,17 @@ export interface ConfirmOptions {
   /** For the most serious actions: the person must type this exact text before confirming. */
   typeToConfirm?: string
   /**
-   * A yes/no question for the person to answer (a consent, say), not an action to confirm: both
-   * buttons look the same, neither is focused first, and Esc or a click outside doesn't close it,
-   * so the answer is always one of the two buttons.
+   * A question for the person to answer (a consent, say), not an action to confirm: one button per
+   * answer, all alike and stacked, none focused first, and Esc or a click outside doesn't close it,
+   * so the answer is always one of them. Asked with useChoice, which resolves to the chosen value.
    */
-  choice?: boolean
+  choices?: Array<{ value: string; label: string }>
 }
 
 type Ask = (options: ConfirmOptions) => Promise<boolean>
+type Answer = boolean | string
 
-const ConfirmContext = createContext<Ask | null>(null)
+const ConfirmContext = createContext<((options: ConfirmOptions) => Promise<Answer>) | null>(null)
 
 /**
  * In-app confirmation, in the app's own style, instead of the browser's plain `window.confirm`.
@@ -33,21 +34,39 @@ const ConfirmContext = createContext<Ask | null>(null)
 export function useConfirm(): Ask {
   const ask = useContext(ConfirmContext)
   // Outside the provider (shouldn't happen), fall back to the browser's own prompt.
-  return ask ?? ((o) => Promise.resolve(window.confirm(o.title)))
+  return useCallback<Ask>(
+    async (o) => (ask ? Boolean(await ask(o)) : window.confirm(o.title)),
+    [ask],
+  )
+}
+
+/**
+ * Asks a question with several equal answers and resolves to the chosen one's value:
+ * `const answer = await choose({ title, message, choices: [{ value: 'yes', label: 'Yes' }, …] })`.
+ */
+export function useChoice() {
+  const ask = useContext(ConfirmContext)
+  return useCallback(
+    async <T extends string>(o: Omit<ConfirmOptions, 'choices' | 'confirmLabel' | 'cancelLabel'> & { choices: Array<{ value: T; label: string }> }): Promise<T> => {
+      if (!ask) return o.choices.at(-1)!.value
+      return (await ask(o)) as T
+    },
+    [ask],
+  )
 }
 
 export function ConfirmProvider({ children }: { children: ReactNode }) {
-  const [pending, setPending] = useState<(ConfirmOptions & { resolve: (ok: boolean) => void }) | null>(null)
-  const ask = useCallback<Ask>((options) => new Promise((resolve) => setPending({ ...options, resolve })), [])
+  const [pending, setPending] = useState<(ConfirmOptions & { resolve: (answer: Answer) => void }) | null>(null)
+  const ask = useCallback((options: ConfirmOptions) => new Promise<Answer>((resolve) => setPending({ ...options, resolve })), [])
   return (
     <ConfirmContext.Provider value={ask}>
       {children}
       {pending && (
         <ConfirmModal
           options={pending}
-          onDone={(ok) => {
-            if (ok) pending.onConfirm?.()
-            pending.resolve(ok)
+          onDone={(answer) => {
+            if (answer === true) pending.onConfirm?.()
+            pending.resolve(answer)
             setPending(null)
           }}
         />
@@ -57,7 +76,8 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
 }
 
 /** A native modal dialog: focus stays inside, Esc cancels, and focus returns to where it was. */
-function ConfirmModal({ options, onDone }: { options: ConfirmOptions; onDone: (ok: boolean) => void }) {
+function ConfirmModal({ options, onDone }: { options: ConfirmOptions; onDone: (answer: Answer) => void }) {
+  const choice = Boolean(options.choices?.length)
   const ref = useRef<HTMLDialogElement>(null)
   const confirmRef = useRef<HTMLButtonElement>(null)
   const [typed, setTyped] = useState('')
@@ -66,10 +86,10 @@ function ConfirmModal({ options, onDone }: { options: ConfirmOptions; onDone: (o
     const d = ref.current
     if (d && !d.open) d.showModal()
     // Destructive actions start on Cancel; a choice on its question; others on the main button.
-    if (options.choice) d?.querySelector<HTMLElement>('#confirm-title')?.focus()
+    if (choice) d?.querySelector<HTMLElement>('#confirm-title')?.focus()
     else if (!options.danger && !options.typeToConfirm) confirmRef.current?.focus()
     return () => d?.close()
-  }, [options.danger, options.typeToConfirm, options.choice])
+  }, [options.danger, options.typeToConfirm, choice])
   return (
     <dialog
       ref={ref}
@@ -78,9 +98,9 @@ function ConfirmModal({ options, onDone }: { options: ConfirmOptions; onDone: (o
       aria-describedby={options.message ? 'confirm-message' : undefined}
       onCancel={(e) => {
         e.preventDefault()
-        if (!options.choice) onDone(false)
+        if (!choice) onDone(false)
       }}
-      onClick={(e) => !options.choice && e.target === e.currentTarget && onDone(false)} // a click on the backdrop cancels
+      onClick={(e) => !choice && e.target === e.currentTarget && onDone(false)} // a click on the backdrop cancels
     >
       <div className="confirm-dialog-body">
         <h2 id="confirm-title" tabIndex={-1}>{options.title}</h2>
@@ -106,14 +126,24 @@ function ConfirmModal({ options, onDone }: { options: ConfirmOptions; onDone: (o
             />
           </div>
         )}
-        <div className="confirm-dialog-actions">
-          <button type="button" className="btn secondary" onClick={() => onDone(false)}>
-            {options.cancelLabel ?? 'Cancel'}
-          </button>
-          <button ref={confirmRef} type="button" className={`btn ${options.choice ? 'secondary' : options.danger ? 'danger' : ''}`} disabled={blocked} onClick={() => onDone(true)}>
-            {options.confirmLabel ?? 'Continue'}
-          </button>
-        </div>
+        {choice ? (
+          <div className="confirm-dialog-choices">
+            {options.choices!.map((c) => (
+              <button key={c.value} type="button" className="btn secondary" onClick={() => onDone(c.value)}>
+                {c.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="confirm-dialog-actions">
+            <button type="button" className="btn secondary" onClick={() => onDone(false)}>
+              {options.cancelLabel ?? 'Cancel'}
+            </button>
+            <button ref={confirmRef} type="button" className={`btn ${options.danger ? 'danger' : ''}`} disabled={blocked} onClick={() => onDone(true)}>
+              {options.confirmLabel ?? 'Continue'}
+            </button>
+          </div>
+        )}
       </div>
     </dialog>
   )

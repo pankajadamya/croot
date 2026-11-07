@@ -61,7 +61,7 @@ test('welcome separates the review choices, keeps the organiser note optional, a
   expect(screen.queryByRole('button', { name: 'Hide photos' })).toBeNull()
 })
 
-test('leaving the permissions step with a story but nothing shared asks once, with two equal answers', async () => {
+test('leaving the permissions step with a story but nothing shared asks once, with equal answers', async () => {
   const view = {
     firstName: 'Adamya',
     editable: true,
@@ -100,7 +100,7 @@ test('leaving the permissions step with a story but nothing shared asks once, wi
       organiserMessage: null,
     },
   }
-  const puts: Array<{ consents: { publicText: boolean } }> = []
+  const puts: Array<{ consents: { publicText: boolean; marketing: boolean } }> = []
   vi.stubGlobal('scrollTo', vi.fn())
   HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) { this.setAttribute('open', '') }
   HTMLDialogElement.prototype.close ??= function (this: HTMLDialogElement) { this.removeAttribute('open') }
@@ -120,23 +120,35 @@ test('leaving the permissions step with a story but nothing shared asks once, wi
   // "No": carries on to Review & send, with nothing shared.
   render(ui())
   fireEvent.click(await screen.findByRole('button', { name: 'Review' }))
-  expect(await screen.findByRole('heading', { name: 'Share your story on the review site?' })).toBeTruthy()
-  const yes = screen.getByRole('button', { name: 'Yes, publish my story' })
-  const no = screen.getByRole('button', { name: 'No, keep it private' })
-  expect(yes.className).toBe(no.className) // equal answers
-  fireEvent.click(no)
+  expect(await screen.findByRole('heading', { name: 'Share your story?' })).toBeTruthy()
+  const answers = ['Yes, publish it and allow social media & advertising', 'Yes, publish it on the review site only', 'No, keep it private'].map((name) => screen.getByRole('button', { name }))
+  expect(new Set(answers.map((b) => b.className)).size).toBe(1) // equal answers
+  fireEvent.click(answers[2])
   await waitFor(() => expect(screen.getByRole('heading', { name: 'Review and send' })).toBeTruthy())
-  expect(puts.at(-1)?.consents.publicText).toBe(false)
+  expect(puts.at(-1)?.consents).toMatchObject({ publicText: false, marketing: false })
   cleanup()
 
-  // "Yes": publishing is switched on and the guest stays to see it (and choose about their name).
+  // "Yes, … social media & advertising": both switched on; the guest stays to see it (and choose about their name).
   render(ui())
   fireEvent.click(await screen.findByRole('button', { name: 'Review' }))
-  fireEvent.click(await screen.findByRole('button', { name: 'Yes, publish my story' }))
-  expect(await screen.findByText(/Your story will be published once it’s approved/)).toBeTruthy()
+  fireEvent.click(await screen.findByRole('button', { name: 'Yes, publish it and allow social media & advertising' }))
+  expect(await screen.findByText(/published once it’s approved, and may be reused in social media/)).toBeTruthy()
   expect(screen.getByRole('heading', { name: 'Photos & permissions' })).toBeTruthy()
   // No second question: Review now moves on.
   fireEvent.click(screen.getByRole('button', { name: 'Review' }))
   await waitFor(() => expect(screen.getByRole('heading', { name: 'Review and send' })).toBeTruthy())
-  expect(puts.at(-1)?.consents.publicText).toBe(true)
+  expect(puts.at(-1)?.consents).toMatchObject({ publicText: true, marketing: true })
+  cleanup()
+
+  // "Yes, … review site only": publishing only.
+  render(ui())
+  fireEvent.click(await screen.findByRole('button', { name: 'Review' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Yes, publish it on the review site only' }))
+  await waitFor(() => expect(document.querySelector('.permissions-words .notice')).toBeTruthy())
+  expect(document.querySelector('.permissions-words .notice')!.textContent!.replace(/\s+/g, ' ')).toBe(
+    'Thank you. Your story will be published once it’s approved. Choose below whether to show your first name, then press Review.',
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Review' }))
+  await waitFor(() => expect(screen.getByRole('heading', { name: 'Review and send' })).toBeTruthy())
+  expect(puts.at(-1)?.consents).toMatchObject({ publicText: true, marketing: false })
 })

@@ -11,7 +11,7 @@ import { LinkUnavailable, Loading } from '../../components/States'
 import { PhotoPanel } from './PhotoPanel'
 import { AlbumLinkCard, AlbumTeaser, type AlbumSummary } from '../../components/AlbumGallery'
 import { RetreatPageLink } from '../../components/RetreatPageLink'
-import { useConfirm } from '../../components/ConfirmDialog'
+import { useChoice, useConfirm } from '../../components/ConfirmDialog'
 
 interface Rating {
   categoryKey: string
@@ -143,6 +143,7 @@ export default function InviteFlow() {
  */
 export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignIn?: boolean }) {
   const confirm = useConfirm()
+  const choose = useChoice()
   const navigate = useNavigate()
   const [reopening, setReopening] = useState(false)
   const [view, setView] = useState<InviteView | null>(null)
@@ -275,37 +276,34 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
 
   /**
    * Leaving "Photos & permissions" with a story written but every story choice left off: an easy page to
-   * skip past, so ask once, plainly, with two equal answers. "Yes" switches publishing on and stays on the
-   * page, so the guest sees what changed and can also choose whether to show their name; "No" moves on
-   * with nothing shared. Returns whether to carry on to the next step.
+   * skip past, so ask once, plainly, with three equal answers: publish it and allow reuse in social media
+   * and advertising, publish it on the review site only, or keep it private. A yes switches those on and
+   * stays on the page, so the guest sees what changed and can also choose whether to show their name;
+   * "No" moves on with nothing shared. Returns whether to carry on to the next step.
    */
   const askedAboutSharing = useRef(false)
   async function askAboutSharing(): Promise<boolean> {
     const c = draft?.consents
     if (!c || !draft?.storyText.trim() || c.publicText || c.marketing || askedAboutSharing.current) return true
     askedAboutSharing.current = true
-    const yes = await confirm({
-      choice: true,
-      title: 'Share your story on the review site?',
+    const answer = await choose({
+      title: 'Share your story?',
       message: (
-        <>
-          <p>
-            You’ve written a story but haven’t chosen to publish it. Stories like yours help future guests decide, and mean a lot to{' '}
-            {view?.retreat.organisationName ?? 'the organiser'}.
-          </p>
-          <p>
-            If you agree, it appears on the retreat’s review page with its title and your overall rating, once they approve it. Your name isn’t shown
-            unless you choose that, and you can withdraw your story at any time. Your private feedback stays private either way.
-          </p>
-        </>
+        <p>
+          Stories like yours help future guests decide. If you agree, it appears on the review page with its title and rating once approved. Your name
+          isn’t shown unless you choose, and you can withdraw it anytime. Private feedback stays private.
+        </p>
       ),
-      confirmLabel: 'Yes, publish my story',
-      cancelLabel: 'No, keep it private',
+      choices: [
+        { value: 'all', label: 'Yes, publish it and allow social media & advertising' },
+        { value: 'site', label: 'Yes, publish it on the review site only' },
+        { value: 'no', label: 'No, keep it private' },
+      ],
     })
-    if (!yes) return true
-    update({ consents: { ...c, publicText: true } })
+    if (answer === 'no') return true
+    update({ consents: { ...c, publicText: true, marketing: answer === 'all' } })
     setSharingAgreed(true)
-    requestAnimationFrame(() => document.querySelector('.permissions-words')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    requestAnimationFrame(() => document.querySelector('.permissions-words')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }))
     return false
   }
   const [sharingAgreed, setSharingAgreed] = useState(false)
@@ -804,7 +802,8 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                 <h2>Your story</h2>
                 {sharingAgreed && c.publicText && (
                   <p className="notice ok" role="status">
-                    Thank you. Your story will be published once it’s approved. Choose below whether to show your first name, then press Review.
+                    Thank you. Your story will be published once it’s approved{c.marketing ? ', and may be reused in social media and advertising' : ''}. Choose
+                    below whether to show your first name, then press Review.
                   </p>
                 )}
                 <div className="permissions-choice">
