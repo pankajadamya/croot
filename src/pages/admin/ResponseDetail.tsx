@@ -2,7 +2,7 @@ import { thumb } from '../../lib/thumb'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router'
-import { get, orgApi, post } from '../../lib/api'
+import { get, orgApi, patch, post } from '../../lib/api'
 import { formatDate, formatDateTime } from '../../lib/format'
 import { isVerbatimExcerpt } from '../../../shared/excerpt'
 import { firstName } from '../../../shared/slug'
@@ -358,10 +358,20 @@ function PhotosSection({ orgSlug, r, refresh }: { orgSlug: string; r: ResponseDe
     mutationFn: (v: { id: string; status: 'approved' | 'rejected' }) => post(`${orgApi(orgSlug)}/media/${v.id}/moderate`, { status: v.status }),
     onSuccess: refresh,
   })
+  // The album is separate from the story: a photo the guest shared there shows in it once approved,
+  // whichever photos go with the published story. Taking it out here keeps it out of the album.
+  const album = useMutation({
+    mutationFn: (v: { id: string; inAlbum: boolean }) => patch(`${orgApi(orgSlug)}/media/${v.id}`, { inAlbum: v.inAlbum }),
+    onSuccess: refresh,
+  })
   return (
-    <Section id="sec-photos" title="Photos" note="Each photo needs the guest’s own permission and your approval before it can appear with their story.">
+    <Section
+      id="sec-photos"
+      title="Photos"
+      note="Each photo needs the guest’s own permission and your approval before it can appear. The photo album and the published story are separate: choose a photo for each."
+    >
       {r.photos.length === 0 && <p className="muted">No photos.</p>}
-      <MutationError error={moderate.error} />
+      <MutationError error={moderate.error || album.error} />
       {r.photos.some((p) => (p.publishConsent || p.albumConsent) && p.moderation !== 'approved') && (
         <button
           type="button"
@@ -389,7 +399,9 @@ function PhotosSection({ orgSlug, r, refresh }: { orgSlug: string; r: ResponseDe
                 <span className={`badge ${p.moderation === 'approved' ? 'ok' : p.moderation === 'rejected' ? 'danger' : 'neutral'}`}>
                   {p.moderation === 'approved' ? 'Approved' : p.moderation === 'rejected' ? 'Rejected' : 'Awaiting review'}
                 </span>
-                {p.live && <span className="badge ok">Live</span>}
+                {p.live && <span className="badge ok">With the story</span>}
+                {p.albumConsent && p.inAlbum && p.moderation === 'approved' && <span className="badge ok">In the album</span>}
+                {p.albumConsent && !p.inAlbum && <span className="badge neutral">Taken out of the album</span>}
               </div>
               <div className="row">
                 <button
@@ -409,6 +421,11 @@ function PhotosSection({ orgSlug, r, refresh }: { orgSlug: string; r: ResponseDe
                 >
                   Reject
                 </button>
+                {p.albumConsent && (
+                  <button type="button" className="btn ghost small" disabled={album.isPending} onClick={() => album.mutate({ id: p.id, inAlbum: !p.inAlbum })}>
+                    {p.inAlbum ? 'Take out of album' : 'Put back in album'}
+                  </button>
+                )}
               </div>
               {!p.publishConsent && (
                 <p className="small muted" id={`no-consent-${p.id}`}>
@@ -525,7 +542,10 @@ function PublicationSection({ orgSlug, r, refresh }: { orgSlug: string; r: Respo
             <strong>Shown as:</strong> {name ?? 'No name (the guest did not consent to showing their first name)'}
           </p>
           <fieldset style={{ border: 0, padding: 0, margin: '0 0 1rem' }}>
-            <legend style={{ fontWeight: 600 }}>Photos to include</legend>
+            <legend style={{ fontWeight: 600 }}>Photos to show with the story</legend>
+            <p className="small muted" style={{ margin: '0 0 0.5rem' }}>
+              This doesn’t change the photo album. To keep a photo out of the album, use “Take out of album” under Photos.
+            </p>
             {eligiblePhotos.length === 0 ? (
               <p className="small muted">No photos are both allowed by the guest and approved.</p>
             ) : (
@@ -551,6 +571,11 @@ function PublicationSection({ orgSlug, r, refresh }: { orgSlug: string; r: Respo
           <button type="button" className="btn" disabled={!excerptOk || publish.isPending} onClick={() => publish.mutate()}>
             {publish.isPending ? 'Publishing…' : isLive ? 'Republish with these choices' : 'Publish story'}
           </button>
+          {!isLive && r.verification?.hasEmail !== false && (
+            <p className="small muted" style={{ margin: '0.5rem 0 0' }}>
+              {r.attendee.name} gets an email with a link to their published story.
+            </p>
+          )}
         </>
       )}
 

@@ -216,6 +216,36 @@ export function groupLinkWarningEmail(opts: { to: string; orgName: string; retre
 }
 
 /**
+ * To the guest when the organiser publishes their story (or an update to it): where it is, and that
+ * they stay in charge of it. Only sent for their own story, to the address they were invited on.
+ */
+export function storyPublishedEmail(opts: { to: string; firstName: string; retreatTitle: string; orgName: string; storyUrl: string; retreatUrl: string | null; manageUrl: string; updated: boolean }): Mail {
+  const hello = opts.firstName ? `Hello ${opts.firstName},` : 'Hello,'
+  const lead = opts.updated
+    ? `${opts.orgName} has published the updated version of your story about ${opts.retreatTitle}.`
+    : `Thank you for sharing your story about ${opts.retreatTitle}. ${opts.orgName} has published it.`
+  const text = [
+    hello,
+    '',
+    lead,
+    '',
+    `Your story: ${opts.storyUrl}`,
+    ...(opts.retreatUrl ? [`It also appears on the retreat page: ${opts.retreatUrl}`] : []),
+    '',
+    `You’re in charge of it: you can change what’s shown or withdraw it at any time. Sign in with this email address: ${opts.manageUrl}`,
+  ].join('\n')
+  const html = `<div style="font-family:system-ui,sans-serif;color:#183D3B;max-width:560px;line-height:1.55">
+<p>${escape(hello)}</p>
+<p>${escape(lead)}</p>
+<p><a href="${opts.storyUrl}" style="display:inline-block;background:#183D3B;color:#F8F5EF;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:600">See your story</a></p>
+${opts.retreatUrl ? `<p>It also appears on the <a href="${opts.retreatUrl}">${escape(opts.retreatTitle)} page</a>.</p>` : ''}
+<p style="color:#4A5F5A;font-size:14px">You’re in charge of it: you can change what’s shown or withdraw it at any time. <a href="${opts.manageUrl}">Sign in with this email address</a>.</p>
+</div>`
+  const subject = opts.updated ? `Your updated story about ${opts.retreatTitle} is live` : `Your story about ${opts.retreatTitle} is published`
+  return { to: opts.to, subject, text, html, category: 'organiser' }
+}
+
+/**
  * To the organisation's owners when a guest sends a review (or sends an update to it). Only who, where,
  * the rating and whether they agreed to publication: never their words, which stay inside Croot.
  */

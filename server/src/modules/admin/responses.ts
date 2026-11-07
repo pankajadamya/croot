@@ -9,7 +9,12 @@ import { audit } from '../../lib/audit.js'
 import { toCsv } from '../../lib/csv.js'
 import { HttpError, parseBody, route, text, uuidParam } from '../../lib/http.js'
 import { prisma } from '../../lib/prisma.js'
-import { addPhotoToLive, dropPhotoFromLive, publishResponse, takeDown } from '../../lib/publication.js'
+import { addPhotoToLive, dropPhotoFromLive, livePublication, publishResponse, takeDown } from '../../lib/publication.js'
+import { sendOrgMail } from '../../lib/emailGuard.js'
+import { env } from '../../lib/env.js'
+import { storyPublishedEmail } from '../../lib/mailer.js'
+import { firstName } from '../../../../shared/slug.js'
+import { siteOrigin } from './attendees.js'
 import { storage } from '../../lib/storage.js'
 import { tenantMedia, tenantResponse, tenantRetreat } from '../../lib/tenant.js'
 import { tenantOf } from '../../middleware/auth.js'
@@ -154,6 +159,8 @@ responsesRouter.get(
         publishConsent: m.publishConsent,
         moderation: m.moderation,
         albumConsent: m.albumConsent,
+        // In the group album: shared there by the guest, approved, and not taken out by the organiser.
+        inAlbum: m.albumConsent && m.inAlbum,
         live: Boolean(live?.photoIds.includes(m.id)),
       })),
       publication: {
@@ -176,10 +183,44 @@ responsesRouter.post(
     const t = tenantOf(req)
     const response = await tenantResponse(t.org.id, uuidParam(req, 'responseId'))
     const body = parseBody(publishSchema, req.body)
+    const before = await livePublication(response.id)
     const result = await publishResponse({ organisationId: t.org.id, responseId: response.id, reviewerId: t.userId, ...body })
-    res.json({ publicSlug: result.publicSlug, url: `/stories/${result.publicSlug}` })
+    // The guest hears where it is: when it first goes live, and when their changed words go live. Not
+    // for the organiser's own adjustments (photos, the excerpt) to the same words.
+    const emailed = !before || before.storyText.trim() !== response.storyText.trim() ? await tellGuestPublished(t.org, response.id, Boolean(before), result.publicSlug) : false
+    res.json({ publicSlug: result.publicSlug, url: `/stories/${result.publicSlug}`, guestEmailed: emailed })
   }),
 )
+
+/** Emails the guest that their story is published, with links. A failed email never fails the publish. */
+async function tellGuestPublished(org: { id: string; name: string }, responseId: string, updated: boolean, slug: string) {
+  try {
+    const r = await prisma.response.findUniqueOrThrow({
+      where: { id: responseId },
+      select: { attendee: { select: { name: true, email: true } }, retreat: { select: { title: true, slug: true, status: true, organisation: { select: { slug: true } } } } },
+    })
+    if (!r.attendee.email) return false
+    const origin = await siteOrigin(org.id)
+    const listed = r.retreat.status !== 'draft' && r.retreat.status !== 'archived'
+    await sendOrgMail(
+      org.id,
+      storyPublishedEmail({
+        to: r.attendee.email,
+        firstName: firstName(r.attendee.name),
+        retreatTitle: r.retreat.title,
+        orgName: org.name,
+        storyUrl: `${origin}/stories/${slug}`,
+        retreatUrl: listed ? `${origin}/o/${r.retreat.organisation.slug}/r/${r.retreat.slug}` : null,
+        manageUrl: `${env.WEB_ORIGIN}/signin`,
+        updated,
+      }),
+    )
+    return true
+  } catch (e) {
+    console.warn('story published email not sent:', (e as Error).message)
+    return false
+  }
+}
 
 responsesRouter.post(
   '/responses/:responseId/unpublish',

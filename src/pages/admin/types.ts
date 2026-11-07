@@ -168,6 +168,8 @@ export interface ResponseDetailData {
     caption: string
     publishConsent: boolean
     albumConsent?: boolean
+    /** Shared to the album by the guest and not taken out (shows there once approved). */
+    inAlbum?: boolean
     moderation: 'pending' | 'approved' | 'rejected'
     live: boolean
   }>
