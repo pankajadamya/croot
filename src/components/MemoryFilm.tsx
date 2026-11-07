@@ -450,6 +450,11 @@ export function MemoryFilm({ items, info, onClose, startPaused = false }: { item
                 style={{ objectPosition: `${(m.focalX ?? 0.5) * 100}% ${(m.focalY ?? 0.5) * 100}%`, animationDuration: `${s.ms + fadeMs * 2}ms` }}
                 draggable={false}
               />
+              {/*
+               * In a collage each photo carries its own caption, at its bottom-left, so it can't be read as
+               * another's. Overlapping prints are stacked so no print covers that corner (styles.css).
+               */}
+              {s.items.length > 1 && m.caption && i === index && <p className="film-cell-caption">{shortCaption(m.caption, 80)}</p>}
             </div>
           ))}
         </div>
@@ -484,7 +489,8 @@ export function MemoryFilm({ items, info, onClose, startPaused = false }: { item
     }
   }
 
-  const current = slide.kind === 'video' ? slide.item : slide.kind === 'photos' ? (slide.items.length === 1 ? slide.items[0] : (slide.items.find((m) => m.caption) ?? null)) : null
+  // The screen-wide caption is for a photo or video that has the screen to itself; collage photos carry their own.
+  const current = slide.kind === 'video' ? slide.item : slide.kind === 'photos' && slide.items.length === 1 ? slide.items[0] : null
   // Credits only where one photo has the screen; a collage would need a list.
   const credit = slide.kind === 'photos' && slide.items.length === 1 ? slide.items[0].credit : slide.kind === 'video' ? slide.item.credit : null
   return (

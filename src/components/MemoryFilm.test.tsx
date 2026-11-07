@@ -112,3 +112,21 @@ test('"One at a time" and "Moving" give every photo its own screen, however long
   // Reduced motion: still photos.
   expect(filmSlides(lots, { style: 'dynamic', reduced: true }).every((s) => s.kind !== 'photos' || !s.motion)).toBe(true)
 })
+
+test('in a collage each photo carries its own caption, inside its own cell', () => {
+  vi.useFakeTimers()
+  const lots = Array.from({ length: 80 }, (_, i) => photo(`c${i}`, `Caption ${i}`))
+  const { container } = render(<MemoryFilm items={lots} info={info} onClose={() => undefined} startPaused />)
+  for (let step = 0; step < 6; step++) {
+    fireEvent.keyDown(document, { key: 'ArrowRight' })
+    const active = container.querySelector('.film-layer.active')!
+    const cells = [...active.querySelectorAll('.film-cell')]
+    if (cells.length < 2) continue
+    for (const cell of cells) {
+      const id = cell.querySelector('img')!.getAttribute('src')!.split('/').pop()!.slice(1)
+      expect(cell.querySelector('.film-cell-caption')?.textContent).toBe(`Caption ${id}`)
+    }
+    // No screen-wide caption for a collage, which could be read as any of its photos'.
+    expect(container.querySelector('.film-caption')).toBeNull()
+  }
+})

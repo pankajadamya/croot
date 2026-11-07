@@ -5064,12 +5064,36 @@ a.review-date:hover {
   display: grid;
   gap: 6px;
   background: #070b0b;
+  /* The prints' stacking order stays inside their own screen, never above the next one fading in. */
+  isolation: isolate;
 }
 .film-cell {
   position: relative;
   overflow: hidden;
   min-width: 0;
   min-height: 0;
+}
+/* A collage photo's own caption, tucked into its bottom-left corner (it turns with a scattered print). */
+.film-cell-caption {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  z-index: 1;
+  max-width: calc(100% - 1rem);
+  margin: 0;
+  padding: 0.35rem 0.7rem 0.4rem 0.65rem;
+  border-top-right-radius: 6px;
+  background: rgba(7, 11, 11, 0.62);
+  color: #f8f5ef;
+  font-family: var(--serif);
+  font-size: clamp(0.85rem, 1.5vw, 1.1rem);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  pointer-events: none;
+  animation: film-fade-in 900ms ease 400ms both;
 }
 .film-cell > img {
   position: absolute;
@@ -5259,6 +5283,10 @@ a.review-date:hover {
 .film.is-paused .film-cell {
   animation-play-state: paused;
 }
+/* On an overlapping print the caption keeps to the corner no other print covers, wrapping to two lines. */
+.film-photos.layout-scatter .film-cell-caption {
+  max-width: 55%;
+}
 @keyframes film-print-in {
   from {
     opacity: 0;
@@ -5278,6 +5306,34 @@ a.review-date:hover {
 .layout-scatter.n-5 .film-cell:nth-child(3) { --x: 62%; --y: 7%; --w: 35%; --h: 45%; --r: -2deg; }
 .layout-scatter.n-5 .film-cell:nth-child(4) { --x: 7%; --y: 47%; --w: 42%; --h: 49%; --r: 2.5deg; }
 .layout-scatter.n-5 .film-cell:nth-child(5) { --x: 48%; --y: 45%; --w: 45%; --h: 51%; --r: -1.5deg; }
+/*
+ * Which print lies on top: chosen so no print covers another's bottom-left corner, where its caption is
+ * (worked out for each arrangement, mirrored or not).
+ */
+.layout-scatter.n-3 .film-cell:nth-child(3) { z-index: 1; }
+.layout-scatter.n-3 .film-cell:nth-child(1) { z-index: 2; }
+.layout-scatter.n-3 .film-cell:nth-child(2) { z-index: 3; }
+.layout-scatter.is-flipped.n-3 .film-cell:nth-child(2) { z-index: 1; }
+.layout-scatter.is-flipped.n-3 .film-cell:nth-child(3) { z-index: 2; }
+.layout-scatter.is-flipped.n-3 .film-cell:nth-child(1) { z-index: 3; }
+.layout-scatter.n-4 .film-cell:nth-child(3) { z-index: 1; }
+.layout-scatter.n-4 .film-cell:nth-child(1) { z-index: 2; }
+.layout-scatter.n-4 .film-cell:nth-child(4) { z-index: 3; }
+.layout-scatter.n-4 .film-cell:nth-child(2) { z-index: 4; }
+.layout-scatter.is-flipped.n-4 .film-cell:nth-child(4) { z-index: 1; }
+.layout-scatter.is-flipped.n-4 .film-cell:nth-child(2) { z-index: 2; }
+.layout-scatter.is-flipped.n-4 .film-cell:nth-child(3) { z-index: 3; }
+.layout-scatter.is-flipped.n-4 .film-cell:nth-child(1) { z-index: 4; }
+.layout-scatter.n-5 .film-cell:nth-child(4) { z-index: 1; }
+.layout-scatter.n-5 .film-cell:nth-child(1) { z-index: 2; }
+.layout-scatter.n-5 .film-cell:nth-child(5) { z-index: 3; }
+.layout-scatter.n-5 .film-cell:nth-child(2) { z-index: 4; }
+.layout-scatter.n-5 .film-cell:nth-child(3) { z-index: 5; }
+.layout-scatter.is-flipped.n-5 .film-cell:nth-child(5) { z-index: 1; }
+.layout-scatter.is-flipped.n-5 .film-cell:nth-child(3) { z-index: 2; }
+.layout-scatter.is-flipped.n-5 .film-cell:nth-child(2) { z-index: 3; }
+.layout-scatter.is-flipped.n-5 .film-cell:nth-child(4) { z-index: 4; }
+.layout-scatter.is-flipped.n-5 .film-cell:nth-child(1) { z-index: 5; }
 /* Upright phones: the prints run down the screen. */
 @media (max-aspect-ratio: 1/1) {
   .layout-scatter.n-3 .film-cell:nth-child(1) { --x: 4%; --y: 4%; --w: 78%; --h: 38%; --r: -3deg; }
@@ -5292,6 +5348,30 @@ a.review-date:hover {
   .layout-scatter.n-5 .film-cell:nth-child(3) { --x: 4%; --y: 35%; --w: 60%; --h: 27%; --r: -1.5deg; }
   .layout-scatter.n-5 .film-cell:nth-child(4) { --x: 36%; --y: 51%; --w: 60%; --h: 25%; --r: 2.5deg; }
   .layout-scatter.n-5 .film-cell:nth-child(5) { --x: 6%; --y: 69%; --w: 62%; --h: 28%; --r: -2deg; }
+  .layout-scatter.n-3 .film-cell:nth-child(3) { z-index: 1; }
+  .layout-scatter.n-3 .film-cell:nth-child(2) { z-index: 2; }
+  .layout-scatter.n-3 .film-cell:nth-child(1) { z-index: 3; }
+  .layout-scatter.is-flipped.n-3 .film-cell:nth-child(3) { z-index: 1; }
+  .layout-scatter.is-flipped.n-3 .film-cell:nth-child(2) { z-index: 2; }
+  .layout-scatter.is-flipped.n-3 .film-cell:nth-child(1) { z-index: 3; }
+  .layout-scatter.n-4 .film-cell:nth-child(4) { z-index: 1; }
+  .layout-scatter.n-4 .film-cell:nth-child(3) { z-index: 2; }
+  .layout-scatter.n-4 .film-cell:nth-child(2) { z-index: 3; }
+  .layout-scatter.n-4 .film-cell:nth-child(1) { z-index: 4; }
+  .layout-scatter.is-flipped.n-4 .film-cell:nth-child(4) { z-index: 1; }
+  .layout-scatter.is-flipped.n-4 .film-cell:nth-child(3) { z-index: 2; }
+  .layout-scatter.is-flipped.n-4 .film-cell:nth-child(2) { z-index: 3; }
+  .layout-scatter.is-flipped.n-4 .film-cell:nth-child(1) { z-index: 4; }
+  .layout-scatter.n-5 .film-cell:nth-child(1) { z-index: 1; }
+  .layout-scatter.n-5 .film-cell:nth-child(5) { z-index: 2; }
+  .layout-scatter.n-5 .film-cell:nth-child(4) { z-index: 3; }
+  .layout-scatter.n-5 .film-cell:nth-child(3) { z-index: 4; }
+  .layout-scatter.n-5 .film-cell:nth-child(2) { z-index: 5; }
+  .layout-scatter.is-flipped.n-5 .film-cell:nth-child(5) { z-index: 1; }
+  .layout-scatter.is-flipped.n-5 .film-cell:nth-child(4) { z-index: 2; }
+  .layout-scatter.is-flipped.n-5 .film-cell:nth-child(3) { z-index: 3; }
+  .layout-scatter.is-flipped.n-5 .film-cell:nth-child(2) { z-index: 4; }
+  .layout-scatter.is-flipped.n-5 .film-cell:nth-child(1) { z-index: 5; }
 }
 
 /* Album settings: the memory film's music, each mood with a Listen preview (FilmMusicPicker). */
