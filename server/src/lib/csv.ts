@@ -47,6 +47,7 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 export interface AttendeeRow {
   line: number
   name: string
+  /** '' when the row has none: the guest is added without an email. */
   email: string
   /** Optional stay dates (property reviews), YYYY-MM-DD. */
   stayStart?: string
@@ -55,7 +56,10 @@ export interface AttendeeRow {
   problem?: string
 }
 
-/** Accepts `name,email` with or without a header row, in either column order if headed. */
+/**
+ * Accepts `name,email` with or without a header row, in either column order if headed. The email may be
+ * left blank (or the column left out) for guests who'll get their link another way.
+ */
 export function parseAttendeeCsv(input: string, existingEmails: Set<string>): AttendeeRow[] {
   const rows = parseCsv(input)
   if (!rows.length) return []
@@ -65,7 +69,7 @@ export function parseAttendeeCsv(input: string, existingEmails: Set<string>): At
   let endIdx = -1
   let start = 0
   const header = rows[0].map((h) => h.trim().toLowerCase())
-  if (header.some((h) => h.includes('email'))) {
+  if (header.some((h) => h.includes('email') || h === 'name' || h === 'full name')) {
     emailIdx = header.findIndex((h) => h.includes('email'))
     const n = header.findIndex((h) => h.includes('name'))
     nameIdx = n >= 0 ? n : emailIdx === 0 ? 1 : 0
@@ -82,12 +86,12 @@ export function parseAttendeeCsv(input: string, existingEmails: Set<string>): At
     const line = i + start + 1
     const base = { line, name, email, stayStart: stayStart || undefined, stayEnd: stayEnd || undefined }
     if (!name) return { ...base, status: 'invalid', problem: 'Missing name' }
-    if (!EMAIL.test(email)) return { ...base, status: 'invalid', problem: 'Invalid email' }
+    if (email && !EMAIL.test(email)) return { ...base, status: 'invalid', problem: 'Invalid email' }
     if (stayStart === null || stayEnd === null) return { ...base, status: 'invalid', problem: 'Stay dates must look like 2026-10-23 or 23/10/2026' }
     if (stayStart && stayEnd && stayEnd < stayStart) return { ...base, status: 'invalid', problem: 'Check-out is before check-in' }
-    if (seen.has(email)) return { ...base, status: 'duplicate_in_file', problem: 'Duplicate in this file' }
-    seen.add(email)
-    if (existingEmails.has(email)) return { ...base, status: 'already_imported', problem: 'Already on this list' }
+    if (email && seen.has(email)) return { ...base, status: 'duplicate_in_file', problem: 'Duplicate in this file' }
+    if (email) seen.add(email)
+    if (email && existingEmails.has(email)) return { ...base, status: 'already_imported', problem: 'Already on this list' }
     return { ...base, status: 'ok' }
   })
 }

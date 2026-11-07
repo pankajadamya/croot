@@ -111,8 +111,8 @@ export async function organisationAttention(org: { id: string; slug: string; nam
 
     // Guests whose email address bounced or complained: they won't get invitations or reminders.
     const guests = await prisma.attendee.findMany({ where: { organisationId: org.id, retreatId: retreat.id }, select: { name: true, email: true } })
-    const problems = await suppressedAmong(guests.map((g) => g.email))
-    const bad = guests.filter((g) => problems.has(normaliseEmail(g.email)))
+    const problems = await suppressedAmong(guests.flatMap((g) => (g.email ? [g.email] : [])))
+    const bad = guests.filter((g) => g.email && problems.has(normaliseEmail(g.email)))
     if (bad.length) {
       const names = bad.slice(0, 3).map((g) => g.name || g.email).join(', ') + (bad.length > 3 ? ' and others' : '')
       items.push({

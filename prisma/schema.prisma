@@ -333,7 +333,8 @@ model Attendee {
   organisationId String   @db.Uuid
   retreatId      String   @db.Uuid
   name           String
-  email          String
+  /// Optional: a guest without one is sent their private link by the organiser (WhatsApp, QR code…).
+  email          String?
   /// Property reviews: the guest's own stay. Private; never shown publicly.
   stayStart      DateTime?     @db.Date
   stayEnd        DateTime?     @db.Date

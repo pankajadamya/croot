@@ -5338,3 +5338,29 @@ a.review-date:hover {
   font-size: 0.8rem;
   opacity: 0.85;
 }
+
+/* Sending a guest's link without email (ShareLink): WhatsApp, or a QR code to scan. */
+.share-link {
+  margin-top: 0.45rem;
+}
+.share-link-qr {
+  margin: 0.6rem 0 0;
+  display: grid;
+  gap: 0.4rem;
+  justify-items: start;
+}
+.share-link-qr-code {
+  width: 180px;
+  padding: 8px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.share-link-qr-code svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.share-link-qr figcaption {
+  max-width: 22rem;
+}

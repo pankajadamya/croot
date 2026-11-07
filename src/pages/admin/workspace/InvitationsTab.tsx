@@ -7,13 +7,14 @@ import { Field } from '../../../components/Controls'
 import { ErrorNotice, Loading } from '../../../components/States'
 import { useConfirm } from '../../../components/ConfirmDialog'
 import { useAuth } from '../../../lib/auth'
+import { ShareLink } from './ShareLink'
 import { CopyButton, fieldError, InviteStateBadge, MutationError, orgKey } from '../adminUi'
 import type { AttendeeRowView, CsvPreviewRow, Retreat } from '../types'
 
 interface IssuedLink {
   attendeeId: string
   name: string
-  email: string
+  email: string | null
   url: string
 }
 
@@ -55,7 +56,8 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
   })
   // "Copy a link": makes a fresh link and puts it straight on the clipboard. The clipboard write starts
   // inside the click (as Safari requires) with the link arriving a moment later from the server.
-  const [copyNote, setCopyNote] = useState<{ id: string; text: string; url?: string } | null>(null)
+  // url: the fresh link, kept on screen for WhatsApp or a QR code; showUrl when it couldn't be copied.
+  const [copyNote, setCopyNote] = useState<{ id: string; text: string; url?: string; showUrl?: boolean } | null>(null)
   const confirm = useConfirm()
   const { session } = useAuth()
   // Removing a guest who has sent a review erases it too, so it's for owners (as on the Privacy page).
@@ -93,9 +95,9 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
     void link.then(
       (l) =>
         copied.then(
-          () => setCopyNote({ id: a.id, text: 'Link copied. Paste it into a message to the guest.' }),
+          () => setCopyNote({ id: a.id, text: 'Link copied. Paste it into a message to the guest, or send it below.', url: l.url }),
           // The browser wouldn't let us copy: show the link right here instead.
-          () => setCopyNote({ id: a.id, text: 'Your browser didn’t allow copying automatically. Here’s the new link:', url: l.url }),
+          () => setCopyNote({ id: a.id, text: 'Your browser didn’t allow copying automatically. Here’s the new link:', url: l.url, showUrl: true }),
         ),
       () => {}, // the error shows above the table
     )
@@ -151,7 +153,7 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
   })
   const collecting = retreat.status === 'collecting'
   const toEmail =
-    attendees.data?.filter((a) => !(a.invitation?.emailedAt && !a.invitation.revoked) && !['submitted', 'consented', 'published', 'withdrawn'].includes(a.state)).length ?? 0
+    attendees.data?.filter((a) => a.email && !(a.invitation?.emailedAt && !a.invitation.revoked) && !['submitted', 'consented', 'published', 'withdrawn'].includes(a.state)).length ?? 0
 
   // Copied-but-not-sent links can't be shown again, so warn before leaving with them on screen.
   useEffect(() => {
@@ -162,7 +164,7 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
   }, [issued.length])
 
   const withoutLink = attendees.data?.filter((a) => !a.invitation).length ?? 0
-  const allLinksText = issued.map((l) => `${l.name}\t${l.email}\t${l.url}`).join('\n')
+  const allLinksText = issued.map((l) => `${l.name}\t${l.email ?? 'no email'}\t${l.url}`).join('\n')
   const rowError = issue.error || revoke.error || remove.error || erase.error || emailOne.error || emailAll.error
 
   return (
@@ -280,7 +282,7 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
                   <tr key={a.id}>
                     <td>
                       {a.responseId ? <Link to={`/admin/${orgSlug}/responses/${a.responseId}`}>{a.name}</Link> : a.name}
-                      <div className="small muted">{a.email}</div>
+                      {a.email ? <div className="small muted">{a.email}</div> : <AddEmail orgSlug={orgSlug} attendee={a} onAdded={refresh} />}
                       {a.emailProblem && <EmailProblem orgSlug={orgSlug} attendee={a} onFixed={refresh} />}
                     </td>
                     {isProperty && (
@@ -307,9 +309,11 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
                     </td>
                     <td data-label="Actions">
                       <div className="row" style={{ gap: '0.4rem' }}>
-                        <button type="button" className="btn secondary small" disabled={!collecting || emailOne.isPending} onClick={() => emailOne.mutate(a)}>
-                          {a.invitation?.emailedAt ? 'Email again' : 'Email invitation'}
-                        </button>
+                        {a.email && (
+                          <button type="button" className="btn secondary small" disabled={!collecting || emailOne.isPending} onClick={() => emailOne.mutate(a)}>
+                            {a.invitation?.emailedAt ? 'Email again' : 'Email invitation'}
+                          </button>
+                        )}
                         <button type="button" className="btn ghost small" disabled={issue.isPending} onClick={() => copyLink(a)}>
                           {issue.isPending && issue.variables?.id === a.id ? 'Copying…' : a.invitation && !a.invitation.revoked ? 'Copy a new link' : 'Copy a link'}
                         </button>
@@ -358,7 +362,7 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
                           {copyNote.text}
                         </p>
                       )}
-                      {copyNote?.id === a.id && copyNote.url && (
+                      {copyNote?.id === a.id && copyNote.url && copyNote.showUrl && (
                         <div className="row" style={{ gap: '0.4rem', marginTop: '0.3rem', flexWrap: 'nowrap' }}>
                           <label className="sr-only" htmlFor={`row-link-${a.id}`}>
                             New invitation link for {a.name}
@@ -367,6 +371,7 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
                           <CopyButton text={copyNote.url} />
                         </div>
                       )}
+                      {copyNote?.id === a.id && copyNote.url && <ShareLink name={a.name} url={copyNote.url} retreatTitle={retreat.title} />}
                     </td>
                   </tr>
                 ))}
@@ -420,8 +425,8 @@ function CsvImport({ orgSlug, retreat, onDone }: { orgSlug: string; retreat: Ret
         label="Paste CSV"
         hint={
           isProperty
-            ? 'Columns: name, email, and optionally check-in and check-out dates (2026-10-23 or 23/10/2026). A header row is optional.'
-            : 'Columns: name, email. A header row is optional. The list itself is not stored.'
+            ? 'Columns: name, email, and optionally check-in and check-out dates (2026-10-23 or 23/10/2026). Email can be left blank for guests you’ll send their link another way. A header row is optional.'
+            : 'Columns: name, email. Email can be left blank for guests you’ll send their link another way (WhatsApp, QR code). A header row is optional. The list itself is not stored.'
         }
         error={fieldError(preview.error, 'csv')}
       >
@@ -432,7 +437,7 @@ function CsvImport({ orgSlug, retreat, onDone }: { orgSlug: string; retreat: Ret
             setCsv(e.target.value)
             setRows(null)
           }}
-          placeholder={isProperty ? 'name,email,check-in,check-out\nAsha Patel,asha@example.com,2026-10-23,2026-10-30' : 'name,email\nAsha Patel,asha@example.com'}
+          placeholder={isProperty ? 'name,email,check-in,check-out\nAsha Patel,asha@example.com,2026-10-23,2026-10-30\nRavi Kumar,,2026-10-25,2026-10-31' : 'name,email\nAsha Patel,asha@example.com\nRavi Kumar,'}
           aria-describedby="csv-text-hint"
           spellCheck={false}
         />
@@ -512,9 +517,23 @@ function AddAttendee({ orgSlug, retreat, onDone }: { orgSlug: string; retreat: R
     },
   })
   const set = (k: keyof typeof empty) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }))
-  function submit(e: FormEvent) {
+  const queryClient = useQueryClient()
+  const confirm = useConfirm()
+  async function submit(e: FormEvent) {
     e.preventDefault()
     setAdded(null)
+    // Without an email nothing tells two guests apart, so check before adding a second with the same name.
+    if (!form.email.trim()) {
+      const list = queryClient.getQueryData<AttendeeRowView[]>(['admin', orgSlug, 'attendees', retreat.id]) ?? []
+      const name = form.name.trim().toLowerCase()
+      if (
+        name &&
+        list.some((a) => a.name.trim().toLowerCase() === name) &&
+        !(await confirm({ title: `There’s already a guest called ${form.name.trim()}`, message: 'Add another guest with the same name? Each gets their own link.', confirmLabel: 'Add another' }))
+      ) {
+        return
+      }
+    }
     add.mutate()
   }
   return (
@@ -523,7 +542,7 @@ function AddAttendee({ orgSlug, retreat, onDone }: { orgSlug: string; retreat: R
       <Field id="add-name" label="Name" error={fieldError(add.error, 'name')}>
         <input id="add-name" type="text" value={form.name} onChange={set('name')} />
       </Field>
-      <Field id="add-email" label="Email" error={fieldError(add.error, 'email')}>
+      <Field id="add-email" label="Email (optional)" hint="Without one, copy their link and send it on WhatsApp or show a QR code." error={fieldError(add.error, 'email')}>
         <input id="add-email" type="email" value={form.email} onChange={set('email')} />
       </Field>
       {isProperty && (
@@ -551,8 +570,49 @@ function AddAttendee({ orgSlug, retreat, onDone }: { orgSlug: string; retreat: R
 }
 
 /** A guest's address bounced (or they reported spam): say so, and let the organiser correct it. */
+/** A guest added without an email: say so, and let the organiser add one later. */
+function AddEmail({ orgSlug, attendee, onAdded }: { orgSlug: string; attendee: AttendeeRowView; onAdded: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [email, setEmail] = useState('')
+  const save = useMutation({
+    mutationFn: () => patch(`${orgApi(orgSlug)}/attendees/${attendee.id}`, { email }),
+    onSuccess: onAdded,
+  })
+  if (!open) {
+    return (
+      <div className="small muted">
+        No email: send their link on WhatsApp or by QR code.{' '}
+        <button type="button" className="link-button" onClick={() => setOpen(true)}>
+          Add email
+        </button>
+      </div>
+    )
+  }
+  return (
+    <form
+      className="small"
+      onSubmit={(e) => {
+        e.preventDefault()
+        save.mutate()
+      }}
+    >
+      <span className="row" style={{ gap: '0.35rem', marginTop: '0.3rem' }}>
+        <label className="sr-only" htmlFor={`add-email-${attendee.id}`}>Email address for {attendee.name}</label>
+        <input id={`add-email-${attendee.id}`} type="email" value={email} autoFocus onChange={(e) => setEmail(e.target.value)} style={{ minHeight: 32, maxWidth: '16rem' }} />
+        <button type="submit" className="btn secondary small" disabled={save.isPending || !email.trim()}>
+          Save email
+        </button>
+        <button type="button" className="link-button" onClick={() => setOpen(false)}>
+          Cancel
+        </button>
+      </span>
+      <MutationError error={save.error} />
+    </form>
+  )
+}
+
 function EmailProblem({ orgSlug, attendee, onFixed }: { orgSlug: string; attendee: AttendeeRowView; onFixed: () => void }) {
-  const [email, setEmail] = useState(attendee.email)
+  const [email, setEmail] = useState(attendee.email ?? '')
   const fix = useMutation({
     mutationFn: () => patch<{ attendee: { emailProblem: string | null } }>(`${orgApi(orgSlug)}/attendees/${attendee.id}`, { email }),
     onSuccess: onFixed,

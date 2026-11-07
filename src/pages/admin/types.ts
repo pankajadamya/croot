@@ -87,7 +87,8 @@ export type InviteState =
 export interface AttendeeRowView {
   id: string
   name: string
-  email: string
+  /** null: added without an email; the organiser sends their link another way (ShareLink). */
+  email: string | null
   /** The address bounced or its owner reported spam: Croot won't email it until corrected. */
   emailProblem?: 'bounced' | 'complained' | null
   state: InviteState

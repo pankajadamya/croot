@@ -36,7 +36,7 @@ attendeesRouter.get(
       },
     })
     const now = new Date()
-    const problems = await suppressedAmong(attendees.map((a) => a.email))
+    const problems = await suppressedAmong(attendees.flatMap((a) => (a.email ? [a.email] : [])))
     res.json({
       attendees: attendees.map((a) => {
         const inv = a.invitations[0]
@@ -55,7 +55,7 @@ attendeesRouter.get(
           name: a.name,
           email: a.email,
           // bounced / complained: SES reported it; Croot won't email it until the address is corrected.
-          emailProblem: problems.get(normaliseEmail(a.email)) ?? null,
+          emailProblem: (a.email && problems.get(normaliseEmail(a.email))) ?? null,
           stayStart: a.stayStart,
           stayEnd: a.stayEnd,
           state,
@@ -79,15 +79,21 @@ attendeesRouter.post(
     const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
     const { csv } = parseBody(csvSchema, req.body)
     const existing = await prisma.attendee.findMany({ where: { retreatId: retreat.id }, select: { email: true } })
-    const rows = parseAttendeeCsv(csv, new Set(existing.map((e) => e.email)))
+    const rows = parseAttendeeCsv(csv, new Set(existing.flatMap((e) => (e.email ? [e.email] : []))))
     if (rows.length > 2000) throw new HttpError(400, 'Import at most 2,000 attendees at a time')
     res.json({ rows })
   }),
 )
 
 const stayDate = z.iso.date().nullable().optional()
+/** A guest's email is optional: without one, the organiser shares their private link another way. */
+const optionalEmail = z
+  .union([z.email().max(200), z.literal('')])
+  .nullable()
+  .optional()
+  .transform((v) => (v ? v.toLowerCase() : null))
 const importSchema = z.object({
-  rows: z.array(z.object({ name: text(120), email: z.email().max(200), stayStart: stayDate, stayEnd: stayDate })).min(1).max(2000),
+  rows: z.array(z.object({ name: text(120), email: optionalEmail, stayStart: stayDate, stayEnd: stayDate })).min(1).max(2000),
 })
 const day = (v: string | null | undefined) => (v ? new Date(`${v}T00:00:00Z`) : null)
 
@@ -104,7 +110,7 @@ attendeesRouter.post(
         organisationId: t.org.id,
         retreatId: retreat.id,
         name: r.name,
-        email: r.email.toLowerCase(),
+        email: r.email,
         stayStart: day(r.stayStart),
         stayEnd: day(r.stayEnd),
         importBatch: batch,
@@ -122,12 +128,12 @@ attendeesRouter.post(
     const t = tenantOf(req)
     const retreat = await tenantRetreat(t.org.id, uuidParam(req, 'retreatId'))
     const body = parseBody(
-      z.object({ name: text(120).refine((v) => v.length > 0, 'Required'), email: z.email().max(200), stayStart: stayDate, stayEnd: stayDate }),
+      z.object({ name: text(120).refine((v) => v.length > 0, 'Required'), email: optionalEmail, stayStart: stayDate, stayEnd: stayDate }),
       req.body,
     )
-    const email = body.email.toLowerCase()
+    const email = body.email
     if (body.stayStart && body.stayEnd && body.stayEnd < body.stayStart) throw new HttpError(400, 'Check-out is before check-in')
-    if (await prisma.attendee.findUnique({ where: { retreatId_email: { retreatId: retreat.id, email } } })) {
+    if (email && (await prisma.attendee.findUnique({ where: { retreatId_email: { retreatId: retreat.id, email } } }))) {
       throw new HttpError(409, 'That email is already on this list')
     }
     const a = await prisma.attendee.create({
@@ -162,7 +168,9 @@ type RetreatForMail = { id: string; title: string; kind: 'itinerary' | 'property
 
 type OrgForMail = { id: string; name: string; slug: string; legalName: string | null; legalAddress: string | null; nonResponderRetentionDays: number }
 
-async function emailInvite(org: OrgForMail, retreat: RetreatForMail, attendee: { id: string; name: string; email: string }) {
+async function emailInvite(org: OrgForMail, retreat: RetreatForMail, attendee: { id: string; name: string; email: string | null }) {
+  if (!attendee.email) throw new HttpError(400, `There’s no email address for ${attendee.name}. Copy their link and send it another way, or add their email.`)
+  const to = attendee.email
   const orgId = org.id
   const orgName = org.name
   const origin = await siteOrigin(orgId)
@@ -171,7 +179,7 @@ async function emailInvite(org: OrgForMail, retreat: RetreatForMail, attendee: {
   await sendOrgMail(
     orgId,
     invitationEmail({
-      to: attendee.email,
+      to,
       firstName: firstName(attendee.name),
       retreatTitle: retreat.title,
       from: retreat.organiserName || orgName,
@@ -208,6 +216,7 @@ attendeesRouter.post(
       where: {
         organisationId: t.org.id,
         retreatId: retreat.id,
+        email: { not: null }, // guests without an email get their link from the organiser
         invitations: { none: { emailedAt: { not: null }, revokedAt: null } },
         OR: [{ response: null }, { response: { submittedAt: null } }],
       },
@@ -226,7 +235,7 @@ attendeesRouter.post(
           stopped = e.message
           break
         }
-        failed.push(a.email)
+        failed.push(a.email ?? a.name)
       }
     }
     await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'invitation.bulk_emailed', entityType: 'retreat', entityId: retreat.id, metadata: { sent, failed: failed.length, stopped: Boolean(stopped) } })
@@ -244,7 +253,7 @@ attendeesRouter.post(
       orderBy: { name: 'asc' },
     })
     const origin = await siteOrigin(t.org.id)
-    const links: Array<{ attendeeId: string; name: string; email: string; url: string }> = []
+    const links: Array<{ attendeeId: string; name: string; email: string | null; url: string }> = []
     for (const a of pending) {
       const { token } = await prisma.$transaction((tx) => issueInvitation(tx, { organisationId: t.org.id, attendeeId: a.id, ttlDays: retreat.inviteTtlDays }))
       links.push({ attendeeId: a.id, name: a.name, email: a.email, url: `${origin}/invite/${token}?via=link` })
