@@ -107,14 +107,28 @@ describe('guest reviews: link or sign-in', () => {
     expect(resumed.body.signIn.required).toBe(false)
   })
 
-  it('refuses to change a sent review by link alone', async () => {
+  it('lets the guest change a sent review on their own private link, without signing in', async () => {
     const { token } = await sentReview()
     const view = await request(app).get(`/api/invites/${token}`)
-    expect(view.body.editable).toBe(false)
-    expect(view.body.signIn).toMatchObject({ required: true, signedIn: false, canReopen: true })
-    const reopen = await request(app).post(`/api/invites/${token}/reopen`)
-    expect(reopen.status).toBe(401)
-    expect(reopen.body.details.signInRequired).toBe(true)
+    expect(view.body.editable).toBe(false) // sent: reopened first, so the published version stays until approved
+    expect(view.body.signIn).toMatchObject({ required: false, signedIn: false, mayChange: true, canReopen: true })
+    expect((await request(app).post(`/api/invites/${token}/reopen`)).status).toBe(200)
+    const open = await request(app).get(`/api/invites/${token}`)
+    expect(open.body.editable).toBe(true)
+    const saved = await request(app).put(`/api/invites/${token}/draft`).send({ revision: open.body.response.revision, storyText: 'Changed on my link.' })
+    expect(saved.status).toBe(200)
+    expect((await request(app).post(`/api/invites/${token}/submit`).send({ revision: saved.body.revision })).status).toBe(200)
+    expect((await prisma.response.findFirstOrThrow()).storyText).toBe('Changed on my link.')
+    // The private response page (export, erase) still needs sign-in: a link can be forwarded.
+    const again = await request(app).post(`/api/invites/${token}/submit`).send({ revision: 0 })
+    expect(again.status).toBe(401)
+  })
+
+  it('stops a revoked link from changing a sent review', async () => {
+    const { token } = await sentReview()
+    await prisma.invitation.updateMany({ data: { revokedAt: new Date() } })
+    expect((await request(app).get(`/api/invites/${token}`)).status).toBe(404)
+    expect((await request(app).post(`/api/invites/${token}/reopen`)).status).toBe(404)
   })
 
   it('lets the invited guest sign in, find the review and change it', async () => {

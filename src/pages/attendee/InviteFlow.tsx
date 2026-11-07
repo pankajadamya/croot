@@ -39,7 +39,8 @@ interface Consents {
 interface InviteView {
   firstName: string
   editable: boolean
-  signIn: { required: boolean; signedIn: boolean; canReopen: boolean }
+  /** mayChange: may reopen and change a sent review (on the private link, or signed in). */
+  signIn: { required: boolean; signedIn: boolean; mayChange?: boolean; canReopen: boolean }
   retreat: {
     kind: ReviewKind
     title: string
@@ -202,7 +203,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
     if (!view || autoEdit.current || params.get('edit') !== '1') return
     autoEdit.current = true
     navigate(location.pathname, { replace: true })
-    if (view.response?.status === 'submitted' && view.signIn.signedIn && view.signIn.canReopen) {
+    if (view.response?.status === 'submitted' && (view.signIn.mayChange ?? view.signIn.signedIn) && view.signIn.canReopen) {
       post(`${base}/reopen`)
         .then(() => load())
         .catch((e: Error) => setSubmitError(e.message))
@@ -405,7 +406,8 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
         Sign in to edit my review
       </Link>
     )
-    if (wantsEdit && view.signIn.signedIn && view.signIn.canReopen && submitted && !submitError) return <Loading />
+    const mayChange = view.signIn.mayChange ?? view.signIn.signedIn
+    if (wantsEdit && mayChange && view.signIn.canReopen && submitted && !submitError) return <Loading />
     if (view.response?.status === 'changes_requested' && awaitingSignIn) {
       return (
         <main className="calm">
@@ -457,7 +459,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                   </Link>
                 )}
                 {view.signIn.canReopen &&
-                  (view.signIn.signedIn ? (
+                  (mayChange ? (
                     <button className="btn secondary" onClick={reopen} disabled={reopening}>
                       {reopening ? 'Opening…' : 'Edit my review'}
                     </button>
@@ -467,9 +469,9 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
               </div>
               {view.signIn.canReopen && (
                 <p className="small muted" style={{ marginTop: '1rem' }}>
-                  {view.signIn.signedIn
+                  {mayChange
                     ? 'Editing reopens your review. If it’s already published, the published version stays up until the organiser approves your changes.'
-                    : 'To change a review you’ve already sent, sign in with the email address your invitation was sent to.'}
+                    : 'To change a review you’ve already sent, open your private link or sign in with the email address your invitation was sent to.'}
                 </p>
               )}
             </>

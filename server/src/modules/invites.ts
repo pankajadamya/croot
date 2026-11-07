@@ -22,8 +22,10 @@ import { tokenLimiter, uploadLimiter } from '../middleware/rateLimits.js'
  * A guest's review, reached two ways:
  *   /api/invites/:token          the unique link (no account needed to start, save and resume)
  *   /api/me/reviews/:attendeeId  a signed-in guest whose verified email matches the invitation
- * Once a review has been sent, changing it (text, ratings, photos, resubmitting) requires the
- * signed-in route or a signed-in session on the link: see requireEditable().
+ * Once a review has been sent, changing it (text, ratings, photos, resubmitting) needs one of the two:
+ * the guest's own private link (still valid, so not revoked or expired), or signing in with the invited
+ * email address, which works without the link. See mayChangeSent(). Opening the private response page
+ * (export, erase) still needs sign-in, since a link can be forwarded.
  */
 type Review = Omit<ResolvedInvite, 'invitation'> & { invitation: Invitation | null }
 
@@ -32,7 +34,15 @@ const current = (res: Response): Review => res.locals.review as Review
 
 /** True when the request comes from a signed-in user who proved they own the invited address. */
 function signedInAsGuest(req: Request, r: Review) {
-  return Boolean(req.auth?.emailVerified && req.auth.user.email === r.attendee.email)
+  return Boolean(r.attendee.email && req.auth?.emailVerified && req.auth.user.email === r.attendee.email)
+}
+
+/**
+ * May change a review that has already been sent: whoever came in on the guest's private link (it
+ * only resolves while valid), or the guest signed in with their invited address.
+ */
+function mayChangeSent(req: Request, r: Review) {
+  return Boolean(r.invitation) || signedInAsGuest(req, r)
 }
 
 export const invitesRouter = Router()
@@ -132,11 +142,13 @@ async function draftView(r: Review, req: Request) {
       })
   return {
     firstName: firstName(r.attendee.name),
-    editable: canEdit(r) && (!r.response?.submittedAt || signedInAsGuest(req, r)),
-    // A sent review can be changed only after signing in with the invited email address.
+    editable: canEdit(r) && (!r.response?.submittedAt || mayChangeSent(req, r)),
+    // A sent review can be changed on the private link, or after signing in with the invited email address.
     signIn: {
-      required: Boolean(r.response?.submittedAt),
+      required: Boolean(r.response?.submittedAt) && !mayChangeSent(req, r),
       signedIn: signedInAsGuest(req, r),
+      // mayChange: this visitor can reopen and change the sent review (link holder, or signed in).
+      mayChange: mayChangeSent(req, r),
       canReopen: r.response?.status === 'submitted' && r.retreat.status === 'collecting',
     },
     retreat: {
@@ -225,8 +237,8 @@ const draftSchema = z.object({
 
 function requireEditable(req: Request, res: Response) {
   const r = current(res)
-  if (r.response?.submittedAt && !signedInAsGuest(req, r)) {
-    throw new HttpError(401, 'To change a review you have already sent, sign in with the email address you were invited on.', { signInRequired: true })
+  if (r.response?.submittedAt && !mayChangeSent(req, r)) {
+    throw new HttpError(401, 'To change a review you have already sent, open your private link or sign in with the email address you were invited on.', { signInRequired: true })
   }
   if (!canEdit(r)) throw new HttpError(409, 'This response can no longer be edited. You can still view it from your private response link.')
   return r
@@ -434,20 +446,20 @@ reviewRoutes.get(
 )
 
 /**
- * A signed-in guest reopens their sent review to change it. The published version (the words they
- * approved earlier) stays live until the organiser approves the update.
+ * A guest reopens their sent review to change it, on their private link or signed in. The published
+ * version (the words they approved earlier) stays live until the organiser approves the update.
  */
 reviewRoutes.post(
   '/reopen',
   route(async (req, res) => {
     const r = current(res)
-    if (!signedInAsGuest(req, r)) {
-      throw new HttpError(401, 'Sign in with the email address you were invited on to change your review.', { signInRequired: true })
+    if (!mayChangeSent(req, r)) {
+      throw new HttpError(401, 'Open your private link, or sign in with the email address you were invited on, to change your review.', { signInRequired: true })
     }
     if (r.response?.status !== 'submitted') throw new HttpError(409, 'This review is not waiting to be changed')
     if (r.retreat.status !== 'collecting') throw new HttpError(409, 'Reviews for this programme are closed. Contact the organiser to change yours.')
     await prisma.response.update({ where: { id: r.response.id }, data: { status: 'changes_requested', organiserMessage: null } })
-    await audit({ organisationId: r.retreat.organisationId, actorUserId: req.auth!.user.id, actorKind: 'attendee', action: 'response.reopened_by_guest', entityType: 'response', entityId: r.response.id })
+    await audit({ organisationId: r.retreat.organisationId, actorUserId: req.auth?.user.id ?? null, actorKind: 'attendee', action: 'response.reopened_by_guest', entityType: 'response', entityId: r.response.id, metadata: { via: r.invitation ? 'link' : 'sign-in' } })
     res.json({ ok: true })
   }),
 )
