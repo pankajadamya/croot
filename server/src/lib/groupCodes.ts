@@ -10,23 +10,30 @@ import { safeEqual } from './tokens.js'
  * Email codes for guests who joined by a group link: they gave only a name, so on the thank-you page
  * they may add an email and prove it with a code (optional, like everyone else's verification).
  * Codes are HMAC'd with a server secret, single use, short-lived, with a few attempts; at most a few
- * per address per hour, and every code counts against the organisation's daily email limit.
+ * per address per hour and 3 addresses per guest, from a small daily budget of its own (emailGuard.ts).
  */
 const CODES_PER_ADDRESS_PER_HOUR = 5
 const MAX_ATTEMPTS = 5
 
 const hmac = (retreatId: string, email: string, code: string) => createHmac('sha256', authSecret).update(`group:${retreatId}:${email}:${code}`).digest('hex')
 
-export async function sendGroupCode(opts: { organisationId: string; retreatId: string; retreatTitle: string; email: string; name: string }) {
+/** Different addresses one guest (joined by group link) may ask codes for. */
+const ADDRESSES_PER_GUEST = 3
+
+export async function sendGroupCode(opts: { organisationId: string; retreatId: string; retreatTitle: string; email: string; name: string; attendeeId: string }) {
   const email = normaliseEmail(opts.email)
+  const tried = await prisma.groupJoinCode.findMany({ where: { attendeeId: opts.attendeeId }, select: { email: true }, distinct: ['email'] })
+  if (!tried.some((t) => t.email === email) && tried.length >= ADDRESSES_PER_GUEST) {
+    throw new HttpError(429, 'You’ve tried several addresses already. Please contact the organiser if you need help.')
+  }
   const recent = await prisma.groupJoinCode.count({ where: { retreatId: opts.retreatId, email, createdAt: { gt: new Date(Date.now() - 3600_000) } } })
   if (recent >= CODES_PER_ADDRESS_PER_HOUR) return // answers the same way; just sends nothing more this hour
   await prisma.groupJoinCode.updateMany({ where: { retreatId: opts.retreatId, email, consumedAt: null }, data: { consumedAt: new Date() } })
   const code = String(randomInt(0, 1_000_000)).padStart(6, '0')
   await prisma.groupJoinCode.create({
-    data: { retreatId: opts.retreatId, email, name: opts.name, codeHash: hmac(opts.retreatId, email, code), expiresAt: new Date(Date.now() + env.LOGIN_CODE_TTL_MINUTES * 60_000) },
+    data: { retreatId: opts.retreatId, email, name: opts.name, attendeeId: opts.attendeeId, codeHash: hmac(opts.retreatId, email, code), expiresAt: new Date(Date.now() + env.LOGIN_CODE_TTL_MINUTES * 60_000) },
   })
-  await sendOrgMail(opts.organisationId, groupJoinCodeEmail(email, code, opts.retreatTitle, env.LOGIN_CODE_TTL_MINUTES))
+  await sendOrgMail(opts.organisationId, groupJoinCodeEmail(email, code, opts.retreatTitle, env.LOGIN_CODE_TTL_MINUTES), { trigger: 'public' })
 }
 
 /** Checks a code; throws 401 when it's wrong, expired, used or out of attempts. */

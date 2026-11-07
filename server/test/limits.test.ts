@@ -60,7 +60,7 @@ describe('stored image size', () => {
       .withMetadata({ exif: { IFD0: { Make: 'PhoneCo' } } })
       .toBuffer()
     const out = await processImage(big)
-    expect(Object.keys(out).sort()).toEqual(['derivative', 'height', 'takenAt', 'width'])
+    expect(Object.keys(out).sort()).toEqual(['derivative', 'height', 'takenAt', 'thumb', 'width'])
     const web = await sharp(out.derivative).metadata()
     expect([web.width, web.height, web.format]).toEqual([2560, 1707, 'webp'])
     expect(web.exif).toBeUndefined()

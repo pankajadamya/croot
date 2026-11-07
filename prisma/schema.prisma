@@ -588,6 +588,8 @@ model MediaAsset {
   originalKey    String?
   /// Metadata-stripped web copy: the only copy of a photo that is stored (a video's poster).
   derivativeKey  String
+  /// A small copy (640px WebP) for grids and thumbnails; null until made (older photos get one in the background).
+  thumbKey       String?
   /// When it was taken (EXIF or the video's creation time), read before metadata is stripped. Null if unknown.
   takenAt        DateTime?
   mime           String
@@ -787,6 +789,9 @@ model EmailSend {
   id             String   @id @default(uuid()) @db.Uuid
   organisationId String   @db.Uuid
   category       String
+  /// organiser: the organisation sent it (invitations, announcements). public: someone else caused it
+  /// (the interest form, a group-link email code), so it comes from a separate, smaller daily budget.
+  trigger        String   @default("organiser")
   messageId      String?  @unique
   sentAt         DateTime @default(now())
 
@@ -857,6 +862,8 @@ model GroupJoinCode {
   retreatId  String    @db.Uuid
   email      String
   name       String
+  /// The guest (joined by group link) who asked for it: each may try only a few addresses.
+  attendeeId String?   @db.Uuid
   codeHash   String
   attempts   Int       @default(0)
   expiresAt  DateTime

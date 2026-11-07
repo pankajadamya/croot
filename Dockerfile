@@ -34,7 +34,7 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends tini curl \
   && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-ENV NODE_ENV=production PORT=3000 NPM_CONFIG_UPDATE_NOTIFIER=false STORAGE_BACKEND=s3
+ENV NODE_ENV=production PORT=3000 NPM_CONFIG_UPDATE_NOTIFIER=false STORAGE_BACKEND=s3 MALLOC_ARENA_MAX=2
 
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist

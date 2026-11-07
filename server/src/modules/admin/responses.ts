@@ -1,3 +1,4 @@
+import { imageKey } from '../../lib/images.js'
 import { Router } from 'express'
 import { z } from 'zod'
 import type { Prisma } from '@prisma/client'
@@ -261,7 +262,7 @@ responsesRouter.get(
   route(async (req, res) => {
     const t = tenantOf(req)
     const media = await tenantMedia(t.org.id, uuidParam(req, 'mediaId'))
-    const bytes = await storage.get(media.derivativeKey)
+    const bytes = await storage.get(imageKey(media, req.query.size))
     if (!bytes) throw new HttpError(404, 'Image not found')
     res.set({ 'Content-Type': 'image/webp', 'Cache-Control': 'private, no-store' }).send(bytes)
   }),

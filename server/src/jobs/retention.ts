@@ -1,3 +1,4 @@
+import { makeThumb, withImageSlot } from '../lib/images.js'
 import { audit } from '../lib/audit.js'
 import { eraseAttendee, purgeObjects } from '../lib/gdpr.js'
 import { retryPendingDeletions } from '../lib/storageCleanup.js'
@@ -22,18 +23,18 @@ const DAY = 86_400_000
 const monthsAgo = (now: Date, m: number) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - m, now.getUTCDate()))
 
 export async function runRetention(now = new Date()) {
-  const counts = { drafts: 0, nonResponders: 0, responsesErased: 0, responsesMinimised: 0, originals: 0, notes: 0, auditEvents: 0, sessions: 0, setupTokens: 0, invitations: 0, tenantRequests: 0, loginCodes: 0, interestUnconfirmed: 0, storageRetried: 0, storageStillFailing: 0, emailSends: 0, emailFeedback: 0, groupCodes: 0, verifyLinks: 0 }
+  const counts = { drafts: 0, nonResponders: 0, responsesErased: 0, responsesMinimised: 0, originals: 0, notes: 0, auditEvents: 0, sessions: 0, setupTokens: 0, invitations: 0, tenantRequests: 0, loginCodes: 0, interestUnconfirmed: 0, storageRetried: 0, storageStillFailing: 0, emailSends: 0, emailFeedback: 0, groupCodes: 0, verifyLinks: 0, thumbsMade: 0 }
   const orgs = await prisma.organisation.findMany()
 
   for (const org of orgs) {
     // 1. Stale drafts (the guest's attendee record and link remain until rule 2).
     const drafts = await prisma.response.findMany({
       where: { organisationId: org.id, status: 'draft', updatedAt: { lt: new Date(now.getTime() - org.draftRetentionDays * DAY) } },
-      select: { id: true, media: { select: { originalKey: true, derivativeKey: true } } },
+      select: { id: true, media: { select: { originalKey: true, derivativeKey: true, thumbKey: true } } },
     })
     for (const d of drafts) {
       await prisma.response.delete({ where: { id: d.id } })
-      await purgeObjects(d.media.flatMap((m) => [m.originalKey, m.derivativeKey]))
+      await purgeObjects(d.media.flatMap((m) => [m.originalKey, m.derivativeKey, m.thumbKey]))
       counts.drafts++
     }
 
@@ -59,7 +60,7 @@ export async function runRetention(now = new Date()) {
         submittedAt: { lt: monthsAgo(now, org.responseRetentionMonths) },
         privateDataPurgedAt: null,
       },
-      select: { id: true, attendeeId: true, publicationStatus: true, media: { select: { id: true, originalKey: true, derivativeKey: true, originalPurgedAt: true } } },
+      select: { id: true, attendeeId: true, publicationStatus: true, media: { select: { id: true, originalKey: true, derivativeKey: true, thumbKey: true, originalPurgedAt: true } } },
     })
     for (const r of old) {
       const live = r.publicationStatus === 'published' ? await livePublication(r.id) : null
@@ -81,7 +82,7 @@ export async function runRetention(now = new Date()) {
         prisma.attendee.update({ where: { id: r.attendeeId }, data: { email: `retained-${r.attendeeId}@invalid`, stayStart: null, stayEnd: null } }),
         prisma.invitation.deleteMany({ where: { attendeeId: r.attendeeId } }),
       ])
-      await purgeObjects(unpublished.flatMap((m) => [m.originalPurgedAt ? null : m.originalKey, m.derivativeKey]))
+      await purgeObjects(unpublished.flatMap((m) => [m.originalPurgedAt ? null : m.originalKey, m.derivativeKey, m.thumbKey]))
       await audit({ organisationId: org.id, actorKind: 'system', action: 'retention.response_minimised', entityType: 'response', entityId: r.id })
       counts.responsesMinimised++
     }
@@ -131,6 +132,8 @@ export async function runRetention(now = new Date()) {
   const ninetyDays = new Date(now.getTime() - 90 * 24 * 3600_000)
   counts.emailSends = (await prisma.emailSend.deleteMany({ where: { sentAt: { lt: ninetyDays } } })).count
   counts.emailFeedback = (await prisma.emailFeedback.deleteMany({ where: { createdAt: { lt: ninetyDays } } })).count
+  // Small copies for photos added before thumbnails existed, a batch per run.
+  counts.thumbsMade = await backfillThumbs(200)
   // Group-link codes (they hold an address and name) a day after they expire; verification links a month after.
   counts.groupCodes = (await prisma.groupJoinCode.deleteMany({ where: { expiresAt: { lt: new Date(now.getTime() - DAY) } } })).count
   counts.verifyLinks = (await prisma.verificationRequest.deleteMany({ where: { expiresAt: { lt: new Date(now.getTime() - 30 * DAY) } } })).count
@@ -167,4 +170,21 @@ export function scheduleRetention(intervalMs = 6 * 3600_000) {
     clearTimeout(first)
     clearInterval(every)
   }
+}
+
+/** Makes the small grid copy for up to `batch` photos that don't have one yet (older uploads). */
+export async function backfillThumbs(batch: number) {
+  const todo = await prisma.mediaAsset.findMany({ where: { thumbKey: null, removedAt: null }, select: { id: true, derivativeKey: true }, take: batch })
+  let made = 0
+  for (const m of todo) {
+    const web = await storage.get(m.derivativeKey)
+    if (!web) continue
+    const key = m.derivativeKey.replace(/\.webp$/, '') + '-thumb.webp'
+    const thumb = await withImageSlot(() => makeThumb(web)).catch(() => null)
+    if (!thumb) continue
+    await storage.put(key, thumb, 'image/webp')
+    await prisma.mediaAsset.update({ where: { id: m.id }, data: { thumbKey: key } })
+    made++
+  }
+  return made
 }

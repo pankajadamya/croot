@@ -55,15 +55,24 @@ describe('verified reviews', () => {
     expect(story.body.story.verified).toBe(true)
   })
 
-  it('signing in later verifies; the organiser changing the address takes the badge away', async () => {
+  it('signing in later needs "Yes, this review is mine"; the organiser changing the address takes the badge away', async () => {
     const { org, user, retreat } = await makeTenant('alpha')
     const { attendee, token } = await invite(org.id, retreat.id, 'Ravi', 'ravi@example.test')
     await send(token)
     expect((await prisma.response.findFirstOrThrow()).verifiedAt).toBeNull()
 
-    await request(app).post('/api/auth/code/request').send({ email: 'ravi@example.test', purpose: 'signin' })
-    expect((await request(app).post('/api/auth/code/verify').send({ email: 'ravi@example.test', code: codeIn('ravi@example.test') })).status).toBe(200)
+    // Signing in alone doesn't vouch for a review someone may have written on a copied link…
+    const ravi = request.agent(app)
+    await ravi.post('/api/auth/code/request').send({ email: 'ravi@example.test', purpose: 'signin' })
+    const signedIn = await ravi.post('/api/auth/code/verify').send({ email: 'ravi@example.test', code: codeIn('ravi@example.test') })
+    expect(signedIn.status).toBe(200)
+    expect((await prisma.response.findFirstOrThrow()).verifiedAt).toBeNull()
+    const mine = (await ravi.get('/api/me/reviews')).body.reviews[0]
+    expect(mine).toMatchObject({ canClaim: true, verified: false })
+    // …the guest saying it's theirs does.
+    expect((await ravi.post(`/api/me/reviews/${attendee.id}/claim`).set('X-CSRF-Token', signedIn.body.csrfToken)).status).toBe(200)
     expect((await prisma.response.findFirstOrThrow({ include: { verifications: true } })).verifications).toMatchObject([{ method: 'sign_in' }])
+    expect((await ravi.get('/api/me/reviews')).body.reviews[0]).toMatchObject({ canClaim: false, verified: true })
 
     const { agent, csrf } = await login(user.email)
     await agent.patch(`/api/admin/orgs/alpha/attendees/${attendee.id}`).set('X-CSRF-Token', csrf).send({ email: 'ravi.new@example.test' })
@@ -168,12 +177,47 @@ describe('group link', () => {
     expect((await publish()).status).toBe(200)
   })
 
-  it('won’t take an email that already has its own review on the retreat', async () => {
+  it('won’t take an email that already has its own sent review on the retreat', async () => {
     const { org, retreat, gt } = await makeLink()
-    await invite(org.id, retreat.id, 'Asha', 'asha@example.test')
+    const { token: ashaOwn } = await invite(org.id, retreat.id, 'Asha', 'asha@example.test')
+    await send(ashaOwn)
     const token = (await join(gt, 'Asha again')).body.reviewPath.match(/\/invite\/([\w-]+)/)[1]
     await send(token)
     expect((await request(app).post(`/api/invites/${token}/verify/send`).send({ email: 'asha@example.test' })).status).toBe(409)
+  })
+
+  it('matches a joiner to their place on the guest list when they confirm that email', async () => {
+    const { org, retreat, agent, csrf, gt } = await makeLink()
+    const { attendee: asha, token: ashaLink } = await invite(org.id, retreat.id, 'Asha Patel', 'asha@example.test')
+    // Asha had opened her own link and started a draft; then she wrote her review on the group link.
+    await request(app).put(`/api/invites/${ashaLink}/draft`).send({ revision: 0, storyText: 'Half a thought' })
+    const token = (await join(gt, 'Asha')).body.reviewPath.match(/\/invite\/([\w-]+)/)[1]
+    await send(token)
+    await request(app).post(`/api/invites/${token}/verify/send`).send({ email: 'asha@example.test' })
+    const guest = request.agent(app)
+    const ok = await guest.post(`/api/invites/${token}/verify/confirm`).send({ email: 'asha@example.test', code: codeIn('asha@example.test') })
+    expect(ok.status).toBe(200)
+    expect(ok.body.movedTo).toBe(`/my-reviews/${asha.id}`)
+
+    // One guest, on the list, with the review she sent (her draft replaced), verified and publishable.
+    expect(await prisma.attendee.count({ where: { retreatId: retreat.id } })).toBe(1)
+    const response = await prisma.response.findFirstOrThrow({ include: { attendee: true } })
+    expect(response).toMatchObject({ attendeeId: asha.id, storyText: 'A wonderful week of yoga by the sea.' })
+    expect(response.verifiedAt).not.toBeNull()
+    expect(response.attendee).toMatchObject({ source: 'invited', email: 'asha@example.test' })
+    expect((await agent.post(`/api/admin/orgs/alpha/responses/${response.id}/publish`).set('X-CSRF-Token', csrf).send({})).status).toBe(200)
+    expect((await guest.get('/api/me/reviews')).body.reviews).toMatchObject([{ attendeeId: asha.id, verified: true }])
+    // Her own link still works, and shows the sent review.
+    expect((await request(app).get(`/api/invites/${ashaLink}`)).body.response.status).toBe('submitted')
+  })
+
+  it('lets one joiner try at most 3 addresses', async () => {
+    const { gt } = await makeLink()
+    const token = (await join(gt, 'Typo')).body.reviewPath.match(/\/invite\/([\w-]+)/)[1]
+    await send(token)
+    for (const e of ['a@x.test', 'b@x.test', 'c@x.test']) expect((await request(app).post(`/api/invites/${token}/verify/send`).send({ email: e })).status).toBe(200)
+    expect((await request(app).post(`/api/invites/${token}/verify/send`).send({ email: 'd@x.test' })).status).toBe(429)
+    expect((await request(app).post(`/api/invites/${token}/verify/send`).send({ email: 'a@x.test' })).status).toBe(200) // a new code for one already tried
   })
 
   it('takes at most 20 people', async () => {

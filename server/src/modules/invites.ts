@@ -1,3 +1,4 @@
+import { imageKey } from '../lib/images.js'
 import { Router, type Request, type Response } from 'express'
 import multer from 'multer'
 import { z } from 'zod'
@@ -16,7 +17,7 @@ import { publishedContent } from '../lib/site.js'
 import { storage } from '../lib/storage.js'
 import { removeObjects } from '../lib/storageCleanup.js'
 import { hashToken, receiptTokenFor } from '../lib/tokens.js'
-import { loginLimiter, tokenLimiter, uploadLimiter } from '../middleware/rateLimits.js'
+import { linkCodeLimiter, linkGuessLimiter, linkLimiter, linkUploadLimiter } from '../middleware/rateLimits.js'
 import { emailProven, maskEmail, verifyResponse } from '../lib/verification.js'
 import { requestCode, verifyCode } from '../lib/loginCodes.js'
 import { signedIn } from './auth.js'
@@ -61,7 +62,8 @@ function mayChangeSent(req: Request, r: Review) {
 export const invitesRouter = Router()
 invitesRouter.use(
   '/:token',
-  tokenLimiter,
+  linkGuessLimiter,
+  linkLimiter,
   route(async (req, res, next) => {
     res.locals.review = await resolveInvite(req.params.token)
     next()
@@ -80,7 +82,7 @@ myReviewsRouter.get(
       where: { email: req.auth!.user.email, retreat: { status: { in: ['collecting', 'closed'] }, organisation: { status: 'active' } } },
       include: {
         retreat: { select: { title: true, kind: true, startDate: true, endDate: true, organisation: { select: { name: true } } } },
-        response: { select: { status: true, submittedAt: true, publicationStatus: true, publicSlug: true, updatedAt: true } },
+        response: { select: { status: true, submittedAt: true, publicationStatus: true, publicSlug: true, updatedAt: true, verifiedAt: true } },
       },
       orderBy: { createdAt: 'desc' },
     })
@@ -97,6 +99,9 @@ myReviewsRouter.get(
         submittedAt: a.response?.submittedAt ?? null,
         publication: a.response?.publicationStatus ?? 'none',
         storyUrl: a.response?.publicationStatus === 'published' && a.response.publicSlug ? `/stories/${a.response.publicSlug}` : null,
+        // Sent but not verified: the signed-in guest can say it's theirs (see /claim).
+        canClaim: Boolean(a.response?.submittedAt && !a.response.verifiedAt),
+        verified: Boolean(a.response?.verifiedAt),
       })),
     })
   }),
@@ -231,12 +236,27 @@ async function draftView(r: Review, req: Request) {
 }
 
 /**
+ * "Yes, this review is mine": a guest signed in with the invited address vouches for a review that was
+ * sent without being verified (say, on a link before they signed in). Only from the signed-in route.
+ */
+reviewRoutes.post(
+  '/claim',
+  route(async (req, res) => {
+    const r = current(res)
+    if (!signedInAsGuest(req, r)) throw new HttpError(403, 'Sign in with the email address you were invited on.')
+    if (!r.response?.submittedAt) throw new HttpError(409, 'This review hasn’t been sent yet.')
+    await emailProven(r.attendee.id, 'sign_in')
+    res.json({ verified: true })
+  }),
+)
+
+/**
  * The thank-you page's "confirm it's you": a code to the guest's address, which marks the review
  * "Verified email" and signs them in (so they can manage it from My reviews).
  */
 reviewRoutes.post(
   '/verify/send',
-  loginLimiter,
+  linkCodeLimiter,
   route(async (req, res) => {
     const r = current(res)
     if (!r.response?.submittedAt) throw new HttpError(409, 'Send your review first.')
@@ -249,14 +269,14 @@ reviewRoutes.post(
     const { email } = parseBody(z.object({ email: z.email().max(200) }), req.body)
     const address = normaliseEmail(email)
     await assertAddressFree(r, address)
-    await sendGroupCode({ organisationId: r.retreat.organisationId, retreatId: r.retreat.id, retreatTitle: r.retreat.title, email: address, name: r.attendee.name })
+    await sendGroupCode({ organisationId: r.retreat.organisationId, retreatId: r.retreat.id, retreatTitle: r.retreat.title, email: address, name: r.attendee.name, attendeeId: r.attendee.id })
     res.json({ sentTo: maskEmail(address) })
   }),
 )
 
 reviewRoutes.post(
   '/verify/confirm',
-  loginLimiter,
+  linkCodeLimiter,
   route(async (req, res) => {
     const r = current(res)
     const body = parseBody(z.object({ code: z.string().trim().max(12), email: z.email().max(200).optional() }), req.body)
@@ -269,18 +289,50 @@ reviewRoutes.post(
     if (r.attendee.source !== 'group_link' || !body.email) throw new HttpError(400, 'There’s no email address to confirm.')
     const address = await checkGroupCode(r.retreat.id, body.email, body.code)
     await assertAddressFree(r, address)
-    // The proven address becomes theirs; the guest typed it (the verification record says so).
-    await prisma.attendee.update({ where: { id: r.attendee.id }, data: { email: address } })
-    await emailProven(r.attendee.id, 'code')
+    const onList = await prisma.attendee.findUnique({ where: { retreatId_email: { retreatId: r.retreat.id, email: address } }, select: { id: true } })
+    let guestId = r.attendee.id
+    if (onList && onList.id !== r.attendee.id) {
+      // Already on the guest list (the organiser added them): the review moves to their place there,
+      // so they're a confirmed guest and the review is matched to them, with nothing for anyone to do.
+      guestId = await matchToGuestList(r, onList.id)
+    } else {
+      // The proven address becomes theirs; the guest typed it (the verification record says so).
+      await prisma.attendee.update({ where: { id: r.attendee.id }, data: { email: address } })
+    }
+    await emailProven(guestId, 'code')
     const user = await verifiedUserFor(address, r.attendee.name)
-    res.json(await signedIn(res, user.id, 'code', false))
+    const session = await signedIn(res, user.id, 'code', false)
+    // Their link was the group-link one, which is gone now: the page carries on from My reviews.
+    res.json(guestId === r.attendee.id ? session : { ...session, movedTo: `/my-reviews/${guestId}` })
   }),
 )
 
+/**
+ * Moves a group-link joiner's review onto their place on the guest list (same retreat, same proven
+ * address) and removes the temporary group-link entry. An unsent draft in that place is replaced; a
+ * sent review there is never overwritten (assertAddressFree refuses that before we get here).
+ */
+async function matchToGuestList(r: Review, guestId: string): Promise<string> {
+  const joiner = r.attendee.id
+  const old = await prisma.response.findUnique({ where: { attendeeId: guestId }, include: { media: true } })
+  await prisma.$transaction(async (tx) => {
+    if (old) await tx.response.delete({ where: { id: old.id } })
+    if (r.response) await tx.response.update({ where: { id: r.response.id }, data: { attendeeId: guestId } })
+    await tx.attendee.delete({ where: { id: joiner } })
+  })
+  if (old?.media.length) await removeObjects(old.media.flatMap((m) => [m.originalKey, m.derivativeKey, m.thumbKey]))
+  await audit({ organisationId: r.retreat.organisationId, actorKind: 'attendee', action: 'group_link.matched_to_guest', entityType: 'attendee', entityId: guestId })
+  return guestId
+}
+
 /** One review per email per retreat: an address already on the guest list can't be added again. */
 async function assertAddressFree(r: Review, address: string) {
-  const taken = await prisma.attendee.findUnique({ where: { retreatId_email: { retreatId: r.retreat.id, email: address } }, select: { id: true } })
-  if (taken && taken.id !== r.attendee.id) {
+  const taken = await prisma.attendee.findUnique({
+    where: { retreatId_email: { retreatId: r.retreat.id, email: address } },
+    select: { id: true, response: { select: { submittedAt: true } } },
+  })
+  // On the guest list but no review sent yet: fine, this review will be matched to them.
+  if (taken && taken.id !== r.attendee.id && taken.response?.submittedAt) {
     throw new HttpError(409, 'That email already has its own review for this retreat. Use the link sent to it, or sign in with it to manage that review.')
   }
 }
@@ -393,7 +445,7 @@ reviewRoutes.put(
 
 reviewRoutes.post(
   '/photos',
-  uploadLimiter,
+  linkUploadLimiter,
   upload.single('photo'),
   route(async (req, res) => {
     const r = requireEditable(req, res)
@@ -405,6 +457,7 @@ reviewRoutes.post(
     const id = crypto.randomUUID()
     const prefix = `org/${r.retreat.organisationId}/retreat/${r.retreat.id}/guest/${id}`
     await storage.put(`${prefix}/web.webp`, image.derivative, 'image/webp')
+    await storage.put(`${prefix}/thumb.webp`, image.thumb, 'image/webp')
     const asset = await prisma.mediaAsset.create({
       data: {
         id,
@@ -414,6 +467,7 @@ reviewRoutes.post(
         kind: 'guest',
         originalKey: null, // only the web copy is kept
         derivativeKey: `${prefix}/web.webp`,
+        thumbKey: `${prefix}/thumb.webp`,
         mime: 'image/webp',
         sizeBytes: image.derivative.length,
         width: image.width,
@@ -467,7 +521,7 @@ reviewRoutes.delete(
     const r = requireEditable(req, res)
     const photo = await ownPhoto(r, uuidParam(req, 'photoId'))
     await prisma.mediaAsset.update({ where: { id: photo.id }, data: { removedAt: new Date(), publishConsent: false } })
-    await removeObjects([photo.originalKey, photo.derivativeKey])
+    await removeObjects([photo.originalKey, photo.derivativeKey, photo.thumbKey])
     res.status(204).end()
   }),
 )
@@ -498,7 +552,7 @@ reviewRoutes.get(
 
 reviewRoutes.post(
   '/album/photos',
-  uploadLimiter,
+  linkUploadLimiter,
   upload.single('photo'),
   route(async (req, res) => {
     const r = current(res)
@@ -522,7 +576,7 @@ reviewRoutes.get(
   '/album/:photoId',
   route(async (req, res) => {
     const r = current(res)
-    await sendAlbumPhoto(res, r.retreat, r.response, uuidParam(req, 'photoId'))
+    await sendAlbumPhoto(res, r.retreat, r.response, uuidParam(req, 'photoId'), false, req.query.size)
   }),
 )
 
@@ -531,7 +585,7 @@ reviewRoutes.get(
   route(async (req, res) => {
     const r = current(res)
     const photo = await ownPhoto(r, uuidParam(req, 'photoId'))
-    const bytes = await storage.get(photo.derivativeKey)
+    const bytes = await storage.get(imageKey(photo, req.query.size))
     if (!bytes) throw new HttpError(404, 'Photo not found')
     res.set({ 'Content-Type': 'image/webp', 'Cache-Control': 'private, no-store' }).send(bytes)
   }),

@@ -7,7 +7,7 @@ import { altFor } from './altText.js'
 import { env } from './env.js'
 import { HttpError } from './http.js'
 import { heartCounts } from './hearts.js'
-import { processImage } from './images.js'
+import { imageKey, processImage, withImageSlot } from './images.js'
 import { newToken } from './tokens.js'
 import { streamVideo } from './video.js'
 import { prisma } from './prisma.js'
@@ -231,19 +231,20 @@ export async function sendAlbumVideo(req: ExpressRequest, res: ExpressResponse, 
   await streamVideo(req, res, item.videoKey, item.mime, 'private, max-age=3600')
 }
 
-async function photoOf(retreatId: string, photoId: string) {
+async function photoOf(retreatId: string, photoId: string, size?: unknown) {
   const photo = await prisma.mediaAsset.findFirst({ where: { ...albumWhere(retreatId), id: photoId } })
   if (!photo) throw new HttpError(404, 'Photo not found')
-  const bytes = await storage.get(photo.derivativeKey)
+  const bytes = await storage.get(imageKey(photo, size))
   if (!bytes) throw new HttpError(404, 'Photo not found')
   return { photo, bytes }
 }
 
 /** A full album photo: public on the album page, or through a guest's own link once they've reviewed. */
-export async function sendAlbumPhoto(res: ExpressResponse, retreat: RetreatLike, response: ResponseLike, photoId: string, publicView = false) {
+export async function sendAlbumPhoto(res: ExpressResponse, retreat: RetreatLike, response: ResponseLike, photoId: string, publicView = false, size?: unknown) {
   if (!available(retreat) || (!publicView && !isUnlocked(response))) throw new HttpError(403, 'Send your review to unlock the photo album')
-  const { bytes } = await photoOf(retreat.id, photoId)
-  res.set({ 'Content-Type': 'image/webp', 'Cache-Control': 'private, max-age=3600', 'Content-Disposition': 'inline' }).send(bytes)
+  const { bytes } = await photoOf(retreat.id, photoId, size)
+  // A photo's id never changes, so the browser may keep it for a day (private: never a shared cache).
+  res.set({ 'Content-Type': 'image/webp', 'Cache-Control': 'private, max-age=86400', 'Content-Disposition': 'inline' }).send(bytes)
 }
 
 /** A tiny, heavily blurred preview of one of the first album photos. Nothing recognisable survives. */
@@ -251,8 +252,9 @@ export async function sendTeaser(res: ExpressResponse, retreat: RetreatLike, pho
   if (!available(retreat)) throw new HttpError(404, 'Not found')
   const first = (await albumPhotos(retreat.id, retreat.rewardAlbumCoverId)).slice(0, TEASER_COUNT).map((p) => p.id)
   if (!first.includes(photoId)) throw new HttpError(404, 'Not found')
-  const { bytes } = await photoOf(retreat.id, photoId)
-  const blurred = await sharp(bytes).resize(48, 48, { fit: 'cover' }).blur(6).webp({ quality: 50 }).toBuffer()
+  // From the small copy, and through the image queue like every other decode.
+  const { bytes } = await photoOf(retreat.id, photoId, 'thumb')
+  const blurred = await withImageSlot(() => sharp(bytes).resize(48, 48, { fit: 'cover' }).blur(6).webp({ quality: 50 }).toBuffer())
   res.set({ 'Content-Type': 'image/webp', 'Cache-Control': 'private, max-age=3600' }).send(blurred)
 }
 
@@ -289,6 +291,7 @@ export async function addContribution(retreat: RetreatLike, response: ResponseLi
   const id = crypto.randomUUID()
   const prefix = `org/${retreat.organisationId}/retreat/${retreat.id}/guest/${id}`
   await storage.put(`${prefix}/web.webp`, image.derivative, 'image/webp')
+  await storage.put(`${prefix}/thumb.webp`, image.thumb, 'image/webp')
   const asset = await prisma.mediaAsset.create({
     data: {
       id,
@@ -298,6 +301,7 @@ export async function addContribution(retreat: RetreatLike, response: ResponseLi
       kind: 'guest',
       originalKey: null, // only the web copy is kept
       derivativeKey: `${prefix}/web.webp`,
+      thumbKey: `${prefix}/thumb.webp`,
       mime: 'image/webp',
       sizeBytes: image.derivative.length,
       width: image.width,

@@ -1,9 +1,9 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useConfirm } from '../../components/ConfirmDialog'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router'
 import { REVIEW_KINDS, type ReviewKind } from '../../../shared/categories'
-import { api, ApiError, get } from '../../lib/api'
+import { api, ApiError, get, post } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
 import { formatDate, formatRange } from '../../lib/format'
 import { SignedInFrame } from '../../components/AppHeader'
@@ -21,6 +21,9 @@ interface MyReview {
   submittedAt: string | null
   publication: 'none' | 'published' | 'unpublished' | 'withdrawn'
   storyUrl: string | null
+  /** Sent but not yet "Verified email": the guest can say it's theirs. */
+  canClaim?: boolean
+  verified?: boolean
 }
 
 const STATUS: Record<MyReview['status'], [string, string]> = {
@@ -44,6 +47,11 @@ export default function MyReviews() {
     enabled: Boolean(session),
     queryKey: ['my-reviews'],
     queryFn: () => get<{ reviews: MyReview[]; emailVerified: boolean }>('/api/me/reviews'),
+  })
+  const queryClient = useQueryClient()
+  const claim = useMutation({
+    mutationFn: (attendeeId: string) => post(`/api/me/reviews/${attendeeId}/claim`),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['my-reviews'] }),
   })
   if (loading) return <Loading />
   if (!session) return redirect
@@ -91,7 +99,20 @@ export default function MyReviews() {
                         See it live
                       </Link>
                     )}
+                    {r.verified && (
+                      <span className="badge ok">
+                        <span aria-hidden="true">✓</span> Verified email
+                      </span>
+                    )}
                   </div>
+                  {r.canClaim && (
+                    <p className="small" style={{ margin: '0.6rem 0 0' }}>
+                      Is this review yours? Confirming shows it as <strong>✓ Verified email</strong>.{' '}
+                      <button type="button" className="btn secondary small" disabled={claim.isPending} onClick={() => claim.mutate(r.attendeeId)}>
+                        Yes, this review is mine
+                      </button>
+                    </p>
+                  )}
                 </div>
                 <Link className="btn" to={`/my-reviews/${r.attendeeId}`}>
                   {action}

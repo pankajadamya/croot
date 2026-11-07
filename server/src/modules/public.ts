@@ -1,3 +1,4 @@
+import { imageKey } from '../lib/images.js'
 import { companyLabel } from '../../../shared/company.js'
 import { Router } from 'express'
 import { z } from 'zod'
@@ -466,7 +467,7 @@ mediaRouter.get(
       }
     }
     if (!asset || !allowed) throw new HttpError(404, 'Not found')
-    const bytes = await storage.get(asset.derivativeKey)
+    const bytes = await storage.get(imageKey(asset, req.query.size))
     if (!bytes) throw new HttpError(404, 'Not found')
     // Short cache so a withdrawal propagates quickly through browsers and any CDN.
     res.set({ 'Content-Type': 'image/webp', 'Cache-Control': 'public, max-age=300', 'Content-Disposition': 'inline' }).send(bytes)

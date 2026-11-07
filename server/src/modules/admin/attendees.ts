@@ -172,6 +172,9 @@ attendeesRouter.post(
 // Email invitations from Croot. Each send issues a fresh link (only its hash is stored, so the old one
 // can't be re-sent), which cancels any earlier link but keeps the guest's draft.
 
+/** "Email invitations" sends for at most this long per press, well inside Cloudflare's 100 s limit. */
+const SEND_BUDGET_MS = 60_000
+
 type RetreatForMail = { id: string; title: string; kind: 'itinerary' | 'property'; status: string; organiserName: string; inviteTtlDays: number }
 
 type OrgForMail = { id: string; name: string; slug: string; legalName: string | null; legalAddress: string | null; nonResponderRetentionDays: number }
@@ -235,7 +238,12 @@ attendeesRouter.post(
     let sent = 0
     const failed: string[] = []
     let stopped: string | null = null
+    // One at a time (a gentle pace for SES, never past the daily limit), for at most SEND_BUDGET_MS, so
+    // a big list never runs into Cloudflare's 100-second limit. Anyone left over is reported as "not yet",
+    // and pressing the button again carries on from there (those already emailed aren't emailed twice).
+    const deadline = Date.now() + SEND_BUDGET_MS
     for (const a of attendees) {
+      if (Date.now() > deadline) break
       try {
         await emailInvite(t.org, retreat, a)
         sent++

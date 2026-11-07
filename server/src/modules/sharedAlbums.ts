@@ -67,6 +67,6 @@ sharedAlbumsRouter.get(
   route(async (req, res) => {
     const retreat = await sharedRetreat(String(req.params.token))
     res.set('X-Robots-Tag', 'noindex, nofollow')
-    await sendAlbumPhoto(res, retreat, null, uuidParam(req, 'photoId'), true)
+    await sendAlbumPhoto(res, retreat, null, uuidParam(req, 'photoId'), true, req.query.size)
   }),
 )

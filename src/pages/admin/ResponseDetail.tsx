@@ -1,3 +1,4 @@
+import { thumb } from '../../lib/thumb'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
@@ -331,7 +332,7 @@ function PhotosSection({ orgSlug, r, refresh }: { orgSlug: string; r: ResponseDe
         <ul className="media-grid" style={{ listStyle: 'none', padding: 0 }}>
           {r.photos.map((p) => (
             <li key={p.id} className="card tight">
-              <img src={p.previewUrl} alt={p.altText || 'Guest photo'} loading="lazy" />
+              <img src={thumb(p.previewUrl)} alt={p.altText || 'Guest photo'} loading="lazy" />
               {p.caption && <p className="small">{p.caption}</p>}
               <div className="row small" style={{ margin: '0.5rem 0' }}>
                 <span className={`badge ${p.publishConsent ? 'ok' : 'danger'}`}>{p.publishConsent ? 'Guest allows publishing' : 'Guest declined publishing'}</span>
@@ -486,7 +487,7 @@ function PublicationSection({ orgSlug, r, refresh }: { orgSlug: string; r: Respo
                       checked={photoIds.includes(p.id)}
                       onChange={(e) => setPhotoIds((ids) => (e.target.checked ? [...ids, p.id] : ids.filter((x) => x !== p.id)))}
                     />
-                    <img src={p.previewUrl} alt="" />
+                    <img src={thumb(p.previewUrl)} alt="" />
                     <span className="small">{p.caption || p.altText || `Photo ${i + 1}`}</span>
                   </label>
                 ))}

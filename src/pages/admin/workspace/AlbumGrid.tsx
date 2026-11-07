@@ -1,3 +1,4 @@
+import { thumb } from '../../../lib/thumb'
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { useUrlState } from '../../../lib/useUrlState'
 import { useMutation } from '@tanstack/react-query'
@@ -358,7 +359,7 @@ export function AlbumGrid({
             {excluded.map((m) => (
               <li key={m.id} className="album-tile is-excluded">
                 <div className="album-tile-img">
-                  <img src={m.previewUrl} alt={m.caption || m.altText || 'Image'} loading="lazy" />
+                  <img src={thumb(m.previewUrl)} alt={m.caption || m.altText || 'Image'} loading="lazy" />
                 </div>
                 <button type="button" className="btn secondary small" disabled={include.isPending} onClick={() => include.mutate({ id: m.id, inAlbum: true })}>
                   Add back
@@ -390,7 +391,7 @@ function SortableTile({ id, compact, label, isCover, children }: { id: string; c
 function TileImage({ m, position, isCover }: { m: OrganiserMedia; position: number; isCover: boolean }) {
   return (
     <div className="album-tile-img">
-      <img src={m.previewUrl} alt={m.caption || m.altText || 'Album photo'} loading="lazy" draggable={false} />
+      <img src={thumb(m.previewUrl)} alt={m.caption || m.altText || 'Album photo'} loading="lazy" draggable={false} />
       <span className="album-tile-pos" aria-hidden="true">
         {position}
       </span>

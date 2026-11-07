@@ -17,10 +17,11 @@ function VerifySteps({
   base: string
   /** The address on file, masked; null when the guest gives one here (joined by group link). */
   maskedEmail: string | null
-  onDone: () => void
+  onDone: (movedTo?: string) => void
   onSkip?: () => void
   afterDone?: ReactNode
 }) {
+  const [movedTo, setMovedTo] = useState<string | undefined>()
   const { setSession } = useAuth()
   const [stage, setStage] = useState<'start' | 'sent' | 'done'>('start')
   const [code, setCode] = useState('')
@@ -47,7 +48,9 @@ function VerifySteps({
     setBusy(true)
     setError(null)
     try {
-      setSession(await post<Session>(`${base}/verify/confirm`, needsEmail ? { code, email } : { code }))
+      const r = await post<Session & { movedTo?: string }>(`${base}/verify/confirm`, needsEmail ? { code, email } : { code })
+      setSession(r)
+      setMovedTo(r.movedTo)
       setStage('done')
     } catch (e) {
       setError((e as Error).message)
@@ -67,7 +70,7 @@ function VerifySteps({
         </p>
         {afterDone}
         <div className="row" style={{ marginTop: '1rem' }}>
-          <button type="button" className="btn" onClick={onDone}>
+          <button type="button" className="btn" onClick={() => onDone(movedTo)}>
             Done
           </button>
         </div>
@@ -185,10 +188,12 @@ export function VerifyPrompt({ base, maskedEmail, onVerified, share }: { base: s
     }
     setOpen(false)
   }
-  function done() {
+  function done(movedTo?: string) {
     setOpen(false)
     setVerified(true)
-    onVerified()
+    // Matched to their place on the guest list: their review now lives there (and they're signed in).
+    if (movedTo) window.location.assign(movedTo)
+    else onVerified()
   }
   return (
     <>

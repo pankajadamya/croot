@@ -1,3 +1,4 @@
+import { thumb } from '../../../lib/thumb'
 import { useState, type FormEvent } from 'react'
 import { useUrlState } from '../../../lib/useUrlState'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -444,7 +445,7 @@ function ImageLibrary({ orgSlug, retreat }: { orgSlug: string; retreat: Retreat 
             {media.data.map((m, i) => (
               <div key={m.id} className={`site-image-row ${selected?.id === m.id ? 'is-active' : ''}`}>
                 <button type="button" className="site-image-select" onClick={() => setSelectedId(m.id)} aria-pressed={selected?.id === m.id}>
-                  <img src={m.previewUrl} alt="" loading="lazy" />
+                  <img src={thumb(m.previewUrl)} alt="" loading="lazy" />
                   <span><strong>{m.caption || `Photo ${i + 1}`}</strong><small>{m.approved ? m.inHeroSlideshow ? 'Public slideshow · guest form' : 'Ready, not in slideshow' : 'Confirm permission to show'}</small></span>
                 </button>
                 <div className="site-image-order">

@@ -1,3 +1,4 @@
+import { thumb } from '../../lib/thumb'
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react'
 import { shortCaption } from '../../lib/caption'
 import { IMAGE_ACCEPT, prepareImage, captureTimeOf } from '../../lib/prepareImage'
@@ -242,7 +243,7 @@ function AlbumView({ base, listPath = `${base}/album`, backTo, backLabel }: { ba
             {photos.map((p, i) => (
               <li key={p.id} data-photo={p.id} style={{ aspectRatio: `${p.width} / ${p.height}` }}>
                 <button type="button" onClick={() => setOpen(i)} aria-label={`${p.video ? 'Play video' : 'Open photo'} ${i + 1} of ${photos.length}${p.caption ? `: ${p.caption}` : ''}`}>
-                  <img src={p.url} alt={p.alt} loading={i < 6 ? 'eager' : 'lazy'} />
+                  <img src={thumb(p.url)} alt={p.alt} loading={i < 6 ? 'eager' : 'lazy'} />
                   {p.video && (
                     <span className="video-badge on-photo" aria-hidden="true">
                       ▶{p.duration ? ` ${formatDuration(p.duration)}` : ''}

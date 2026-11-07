@@ -1,3 +1,4 @@
+import { thumb } from '../../lib/thumb'
 import { MAX_PARTY_SIZE, TRAVELLED_WITH, type TravelledWith } from '../../../shared/company'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { UploadZone } from '../../components/UploadZone'
@@ -1010,7 +1011,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                       {photos
                         .filter((p) => p.publishConsent)
                         .map((p) => (
-                          <img key={p.id} src={`${base}/photos/${p.id}/image`} alt={p.altText || 'Your photo'} />
+                          <img key={p.id} src={thumb(`${base}/photos/${p.id}/image`)} alt={p.altText || 'Your photo'} />
                         ))}
                     </div>
                   )}
@@ -1174,7 +1175,7 @@ function PhotoManager({
         <div className="guest-photo-list" aria-label="Your uploaded photos">
           {photos.map((p, i) => (
             <div key={p.id} className="guest-photo-row">
-              <img className="guest-photo-thumb" src={`${base}/photos/${p.id}/image`} alt={p.altText || `Your photo ${i + 1}`} />
+              <img className="guest-photo-thumb" src={thumb(`${base}/photos/${p.id}/image`)} alt={p.altText || `Your photo ${i + 1}`} />
               <div className="guest-photo-description">
                 <Field id={`alt-${p.id}`} label={`Describe photo ${i + 1} (optional)`}>
                   <input id={`alt-${p.id}`} type="text" defaultValue={p.altText} maxLength={300} placeholder="e.g. Our group at sunrise yoga. Helps screen reader users; fine to leave blank" onBlur={(e) => e.target.value !== p.altText && void change(p, { altText: e.target.value })} />

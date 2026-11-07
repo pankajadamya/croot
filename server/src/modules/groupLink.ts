@@ -9,7 +9,7 @@ import { prisma } from '../lib/prisma.js'
 import { tenantAttendee, tenantRetreat } from '../lib/tenant.js'
 import { hashToken, looksLikeToken, newToken } from '../lib/tokens.js'
 import { tenantOf } from '../middleware/auth.js'
-import { loginLimiter, tokenLimiter } from '../middleware/rateLimits.js'
+import { groupJoinLimiter, linkGuessLimiter, tokenLimiter } from '../middleware/rateLimits.js'
 import { siteOrigin } from './admin/attendees.js'
 
 /**
@@ -167,7 +167,8 @@ groupLinkRouter.get(
 /** Joining: just a name. The person gets their own review link straight away. */
 groupLinkRouter.post(
   '/:token/join',
-  loginLimiter,
+  linkGuessLimiter,
+  groupJoinLimiter,
   route(async (req, res) => {
     const { retreat, organiser, contact } = await openGroupLink(String(req.params.token))
     const { name } = parseBody(z.object({ name: text(120).refine((v) => v.length > 0, 'Required') }), req.body)

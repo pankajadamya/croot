@@ -19,7 +19,7 @@ import { storage } from '../../lib/storage.js'
 import { removeObjects } from '../../lib/storageCleanup.js'
 import { tenantMedia, tenantRetreat } from '../../lib/tenant.js'
 import { tenantOf } from '../../middleware/auth.js'
-import { uploadLimiter } from '../../middleware/rateLimits.js'
+import { organiserUploadLimiter } from '../../middleware/rateLimits.js'
 
 export const siteRouter = Router({ mergeParams: true })
 
@@ -234,7 +234,7 @@ siteRouter.put(
 
 siteRouter.post(
   '/retreats/:retreatId/media',
-  uploadLimiter,
+  organiserUploadLimiter,
   upload.single('image'),
   route(async (req, res) => {
     const t = tenantOf(req)
@@ -258,6 +258,7 @@ siteRouter.post(
     const joinsSlideshow = kind === 'organiser' && (await slideshowCount(retreat.id)) < MAX_SLIDESHOW
     const prefix = `org/${t.org.id}/retreat/${retreat.id}/${kind}/${id}`
     await storage.put(`${prefix}/web.webp`, image.derivative, 'image/webp')
+    await storage.put(`${prefix}/thumb.webp`, image.thumb, 'image/webp')
     const count = await prisma.mediaAsset.count({ where: { retreatId: retreat.id, kind, removedAt: null } })
     const m = await prisma.mediaAsset.create({
       data: {
@@ -267,6 +268,7 @@ siteRouter.post(
         kind,
         originalKey: null, // only the web copy is kept
         derivativeKey: `${prefix}/web.webp`,
+        thumbKey: `${prefix}/thumb.webp`,
         mime: 'image/webp',
         sizeBytes: image.derivative.length,
         width: image.width,
@@ -291,7 +293,7 @@ siteRouter.post(
 // Album videos (organisers only). The browser sends the video plus a poster frame it captured.
 siteRouter.post(
   '/retreats/:retreatId/album/videos',
-  uploadLimiter,
+  organiserUploadLimiter,
   videoUpload.fields([
     { name: 'video', maxCount: 1 },
     { name: 'poster', maxCount: 1 },
@@ -328,6 +330,7 @@ siteRouter.post(
       if (type.ext !== 'webm') await stripVideoMetadata(video.path)
       await storage.putFile(`${prefix}/video.${type.ext}`, video.path, type.mime)
       await storage.put(`${prefix}/poster.webp`, posterImage.derivative, 'image/webp')
+      await storage.put(`${prefix}/poster-thumb.webp`, posterImage.thumb, 'image/webp')
       const m = await prisma.mediaAsset.create({
         data: {
           id,
@@ -336,6 +339,7 @@ siteRouter.post(
           kind: 'album',
           originalKey: `${prefix}/video.${type.ext}`,
           derivativeKey: `${prefix}/poster.webp`,
+          thumbKey: `${prefix}/poster-thumb.webp`,
           videoKey: `${prefix}/video.${type.ext}`,
           mime: type.mime,
           sizeBytes: video.size,
@@ -523,7 +527,7 @@ siteRouter.post(
       prisma.mediaAsset.updateMany({ where: { organisationId: t.org.id, retreatId: retreat.id, kind: { in: ['organiser', 'guest'] }, removedAt: null, inAlbum: true }, data: { inAlbum: false } }),
       prisma.retreat.update({ where: { id: retreat.id }, data: { rewardAlbumCoverId: null } }),
     ])
-    await removeObjects(uploads.flatMap((m) => [m.originalKey, m.derivativeKey, m.videoKey]))
+    await removeObjects(uploads.flatMap((m) => [m.originalKey, m.derivativeKey, m.thumbKey, m.videoKey]))
     await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'album.cleared', entityType: 'retreat', entityId: retreat.id, metadata: { deleted: uploads.length, takenOut: takenOut.count } })
     res.json({ deleted: uploads.length, takenOut: takenOut.count })
   }),
@@ -557,7 +561,7 @@ siteRouter.post(
       prisma.mediaAsset.updateMany({ where: { id: { in: toDelete.map((m) => m.id) } }, data: { removedAt: new Date() } }),
       prisma.mediaAsset.updateMany({ where: { id: { in: toTakeOut.map((m) => m.id) } }, data: { inAlbum: false } }),
     ])
-    await removeObjects(toDelete.flatMap((m) => [m.originalKey, m.derivativeKey, m.videoKey]))
+    await removeObjects(toDelete.flatMap((m) => [m.originalKey, m.derivativeKey, m.thumbKey, m.videoKey]))
     await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'album.duplicates_removed', entityType: 'retreat', entityId: retreat.id, metadata: { deleted: toDelete.length, takenOut: toTakeOut.length } })
     res.json({ removed: extras.length })
   }),
@@ -575,7 +579,7 @@ siteRouter.post(
       prisma.mediaAsset.updateMany({ where: { id: { in: ids } }, data: { removedAt: new Date(), inHeroSlideshow: false, inWritingSlideshow: false, inAlbum: false } }),
       ...(retreat.rewardAlbumCoverId && ids.includes(retreat.rewardAlbumCoverId) ? [prisma.retreat.update({ where: { id: retreat.id }, data: { rewardAlbumCoverId: null } })] : []),
     ])
-    await removeObjects(images.flatMap((m) => [m.originalKey, m.derivativeKey, m.videoKey]))
+    await removeObjects(images.flatMap((m) => [m.originalKey, m.derivativeKey, m.thumbKey, m.videoKey]))
     await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'media.cleared', entityType: 'retreat', entityId: retreat.id, metadata: { deleted: ids.length } })
     res.json({ deleted: ids.length })
   }),
@@ -588,7 +592,7 @@ siteRouter.delete(
     const media = await tenantMedia(t.org.id, uuidParam(req, 'mediaId'))
     if (media.kind === 'guest') throw new HttpError(403, 'Guest photos cannot be deleted here')
     await prisma.mediaAsset.update({ where: { id: media.id }, data: { removedAt: new Date(), inHeroSlideshow: false, inWritingSlideshow: false } })
-    await removeObjects([media.originalKey, media.derivativeKey, media.videoKey])
+    await removeObjects([media.originalKey, media.derivativeKey, media.thumbKey, media.videoKey])
     await audit({ organisationId: t.org.id, actorUserId: t.userId, actorKind: 'user', action: 'media.removed', entityType: 'media', entityId: media.id })
     res.status(204).end()
   }),

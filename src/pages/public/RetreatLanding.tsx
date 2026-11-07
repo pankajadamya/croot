@@ -1,3 +1,4 @@
+import { thumb } from '../../lib/thumb'
 import { VerifiedBadge } from '../../components/VerifiedBadge'
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -264,7 +265,7 @@ export default function RetreatLanding() {
                     <div className={`review-photos count-${Math.min(s.photos.length, 4)}`}>
                       {s.photos.slice(0, 4).map((p, i) => (
                         <div key={p.url} className={`review-photo ${i === 0 ? 'first' : ''}`}>
-                          <img src={p.url} alt={p.alt} loading="lazy" />
+                          <img src={thumb(p.url)} alt={p.alt} loading="lazy" />
                           {hearts.enabled && <HeartButton on={hearts.hearted(p.id)} count={hearts.count(p)} onToggle={() => void hearts.toggle(p)} />}
                         </div>
                       ))}

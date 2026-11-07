@@ -99,7 +99,7 @@ export async function registerInterest(opts: { organisationId: string; orgName: 
   if (existing) await prisma.interestSignup.update({ where: { id: existing.id }, data })
   else await prisma.interestSignup.create({ data: { ...data, organisationId: opts.organisationId, email } })
   // Counts against the organisation's daily limit; a refusal (paused, over the limit) isn't shown to the visitor.
-  await sendOrgMail(opts.organisationId, confirmMail(email, opts.orgName, token)).catch((e) => console.warn('interest confirmation not sent:', (e as Error).message))
+  await sendOrgMail(opts.organisationId, confirmMail(email, opts.orgName, token), { trigger: 'public' }).catch((e) => console.warn('interest confirmation not sent:', (e as Error).message))
 }
 
 async function byToken(token: string) {

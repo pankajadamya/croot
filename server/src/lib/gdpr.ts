@@ -10,8 +10,8 @@ import { removeObjects } from './storageCleanup.js'
  * person's name, email or words: only that an erasure happened, and by whom.
  */
 
-function mediaKeys(media: Array<{ originalKey: string | null; derivativeKey: string; originalPurgedAt: Date | null }>) {
-  return media.flatMap((m) => [m.originalPurgedAt ? null : m.originalKey, m.derivativeKey])
+function mediaKeys(media: Array<{ originalKey: string | null; derivativeKey: string; thumbKey: string | null; originalPurgedAt: Date | null }>) {
+  return media.flatMap((m) => [m.originalPurgedAt ? null : m.originalKey, m.derivativeKey, m.thumbKey])
 }
 
 /** Everything held about one guest, in a portable, machine-readable form. Never includes anonymous notes. */
@@ -69,7 +69,7 @@ export async function exportGuestData(organisationId: string, attendeeId: string
 export async function eraseAttendee(opts: { organisationId: string; attendeeId: string; actorKind: 'user' | 'attendee' | 'system'; actorUserId?: string | null; reason: string }) {
   const attendee = await prisma.attendee.findFirst({
     where: { id: opts.attendeeId, organisationId: opts.organisationId },
-    select: { id: true, retreatId: true, response: { select: { id: true, media: { select: { originalKey: true, derivativeKey: true, originalPurgedAt: true } } } } },
+    select: { id: true, retreatId: true, response: { select: { id: true, media: { select: { originalKey: true, derivativeKey: true, thumbKey: true, originalPurgedAt: true } } } } },
   })
   if (!attendee) throw new HttpError(404, 'Not found')
   const keys = mediaKeys(attendee.response?.media ?? [])
@@ -115,7 +115,7 @@ export async function exportOrganisation(organisationId: string) {
 export async function eraseOrganisation(organisationId: string, actorUserId: string) {
   const org = await prisma.organisation.findUnique({ where: { id: organisationId }, select: { slug: true } })
   if (!org) throw new HttpError(404, 'Not found')
-  const media = await prisma.mediaAsset.findMany({ where: { organisationId }, select: { originalKey: true, derivativeKey: true, originalPurgedAt: true } })
+  const media = await prisma.mediaAsset.findMany({ where: { organisationId }, select: { originalKey: true, derivativeKey: true, thumbKey: true, originalPurgedAt: true } })
   const memberIds = (await prisma.membership.findMany({ where: { organisationId }, select: { userId: true } })).map((m) => m.userId)
   await prisma.$transaction([
     prisma.auditEvent.deleteMany({ where: { organisationId } }),

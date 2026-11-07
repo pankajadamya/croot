@@ -163,7 +163,11 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
     onSuccess: (r) => {
       setSentNote(
         `Emailed ${r.sent} invitation${r.sent === 1 ? '' : 's'}.${r.failed.length ? ` Couldn’t email: ${r.failed.join(', ')}.` : ''}` +
-          (r.stopped ? ` ${r.notYet ?? 0} not sent yet: ${r.stopped}` : ''),
+          (r.stopped
+            ? ` ${r.notYet ?? 0} not sent yet: ${r.stopped}`
+            : r.notYet
+              ? ` ${r.notYet} still to go: press Email invitations again to carry on.`
+              : ''),
       )
       refresh()
     },

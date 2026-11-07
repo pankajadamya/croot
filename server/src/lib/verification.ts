@@ -6,8 +6,10 @@ import { prisma } from './prisma.js'
 
 /**
  * Verified reviews. A review shows "Verified email" once its guest has proved they own the address it
- * was sent from: they wrote it through a link Croot emailed them, signed in with that address, entered a
- * code Croot emailed to it, or confirmed it from a verification email. This proves control of the
+ * was sent from: they wrote it through a link Croot emailed them, sent it while signed in with that
+ * address, entered a code Croot emailed to it (the thank-you page), confirmed it from a verification
+ * email, or, signed in later, said "Yes, this review is mine". Signing in alone doesn't add the badge:
+ * it would vouch for words someone else may have written on a copied link. This proves control of the
  * inbox, not attendance, so each verification also records signals for later credibility checks
  * (e.g. the address belongs to someone in the organisation, or was changed after the review was sent).
  * Only a hash of the address is kept here, so checks can match addresses across reviews.
@@ -78,11 +80,6 @@ export async function emailProven(attendeeId: string, method: VerificationMethod
   if (a.response) await verifyResponse(a.response.id, method)
 }
 
-/** Someone signed in with a verified address: every guest record with that address is proven. */
-export async function signedInWithEmail(email: string) {
-  const guests = await prisma.attendee.findMany({ where: { email: normaliseEmail(email) }, select: { id: true } })
-  for (const g of guests) await emailProven(g.id, 'sign_in')
-}
 
 /**
  * The organiser changed a guest's address: whatever was proven was about the old one, so the badge

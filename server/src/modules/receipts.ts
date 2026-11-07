@@ -1,3 +1,4 @@
+import { imageKey } from '../lib/images.js'
 import { Router } from 'express'
 import { z } from 'zod'
 import { CONSENT_WORDING_VERSION } from '../../../shared/categories.js'
@@ -11,7 +12,7 @@ import { prisma } from '../lib/prisma.js'
 import { storage } from '../lib/storage.js'
 import { dropNameFromLive, dropPhotoFromLive, livePublication, takeDown } from '../lib/publication.js'
 import { hashToken, looksLikeToken } from '../lib/tokens.js'
-import { tokenLimiter, uploadLimiter } from '../middleware/rateLimits.js'
+import { linkGuessLimiter, linkLimiter, linkUploadLimiter } from '../middleware/rateLimits.js'
 
 const albumUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: env.MAX_UPLOAD_BYTES, files: 1 } })
 
@@ -20,7 +21,7 @@ const albumUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize
  * (effective immediately) or ask the organiser for an edit. It never exposes anonymous notes.
  */
 export const receiptsRouter = Router()
-receiptsRouter.use(tokenLimiter)
+receiptsRouter.use(linkGuessLimiter, linkLimiter)
 
 const INVALID = 'This link is not valid. Please use the most recent link you were given.'
 
@@ -135,7 +136,7 @@ receiptsRouter.get(
 
 receiptsRouter.post(
   '/:token/album/photos',
-  uploadLimiter,
+  linkUploadLimiter,
   route(async (req, res, next) => {
     res.locals.receipt = await resolveReceipt(req.params.token)
     next()
@@ -166,7 +167,7 @@ receiptsRouter.get(
     const response = await resolveReceipt(req.params.token)
     const photo = await prisma.mediaAsset.findFirst({ where: { id: uuidParam(req, 'photoId'), responseId: response.id, kind: 'guest', removedAt: null } })
     if (!photo) throw new HttpError(404, 'Photo not found')
-    const bytes = await storage.get(photo.derivativeKey)
+    const bytes = await storage.get(imageKey(photo, req.query.size))
     if (!bytes) throw new HttpError(404, 'Photo not found')
     res.set({ 'Content-Type': 'image/webp', 'Cache-Control': 'private, no-store' }).send(bytes)
   }),
@@ -176,7 +177,7 @@ receiptsRouter.get(
   '/:token/album/:photoId',
   route(async (req, res) => {
     const response = await resolveReceipt(req.params.token)
-    await sendAlbumPhoto(res, response.retreat, response, uuidParam(req, 'photoId'))
+    await sendAlbumPhoto(res, response.retreat, response, uuidParam(req, 'photoId'), false, req.query.size)
   }),
 )
 
