@@ -152,3 +152,95 @@ test('leaving the permissions step with a story but nothing shared asks once, wi
   await waitFor(() => expect(screen.getByRole('heading', { name: 'Review and send' })).toBeTruthy())
   expect(puts.at(-1)?.consents).toMatchObject({ publicText: true, marketing: false })
 })
+
+test('a guest who comes back straight to Review & send, with a story and nothing shared, is asked at Send', async () => {
+  const view = {
+    firstName: 'Adamya',
+    editable: true,
+    signIn: { required: false, signedIn: false, canReopen: false },
+    retreat: {
+      kind: 'itinerary',
+      title: 'India Yoga & Pilates Retreat 2026',
+      startDate: '2026-10-23',
+      endDate: '2026-11-01',
+      organiserName: 'Balance & Beyond',
+      organisationName: 'Balance & Beyond',
+      categories: [],
+      privacyUrl: null,
+      anonymousNotePath: '/api/anonymous/test',
+      publicPagePath: null,
+      privacyNoticePath: '/privacy',
+      slideshow: [],
+      opening: null,
+      album: { unlocked: false, photoCount: 0, teaser: [], cover: null, note: null, url: null },
+      albumSharingAvailable: true,
+    },
+    stay: null,
+    response: {
+      status: 'draft',
+      revision: 3,
+      currentStep: 5, // left last time on Review & send
+      storyTitle: 'Mornings',
+      storyText: 'The sunrise yoga was the best part.',
+      overallRating: 5,
+      keepText: '',
+      changeText: '',
+      consents: { publicText: false, firstName: false, followUp: false, marketing: false, photoMarketing: null },
+      ratings: [],
+      photos: [],
+      submittedAt: null,
+      organiserMessage: null,
+    },
+  }
+  const puts: Array<{ consents: { publicText: boolean; marketing: boolean } }> = []
+  const submits: string[] = []
+  vi.stubGlobal('scrollTo', vi.fn())
+  HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close ??= function (this: HTMLDialogElement) { this.removeAttribute('open') }
+  vi.stubGlobal('fetch', vi.fn(async (path: string, init?: RequestInit) => {
+    if (init?.method === 'PUT') puts.push(JSON.parse(String(init.body)))
+    if (init?.method === 'POST' && String(path).endsWith('/submit')) {
+      submits.push(String(path))
+      return new Response(JSON.stringify({ receiptToken: 'receipt-token' }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }
+    return new Response(JSON.stringify(init?.method === 'PUT' ? { revision: 4, savedAt: '2026-11-05T10:00:00Z' } : view), { status: 200, headers: { 'Content-Type': 'application/json' } })
+  }))
+  const ui = () => (
+    <ConfirmProvider>
+      <MemoryRouter initialEntries={['/invite/test-token']}>
+        <Routes>
+          <Route path="/invite/:token" element={<InviteFlow />} />
+          <Route path="/response/:token" element={<h1>Receipt page</h1>} />
+        </Routes>
+      </MemoryRouter>
+    </ConfirmProvider>
+  )
+
+  // "No, keep it private": sent straight away, nothing shared.
+  render(ui())
+  expect(await screen.findByRole('heading', { name: 'Review and send' })).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Send my response' }))
+  expect(await screen.findByRole('heading', { name: 'Share your story?' })).toBeTruthy()
+  expect(submits).toHaveLength(0) // nothing sent before the guest answers
+  fireEvent.click(screen.getByRole('button', { name: 'No, keep it private' }))
+  expect(await screen.findByRole('heading', { name: 'Receipt page' })).toBeTruthy()
+  expect(submits).toHaveLength(1)
+  expect(puts.at(-1)?.consents).toMatchObject({ publicText: false, marketing: false })
+  cleanup()
+  submits.length = 0
+
+  // "Yes, … review site only": not sent yet; the guest stays on Review & send and sees the preview,
+  // then Send goes through without asking again.
+  render(ui())
+  expect(await screen.findByRole('heading', { name: 'Review and send' })).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Send my response' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Yes, publish it on the review site only' }))
+  expect(await screen.findByText('Preview, if the organiser approves it')).toBeTruthy()
+  expect(screen.getByRole('heading', { name: 'Review and send' })).toBeTruthy()
+  expect(submits).toHaveLength(0)
+  fireEvent.click(screen.getByRole('button', { name: 'Send my response' }))
+  expect(await screen.findByRole('heading', { name: 'Receipt page' })).toBeTruthy()
+  expect(screen.queryByRole('heading', { name: 'Share your story?' })).toBeNull()
+  expect(submits).toHaveLength(1)
+  expect(puts.at(-1)?.consents).toMatchObject({ publicText: true, marketing: false })
+})

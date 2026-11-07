@@ -301,6 +301,8 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
    * and advertising, publish it on the review site only, or keep it private. A yes switches those on and
    * stays on the page, so the guest sees what changed and can also choose whether to show their name;
    * "No" moves on with nothing shared. Returns whether to carry on to the next step.
+   * Asked again at Send for a guest who never left this page by Next (came back later to Review & send);
+   * there a yes stays on Review & send, at the preview of what could appear, before they send.
    */
   const askedAboutSharing = useRef(false)
   async function askAboutSharing(): Promise<boolean> {
@@ -324,7 +326,8 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
     if (answer === 'no') return true
     update({ consents: { ...c, publicText: true, marketing: answer === 'all' } })
     setSharingAgreed(true)
-    requestAnimationFrame(() => document.querySelector('.permissions-words')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }))
+    const shown = step === 4 ? '.permissions-words' : '.review-public'
+    requestAnimationFrame(() => document.querySelector(shown)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }))
     return false
   }
   const [sharingAgreed, setSharingAgreed] = useState(false)
@@ -373,6 +376,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
   }
 
   async function submit() {
+    if (!(await askAboutSharing())) return
     setSubmitting(true)
     setSubmitError(null)
     try {
@@ -997,7 +1001,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
               <h1 id="step-heading" ref={headingRef} tabIndex={-1}>
                 Review and send
               </h1>
-              <h2 style={{ fontSize: '1.2rem' }}>What could appear publicly</h2>
+              <h2 className="review-public" style={{ fontSize: '1.2rem' }}>What could appear publicly</h2>
               {c.publicText && draft.storyText.trim() ? (
                 <div className="card" style={{ background: 'var(--surface)' }}>
                   <p className="eyebrow">Preview, if the organiser approves it</p>
