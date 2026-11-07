@@ -250,16 +250,19 @@ img {
   opacity: 0.55;
   cursor: not-allowed;
 }
+/* Secondary actions: solid, in the warm complement of the main (dark green) buttons: terracotta by
+   default, or a retreat theme's own accent colour. */
 .btn.secondary {
-  background: transparent;
-  color: var(--text);
-  border-color: var(--border);
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
 }
+/* Light actions (Copy link and the like): a soft solid tint, so they still read as buttons. */
 .btn.ghost {
-  background: transparent;
+  background: color-mix(in srgb, var(--accent) 11%, var(--surface, #fff));
   border-color: transparent;
   color: var(--accent);
-  padding-inline: 0.6rem;
+  padding-inline: 0.9rem;
 }
 .btn.danger {
   background: var(--danger);
@@ -4397,6 +4400,13 @@ a.review-date:hover {
 
 /* In-app confirmation (replaces the browser's own confirm box). */
 .confirm-dialog {
+  /* Centred on screen both ways (the reset above takes away the browser's own centring). */
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  height: fit-content;
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
   width: min(480px, calc(100vw - 2rem));
   padding: 0;
   border: 0;

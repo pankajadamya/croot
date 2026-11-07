@@ -1,5 +1,6 @@
 import request from 'supertest'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import { issueInvitation } from '../src/lib/invites.js'
 import { testOutbox } from '../src/lib/mailer.js'
 import { closeDatabase, prisma } from '../src/lib/prisma.js'
 import { app, invite, login, makeTenant, resetDatabase } from './helpers.js'
@@ -13,6 +14,12 @@ afterAll(closeDatabase)
 const codeIn = (to: string) => {
   const mail = [...testOutbox].reverse().find((m) => m.to === to)
   return /\b(\d{6})\b/.exec(mail?.text ?? '')?.[1] ?? ''
+}
+/** Moves earlier codes back a minute, past the gap before another may be asked for. */
+const aMinuteLater = async () => {
+  const past = new Date(Date.now() - 61_000)
+  await prisma.groupJoinCode.updateMany({ data: { createdAt: past } })
+  await prisma.loginCode.updateMany({ data: { createdAt: past } })
 }
 const linkIn = (to: string, path: string) => {
   const mail = [...testOutbox].reverse().find((m) => m.to === to)
@@ -160,7 +167,7 @@ describe('group link', () => {
     expect(view.body.verification).toEqual({ verified: false, canVerify: true, maskedEmail: null, needsEmail: true })
 
     // Optional verification on the thank-you page: they give an email, then the code.
-    expect((await request(app).post(`/api/invites/${token}/verify/send`).send({ email: 'Meera@Example.test' })).body.sentTo).toBe('m•••@example.test')
+    expect((await request(app).post(`/api/invites/${token}/verify/send`).send({ email: 'Meera@Example.test' })).body.sentTo).toBe('meera@example.test')
     expect((await request(app).post(`/api/invites/${token}/verify/confirm`).send({ email: 'meera@example.test', code: '000000' })).status).toBe(401)
     const guest = request.agent(app)
     const ok = await guest.post(`/api/invites/${token}/verify/confirm`).send({ email: 'meera@example.test', code: codeIn('meera@example.test') })
@@ -215,7 +222,10 @@ describe('group link', () => {
     const { gt } = await makeLink()
     const token = (await join(gt, 'Typo')).body.reviewPath.match(/\/invite\/([\w-]+)/)[1]
     await send(token)
-    for (const e of ['a@x.test', 'b@x.test', 'c@x.test']) expect((await request(app).post(`/api/invites/${token}/verify/send`).send({ email: e })).status).toBe(200)
+    for (const e of ['a@x.test', 'b@x.test', 'c@x.test']) {
+      expect((await request(app).post(`/api/invites/${token}/verify/send`).send({ email: e })).status).toBe(200)
+      await aMinuteLater()
+    }
     expect((await request(app).post(`/api/invites/${token}/verify/send`).send({ email: 'd@x.test' })).status).toBe(429)
     expect((await request(app).post(`/api/invites/${token}/verify/send`).send({ email: 'a@x.test' })).status).toBe(200) // a new code for one already tried
   })
@@ -262,7 +272,10 @@ describe('group link', () => {
     const token = (await join(gt, 'Spam')).body.reviewPath.match(/\/invite\/([\w-]+)/)[1]
     await send(token)
     testOutbox.length = 0
-    for (let i = 0; i < 7; i++) await request(app).post(`/api/invites/${token}/verify/send`).send({ email: 'spam@example.test' })
+    for (let i = 0; i < 7; i++) {
+      await request(app).post(`/api/invites/${token}/verify/send`).send({ email: 'spam@example.test' })
+      await aMinuteLater()
+    }
     expect(testOutbox.filter((m) => m.to === 'spam@example.test')).toHaveLength(5)
   })
 })
@@ -301,5 +314,51 @@ describe('verifying right after sending (the private response page)', () => {
     // The private response link still works after the match (it belongs to the review, not the joiner).
     expect((await request(app).get(receipt)).body.verification).toMatchObject({ verified: true })
     expect(await prisma.attendee.count()).toBe(1)
+  })
+})
+
+describe('guests without an email on file', () => {
+  it('a guest the organiser added without an email can add and confirm one after sending', async () => {
+    const { org, user, retreat } = await makeTenant('alpha')
+    const ravi = await prisma.attendee.create({ data: { organisationId: org.id, retreatId: retreat.id, name: 'Ravi' } })
+    const { token } = await issueInvitation(prisma, { organisationId: org.id, attendeeId: ravi.id, ttlDays: 30 })
+    const draft = await request(app).put(`/api/invites/${token}/draft`).send({ revision: 0, storyText: 'Lovely.' })
+    const sent = await request(app).post(`/api/invites/${token}/submit`).send({ revision: draft.body.revision })
+    const receipt = `/api/responses/${sent.body.receiptToken}`
+
+    // Offered on both pages, asking for the address.
+    expect((await request(app).get(receipt)).body.verification).toEqual({ verified: false, canVerify: true, maskedEmail: null, needsEmail: true })
+    expect((await request(app).get(`/api/invites/${token}`)).body.verification).toMatchObject({ canVerify: true, needsEmail: true })
+
+    expect((await request(app).post(`${receipt}/verify/send`).send({ email: 'Ravi@Example.test' })).body.sentTo).toBe('ravi@example.test')
+    const ok = await request(app).post(`${receipt}/verify/confirm`).send({ email: 'ravi@example.test', code: codeIn('ravi@example.test') })
+    expect(ok.status).toBe(200)
+    expect(ok.body.movedTo).toBeUndefined() // same guest, now with their email
+    const after = await prisma.attendee.findUniqueOrThrow({ where: { id: ravi.id }, include: { response: { include: { verifications: true } } } })
+    expect(after.email).toBe('ravi@example.test')
+    expect(after.response!.verifications[0]).toMatchObject({ method: 'code', addressSource: 'guest' }) // the guest typed it
+    // The organiser sees the address on their guest list now, and Ravi can sign in to manage the review.
+    const { agent } = await login(user.email)
+    const list = (await agent.get(`/api/admin/orgs/alpha/retreats/${retreat.id}/attendees`)).body.attendees
+    expect(list[0]).toMatchObject({ name: 'Ravi', email: 'ravi@example.test', verified: true })
+  })
+})
+
+describe('asking for a new code', () => {
+  it('waits a minute between codes and says how long a code lasts; a typed address can be corrected', async () => {
+    const { org, retreat } = await makeTenant('alpha')
+    const ravi = await prisma.attendee.create({ data: { organisationId: org.id, retreatId: retreat.id, name: 'Ravi' } })
+    const { token } = await issueInvitation(prisma, { organisationId: org.id, attendeeId: ravi.id, ttlDays: 30 })
+    await send(token)
+    const first = await request(app).post(`/api/invites/${token}/verify/send`).send({ email: 'ravi@exmaple.test' }) // a typo
+    expect(first.body).toEqual({ sentTo: 'ravi@exmaple.test', validMinutes: 10, resendSeconds: 60 })
+    const tooSoon = await request(app).post(`/api/invites/${token}/verify/send`).send({ email: 'ravi@example.test' })
+    expect(tooSoon.status).toBe(429)
+    expect(tooSoon.body.error).toMatch(/wait a minute/)
+    await aMinuteLater()
+    // Corrected: the code goes to the right address, and that's the one that's confirmed.
+    expect((await request(app).post(`/api/invites/${token}/verify/send`).send({ email: 'ravi@example.test' })).body.sentTo).toBe('ravi@example.test')
+    expect((await request(app).post(`/api/invites/${token}/verify/confirm`).send({ email: 'ravi@example.test', code: codeIn('ravi@example.test') })).status).toBe(200)
+    expect((await prisma.attendee.findUniqueOrThrow({ where: { id: ravi.id } })).email).toBe('ravi@example.test')
   })
 })

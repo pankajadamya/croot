@@ -4,6 +4,7 @@ import { signedIn } from '../modules/auth.js'
 import { audit } from './audit.js'
 import { normaliseEmail } from './emailGuard.js'
 import { checkGroupCode, sendGroupCode, verifiedUserFor } from './groupCodes.js'
+import { env } from './env.js'
 import { HttpError, parseBody } from './http.js'
 import { requestCode, verifyCode } from './loginCodes.js'
 import { prisma } from './prisma.js'
@@ -13,9 +14,9 @@ import { emailProven, maskEmail } from './verification.js'
 /**
  * "Make your review count": a guest confirms their email with a code, which marks the review "Verified
  * email" and signs them in. Offered right after sending (on the private response page) and on the
- * thank-you page of their link: the same steps from either place. A guest who joined by group link
- * gave only a name, so they type the address; if it's already on the guest list (and no review was sent
- * from it), their review is matched to that guest.
+ * thank-you page of their link: the same steps from either place. A guest with no email on file (joined
+ * by group link, or added by the organiser without one) types the address; if it's already on the guest
+ * list (and no review was sent from it), their review is matched to that guest.
  */
 export type OwnReview = {
   attendee: { id: string; name: string; email: string | null; source: string }
@@ -27,24 +28,39 @@ export type OwnReview = {
 export function verificationView(r: OwnReview) {
   return {
     verified: Boolean(r.response?.verifiedAt),
-    canVerify: Boolean((r.attendee.email || r.attendee.source === 'group_link') && r.response?.submittedAt && !r.response.verifiedAt),
+    canVerify: Boolean(r.response?.submittedAt && !r.response.verifiedAt),
     maskedEmail: r.attendee.email ? maskEmail(r.attendee.email) : null,
-    needsEmail: !r.attendee.email && r.attendee.source === 'group_link',
+    // No email on file (however they joined): they type one, which then becomes theirs.
+    needsEmail: !r.attendee.email,
   }
 }
 
+/** A new code can be asked for a minute after the last one (the page counts down the same minute). */
+export const RESEND_SECONDS = 60
+
+const tooSoon = (last: { createdAt: Date } | null) => Boolean(last && Date.now() - last.createdAt.getTime() < RESEND_SECONDS * 1000)
+const waitError = () => new HttpError(429, 'Please wait a minute before asking for another code.')
+
+/**
+ * Sends the code. An address the organiser entered is shown masked (so a forwarded link doesn't reveal
+ * it); an address the guest just typed is theirs to see, so it comes back in full. The guest may change
+ * a typed address (a typo) and ask again, once the minute has passed.
+ */
 export async function sendOwnCode(r: OwnReview, rawBody: unknown) {
   if (!r.response?.submittedAt) throw new HttpError(409, 'Send your review first.')
+  const timing = { validMinutes: env.LOGIN_CODE_TTL_MINUTES, resendSeconds: RESEND_SECONDS }
   if (r.attendee.email) {
+    if (tooSoon(await prisma.loginCode.findFirst({ where: { email: r.attendee.email }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } }))) throw waitError()
     await requestCode(r.attendee.email, 'signin')
-    return { sentTo: maskEmail(r.attendee.email) }
+    return { sentTo: maskEmail(r.attendee.email), ...timing }
   }
-  if (r.attendee.source !== 'group_link') throw new HttpError(400, 'There’s no email address to confirm. Ask the organiser to add yours.')
   const { email } = parseBody(z.object({ email: z.email().max(200) }), rawBody)
   const address = normaliseEmail(email)
   await assertAddressFree(r, address)
+  const last = await prisma.groupJoinCode.findFirst({ where: { attendeeId: r.attendee.id }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } })
+  if (tooSoon(last)) throw waitError()
   await sendGroupCode({ organisationId: r.retreat.organisationId, retreatId: r.retreat.id, retreatTitle: r.retreat.title, email: address, name: r.attendee.name, attendeeId: r.attendee.id })
-  return { sentTo: maskEmail(address) }
+  return { sentTo: address, ...timing }
 }
 
 export async function confirmOwnCode(r: OwnReview, rawBody: unknown, res: ExpressResponse) {
@@ -55,7 +71,7 @@ export async function confirmOwnCode(r: OwnReview, rawBody: unknown, res: Expres
     await emailProven(r.attendee.id, 'code')
     return signedIn(res, result.userId, 'code', result.created)
   }
-  if (r.attendee.source !== 'group_link' || !body.email) throw new HttpError(400, 'There’s no email address to confirm.')
+  if (!body.email) throw new HttpError(400, 'Enter the email address to confirm.')
   const address = await checkGroupCode(r.retreat.id, body.email, body.code)
   await assertAddressFree(r, address)
   const onList = await prisma.attendee.findUnique({ where: { retreatId_email: { retreatId: r.retreat.id, email: address } }, select: { id: true } })
@@ -64,11 +80,12 @@ export async function confirmOwnCode(r: OwnReview, rawBody: unknown, res: Expres
     // Already on the guest list (the organiser added them): the review moves to their place there, so
     // they're a confirmed guest and the review is matched to them, with nothing for anyone to do.
     guestId = await matchToGuestList(r, onList.id)
+    await emailProven(guestId, 'code')
   } else {
     // The proven address becomes theirs; the guest typed it (the verification record says so).
     await prisma.attendee.update({ where: { id: r.attendee.id }, data: { email: address } })
+    await emailProven(guestId, 'code', 'guest')
   }
-  await emailProven(guestId, 'code')
   const user = await verifiedUserFor(address, r.attendee.name)
   const session = await signedIn(res, user.id, 'code', false)
   // A group-link joiner's own link is gone once matched: the page carries on from My reviews.

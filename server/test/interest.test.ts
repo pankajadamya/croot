@@ -12,7 +12,7 @@ beforeEach(async () => {
 afterAll(closeDatabase)
 
 const tokenFrom = (text: string, kind: 'confirm' | 'unsubscribe') => {
-  const m = text.match(kind === 'confirm' ? /\/interest\/([\w-]+)(?!\/unsubscribe)\b/ : /\/interest\/([\w.-]+)\/unsubscribe/)
+  const m = text.match(kind === 'confirm' ? /\/interest\/([\w-]+)(?![\w/-])/ : /\/interest\/([\w.-]+)\/unsubscribe/)
   return m![1]
 }
 

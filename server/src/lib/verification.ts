@@ -43,7 +43,7 @@ async function signalsFor(r: {
 }
 
 /** Marks a sent review verified (once). Returns whether it changed. */
-export async function verifyResponse(responseId: string, method: VerificationMethod): Promise<boolean> {
+export async function verifyResponse(responseId: string, method: VerificationMethod, addressSource?: 'guest' | 'organiser'): Promise<boolean> {
   const r = await prisma.response.findUnique({
     where: { id: responseId },
     select: {
@@ -64,7 +64,7 @@ export async function verifyResponse(responseId: string, method: VerificationMet
         responseId: r.id,
         method,
         emailHash: emailHash(r.attendee.email),
-        addressSource: r.attendee.source === 'group_link' ? 'guest' : 'organiser',
+        addressSource: addressSource ?? (r.attendee.source === 'group_link' ? 'guest' : 'organiser'),
         signals,
       },
     }),
@@ -75,9 +75,9 @@ export async function verifyResponse(responseId: string, method: VerificationMet
 }
 
 /** The guest proved they own their address: remember it, and verify their review if it's been sent. */
-export async function emailProven(attendeeId: string, method: VerificationMethod) {
+export async function emailProven(attendeeId: string, method: VerificationMethod, addressSource?: 'guest' | 'organiser') {
   const a = await prisma.attendee.update({ where: { id: attendeeId }, data: { emailVerifiedAt: new Date() }, select: { response: { select: { id: true } } } })
-  if (a.response) await verifyResponse(a.response.id, method)
+  if (a.response) await verifyResponse(a.response.id, method, addressSource)
 }
 
 

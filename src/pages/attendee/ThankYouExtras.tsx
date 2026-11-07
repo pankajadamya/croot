@@ -3,9 +3,11 @@ import { post } from '../../lib/api'
 import { useAuth, type Session } from '../../lib/auth'
 
 /**
- * On the thank-you page: "Make your review count". A one-time code to the guest's own address (shown
- * masked, so a forwarded link doesn't reveal it) marks the review "Verified email" and signs them in,
- * so they can manage it later from My reviews. Skipping it is fine: the review is posted either way.
+ * After sending a review: "Make your review count". A one-time code to the guest's address marks the
+ * review "Verified email" and signs them in, so they can manage it later from My reviews. An address on
+ * file is shown masked (a forwarded link doesn't reveal it); one the guest types is shown in full, and
+ * they can correct a typo. A new code is a minute apart; a code works for 10 minutes. Skipping it is fine:
+ * the review is posted either way.
  */
 function VerifySteps({
   base,
@@ -30,13 +32,28 @@ function VerifySteps({
   const needsEmail = !maskedEmail
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // A new code can be asked for a minute after the last (the server holds the same line); codes work
+  // for 10 minutes. Both come back from the server with each send.
+  const [validMinutes, setValidMinutes] = useState(10)
+  const [resendAt, setResendAt] = useState(0)
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (resendAt <= now) return
+    const id = window.setTimeout(() => setNow(Date.now()), 1000)
+    return () => window.clearTimeout(id)
+  }, [resendAt, now])
+  const waitSeconds = Math.max(0, Math.ceil((resendAt - now) / 1000))
 
   async function send() {
     setBusy(true)
     setError(null)
     try {
-      const r = await post<{ sentTo: string }>(`${base}/verify/send`, needsEmail ? { email } : undefined)
+      const r = await post<{ sentTo: string; validMinutes?: number; resendSeconds?: number }>(`${base}/verify/send`, needsEmail ? { email } : undefined)
       setSentTo(r.sentTo)
+      if (r.validMinutes) setValidMinutes(r.validMinutes)
+      setResendAt(Date.now() + (r.resendSeconds ?? 60) * 1000)
+      setNow(Date.now())
+      setCode('')
       setStage('sent')
     } catch (e) {
       setError((e as Error).message)
@@ -83,7 +100,12 @@ function VerifySteps({
       {needsEmail && stage === 'start' ? (
         <p>
           Reviews from guests who confirm their email show as <strong>✓ Verified email</strong>, so future guests know they’re genuine. Add your
-          email and we’ll send a 6-digit code. You’ll also be able to come back and change your review.
+          email and we’ll send a 6-digit code. You’ll also be able to come back and change your review, and the organiser will see the address
+          with your review.
+        </p>
+      ) : stage === 'sent' ? (
+        <p>
+          We’ve emailed a 6-digit code to <strong>{sentTo}</strong>. It works for {validMinutes} minutes.
         </p>
       ) : (
         <p>
@@ -100,8 +122,8 @@ function VerifySteps({
             </div>
           )}
           <div className="row" style={{ gap: '0.6rem' }}>
-            <button type="button" className="btn" onClick={() => void send()} disabled={busy || (needsEmail && !email.includes('@'))}>
-              {busy ? 'Sending…' : 'Email me a code'}
+            <button type="button" className="btn" onClick={() => void send()} disabled={busy || (needsEmail && !email.includes('@')) || waitSeconds > 0}>
+              {busy ? 'Sending…' : waitSeconds > 0 ? `Email me a code (in ${waitSeconds}s)` : 'Email me a code'}
             </button>
             {onSkip && (
               <button type="button" className="btn ghost" onClick={onSkip}>
@@ -134,9 +156,22 @@ function VerifySteps({
             </button>
           </div>
           <div className="row" style={{ gap: '0.8rem' }}>
-            <button type="button" className="link-button small" onClick={() => void send()} disabled={busy}>
-              Send a new code
+            <button type="button" className="link-button small" onClick={() => void send()} disabled={busy || waitSeconds > 0}>
+              {waitSeconds > 0 ? `Send a new code in ${waitSeconds}s` : 'Send a new code'}
             </button>
+            {needsEmail && (
+              // A typo in the address: back to the address, keeping what they typed to correct it.
+              <button
+                type="button"
+                className="link-button small"
+                onClick={() => {
+                  setStage('start')
+                  setError(null)
+                }}
+              >
+                Change email
+              </button>
+            )}
             {onSkip && (
               <button type="button" className="link-button small" onClick={onSkip}>
                 Not now
