@@ -275,6 +275,10 @@ export function filmLengthMs(slides: FilmSlide[]): number {
   return slides.reduce((t, s) => t + (s.kind === 'video' ? Math.min(s.item.duration ?? VIDEO_MAX_S, VIDEO_MAX_S) * 1000 : (slideMs(s) ?? 0)), 0)
 }
 
+type FullscreenCapable = HTMLElement & { webkitRequestFullscreen?: () => void }
+const fullscreenElement = () =>
+  typeof document === 'undefined' ? null : (document.fullscreenElement ?? (document as Document & { webkitFullscreenElement?: Element | null }).webkitFullscreenElement ?? null)
+
 /** startPaused: opened from a link rather than a click, so sound isn't allowed until the viewer presses Play. */
 export function MemoryFilm({ items, info, onClose, startPaused = false }: { items: FilmItem[]; info: FilmInfo; onClose: () => void; startPaused?: boolean }) {
   // The screen decides how photos share it (stacked or side by side, and how many): worked out again when
@@ -402,10 +406,49 @@ export function MemoryFilm({ items, info, onClose, startPaused = false }: { item
   }, [wake])
   const showChrome = chrome || paused || atEnd
 
+  // Full screen: by itself on a phone or tablet when the film is opened with a tap (the browser allows
+  // it only during a tap, so a film opened from a link goes full screen at the first Play), and with
+  // the button anywhere the browser supports it. iPhone Safari doesn't let a page go full screen; there
+  // the film already fills the browser window.
+  const root = useRef<HTMLDivElement>(null)
+  const [full, setFull] = useState(false)
+  const canFull = typeof document !== 'undefined' && Boolean(document.documentElement.requestFullscreen || (document.documentElement as FullscreenCapable).webkitRequestFullscreen)
+  const touch = typeof window !== 'undefined' && Boolean(window.matchMedia?.('(pointer: coarse)').matches)
+  const enterFull = useCallback(() => {
+    const el = root.current as FullscreenCapable | null
+    if (!el || fullscreenElement()) return
+    try {
+      const done = el.requestFullscreen ? el.requestFullscreen({ navigationUI: 'hide' }) : el.webkitRequestFullscreen?.()
+      void Promise.resolve(done).catch(() => undefined)
+    } catch {
+      /* not allowed here: the film stays as it is */
+    }
+  }, [])
+  const leaveFull = useCallback(() => {
+    if (!fullscreenElement()) return
+    const d = document as Document & { webkitExitFullscreen?: () => void }
+    void Promise.resolve(document.exitFullscreen ? document.exitFullscreen() : d.webkitExitFullscreen?.()).catch(() => undefined)
+  }, [])
+  useEffect(() => {
+    const el = root.current // the ref is already cleared when the cleanup below runs
+    const onChange = () => setFull(Boolean(fullscreenElement()))
+    document.addEventListener('fullscreenchange', onChange)
+    document.addEventListener('webkitfullscreenchange', onChange)
+    if (touch && !startPaused) enterFull()
+    return () => {
+      document.removeEventListener('fullscreenchange', onChange)
+      document.removeEventListener('webkitfullscreenchange', onChange)
+      // Closing the film leaves full screen too.
+      if (el && fullscreenElement() === el) leaveFull()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const toggle = useCallback(() => {
     setPaused((p) => !p)
+    if (touch && !fullscreenElement()) enterFull()
     wake()
-  }, [wake])
+  }, [wake, touch, enterFull])
 
   useEffect(() => {
     const before = document.activeElement as HTMLElement | null
@@ -557,6 +600,7 @@ export function MemoryFilm({ items, info, onClose, startPaused = false }: { item
       role="dialog"
       aria-modal="true"
       aria-label={`Memory film: ${info.title}`}
+      ref={root}
       onPointerMove={wake}
       onPointerDown={onPointerDown}
       onPointerUp={onPointerUp}
@@ -592,6 +636,17 @@ export function MemoryFilm({ items, info, onClose, startPaused = false }: { item
             {muted ? <path d="M11 5.5l4 5M15 5.5l-4 5" stroke="currentColor" strokeWidth="1.5" /> : <path d="M11 5c1.3 1.6 1.3 4.4 0 6M13 3.5c2.2 2.6 2.2 6.4 0 9" stroke="currentColor" strokeWidth="1.3" fill="none" />}
           </svg>
         </button>
+        {canFull && (
+          <button type="button" className="film-btn" onClick={() => (full ? leaveFull() : enterFull())} aria-label={full ? 'Exit full screen' : 'Full screen'} aria-pressed={full}>
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              {full ? (
+                <path d="M6 2v4H2M10 2v4h4M6 14v-4H2M10 14v-4h4" stroke="currentColor" strokeWidth="1.6" fill="none" />
+              ) : (
+                <path d="M2 6V2h4M14 6V2h-4M2 10v4h4M14 10v4h-4" stroke="currentColor" strokeWidth="1.6" fill="none" />
+              )}
+            </svg>
+          </button>
+        )}
         <button type="button" className="film-btn" onClick={onClose} aria-label="Close the film">
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" strokeWidth="1.8" /></svg>
         </button>

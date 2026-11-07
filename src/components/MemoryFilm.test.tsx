@@ -171,3 +171,37 @@ test('turning the phone lays the film out again and carries on from the same pho
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 })
   Object.defineProperty(window, 'innerHeight', { configurable: true, value: 768 })
 })
+
+test('on a phone or tablet the film goes full screen when opened with a tap (from a link: at Play), and leaves it when closed', () => {
+  const request = vi.fn(function (this: Element) {
+    Object.defineProperty(document, 'fullscreenElement', { configurable: true, value: this })
+    return Promise.resolve()
+  })
+  const exit = vi.fn(() => {
+    Object.defineProperty(document, 'fullscreenElement', { configurable: true, value: null })
+    return Promise.resolve()
+  })
+  const originalMatch = window.matchMedia
+  Object.defineProperty(HTMLElement.prototype, 'requestFullscreen', { configurable: true, value: request })
+  Object.defineProperty(document.documentElement, 'requestFullscreen', { configurable: true, value: request })
+  Object.defineProperty(document, 'exitFullscreen', { configurable: true, value: exit })
+  Object.defineProperty(document, 'fullscreenElement', { configurable: true, value: null })
+  window.matchMedia = ((q: string) => ({ matches: q.includes('coarse'), addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia
+  try {
+    const tapped = render(<MemoryFilm items={[photo('a')]} info={info} onClose={() => undefined} />)
+    expect(request).toHaveBeenCalledTimes(1)
+    tapped.unmount()
+    expect(exit).toHaveBeenCalledTimes(1)
+
+    render(<MemoryFilm items={[photo('a')]} info={info} onClose={() => undefined} startPaused />)
+    expect(request).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Play' }))
+    expect(request).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('button', { name: 'Full screen' })).toBeTruthy()
+  } finally {
+    window.matchMedia = originalMatch
+    delete (HTMLElement.prototype as { requestFullscreen?: unknown }).requestFullscreen
+    delete (document.documentElement as { requestFullscreen?: unknown }).requestFullscreen
+    Object.defineProperty(document, 'fullscreenElement', { configurable: true, value: null })
+  }
+})
