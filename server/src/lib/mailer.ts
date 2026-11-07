@@ -215,6 +215,26 @@ export function groupLinkWarningEmail(opts: { to: string; orgName: string; retre
   return { to: opts.to, subject: `Group link made for ${opts.retreatTitle}: please keep reviews genuine`, text, html, category: 'organiser' }
 }
 
+/**
+ * To the organisation's owners when a guest sends a review (or sends an update to it). Only who, where,
+ * the rating and whether they agreed to publication: never their words, which stay inside Croot.
+ */
+export function newReviewEmail(opts: { to: string; guestName: string; retreatTitle: string; rating: number | null; publishable: boolean; photos: number; updated: boolean; reviewUrl: string }): Mail {
+  const stars = opts.rating ? `${'★'.repeat(opts.rating)}${'☆'.repeat(5 - opts.rating)} (${opts.rating} of 5)` : 'No overall rating given'
+  const sharing = opts.publishable ? 'They agreed to publish their story: it’s waiting for your approval.' : 'They kept their story private (feedback for you only).'
+  const photos = opts.photos ? `They added ${opts.photos} photo${opts.photos === 1 ? '' : 's'}.` : ''
+  const lead = opts.updated ? `${opts.guestName} updated their review of ${opts.retreatTitle}.` : `${opts.guestName} sent a review of ${opts.retreatTitle}.`
+  const text = [lead, '', stars, sharing, ...(photos ? [photos] : []), '', `Read it: ${opts.reviewUrl}`].join('\n')
+  const html = `<div style="font-family:system-ui,sans-serif;color:#183D3B;max-width:560px;line-height:1.55">
+<p>${escape(lead)}</p>
+<p style="font-size:18px;color:#8a5a00;margin:0">${escape(stars)}</p>
+<p>${escape(sharing)}${photos ? ` ${escape(photos)}` : ''}</p>
+<p><a href="${opts.reviewUrl}">Read the review</a></p>
+</div>`
+  const subject = opts.updated ? `${opts.guestName} updated their review of ${opts.retreatTitle}` : `New review from ${opts.guestName}: ${opts.retreatTitle}`
+  return { to: opts.to, subject, text, html, category: 'organiser' }
+}
+
 /** A viewer reported a photo or video in an album: the organisers decide whether to take it down. */
 export function mediaReportEmail(opts: { to: string; retreatTitle: string; reason: string; manageUrl: string; isVideo: boolean }): Mail {
   const what = opts.isVideo ? 'video' : 'photo'

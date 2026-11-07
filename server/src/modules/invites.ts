@@ -20,6 +20,7 @@ import { removeObjects } from '../lib/storageCleanup.js'
 import { hashToken, receiptTokenFor } from '../lib/tokens.js'
 import { linkCodeLimiter, linkGuessLimiter, linkLimiter, linkUploadLimiter } from '../middleware/rateLimits.js'
 import { emailProven, verifyResponse } from '../lib/verification.js'
+import { newReviewEmail, sendMail } from '../lib/mailer.js'
 import { MAX_PARTY_SIZE, TRAVELLED_WITH_IDS } from '../../../shared/company.js'
 
 /**
@@ -537,6 +538,43 @@ reviewRoutes.post(
 
 const submitSchema = z.object({ revision: z.number().int().min(0) })
 
+/** Emails the organisation's owners that a review arrived. A failed email never fails the guest's send. */
+async function tellOwners(responseId: string, updated: boolean) {
+  try {
+    const r = await prisma.response.findUniqueOrThrow({
+      where: { id: responseId },
+      select: {
+        id: true,
+        organisationId: true,
+        overallRating: true,
+        consentPublicText: true,
+        storyText: true,
+        attendee: { select: { name: true } },
+        retreat: { select: { title: true, organisation: { select: { slug: true } } } },
+        _count: { select: { media: { where: { removedAt: null } } } },
+      },
+    })
+    const owners = await prisma.membership.findMany({ where: { organisationId: r.organisationId, role: 'owner' }, select: { user: { select: { email: true } } } })
+    const reviewUrl = `${env.WEB_ORIGIN}/admin/${r.retreat.organisation.slug}/responses/${r.id}`
+    for (const o of owners) {
+      await sendMail(
+        newReviewEmail({
+          to: o.user.email,
+          guestName: r.attendee.name || 'A guest',
+          retreatTitle: r.retreat.title,
+          rating: r.overallRating,
+          publishable: r.consentPublicText && Boolean(r.storyText.trim()),
+          photos: r._count.media,
+          updated,
+          reviewUrl,
+        }),
+      ).catch((e) => console.error('new review email failed:', (e as Error).message))
+    }
+  } catch (e) {
+    console.error('new review email failed:', (e as Error).message)
+  }
+}
+
 reviewRoutes.post(
   '/submit',
   route(async (req, res) => {
@@ -560,6 +598,7 @@ reviewRoutes.post(
     }
 
     const receiptToken = receiptTokenFor(response.id)
+    const firstSend = !response.submittedAt
     await prisma.$transaction(async (tx) => {
       const full = await tx.response.findUniqueOrThrow({
         where: { id: response.id },
@@ -614,6 +653,7 @@ reviewRoutes.post(
     // after proving it with a code (the thank-you page, or joining by group link).
     const how = signedInAsGuest(req, r) ? 'sign_in' : r.invitation?.emailedAt ? 'email_link' : r.attendee.emailVerifiedAt ? 'code' : null
     if (how) await verifyResponse(response.id, how)
+    await tellOwners(response.id, !firstSend)
     res.json({ receiptToken, alreadySubmitted: false })
   }),
 )
