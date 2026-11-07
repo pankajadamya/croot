@@ -4424,10 +4424,30 @@ a.review-date:hover {
   gap: 0.6rem;
   margin-top: 1.4rem;
 }
+/* Clearly buttons, and all alike: a tinted fill, a firm border, bold text; they fill in on hover. */
 .confirm-dialog-choices .btn {
   width: 100%;
   justify-content: center;
   text-align: center;
+  min-height: 54px;
+  padding: 0.8rem 1.2rem;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--button);
+  background: color-mix(in srgb, var(--button) 9%, var(--surface));
+  color: var(--text);
+  font-size: 1.02rem;
+  font-weight: 650;
+  line-height: 1.3;
+  transition: background-color 0.15s, color 0.15s;
+}
+.confirm-dialog-choices .btn:hover {
+  filter: none;
+  background: var(--button);
+  color: var(--button-text);
+}
+.confirm-dialog-choices .btn:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
 }
 @media (max-width: 480px) {
   .confirm-dialog-actions > .btn {
