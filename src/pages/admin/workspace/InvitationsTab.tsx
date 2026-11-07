@@ -6,6 +6,7 @@ import { formatDate, formatDateTime } from '../../../lib/format'
 import { Field } from '../../../components/Controls'
 import { ErrorNotice, Loading } from '../../../components/States'
 import { useConfirm } from '../../../components/ConfirmDialog'
+import { useAuth } from '../../../lib/auth'
 import { CopyButton, fieldError, InviteStateBadge, MutationError, orgKey } from '../adminUi'
 import type { AttendeeRowView, CsvPreviewRow, Retreat } from '../types'
 
@@ -56,6 +57,9 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
   // inside the click (as Safari requires) with the link arriving a moment later from the server.
   const [copyNote, setCopyNote] = useState<{ id: string; text: string; url?: string } | null>(null)
   const confirm = useConfirm()
+  const { session } = useAuth()
+  // Removing a guest who has sent a review erases it too, so it's for owners (as on the Privacy page).
+  const isOwner = Boolean(session?.user.isPlatformAdmin || session?.memberships.find((m) => m.slug === orgSlug)?.role === 'owner')
   function copyLink(a: AttendeeRowView) {
     if (!a.invitation || a.invitation.revoked) return makeAndCopy(a)
     // The copy runs inside the dialog's own button click, so the browser still allows it.
@@ -104,6 +108,28 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
     mutationFn: (a: AttendeeRowView) => del(`${orgApi(orgSlug)}/attendees/${a.id}`),
     onSuccess: refresh,
   })
+  // A guest who has sent a review: removed with everything they sent (the same erasure as the Privacy page).
+  const erase = useMutation({
+    mutationFn: (a: AttendeeRowView) => post(`${orgApi(orgSlug)}/attendees/${a.id}/erase`, { confirm: 'DELETE', reason: 'Removed from the guest list' }),
+    onSuccess: refresh,
+  })
+  function removeWithReview(a: AttendeeRowView) {
+    void confirm({
+      title: `Remove ${a.name} and their review?`,
+      message: (
+        <>
+          <p>
+            Everything {a.name} sent is deleted for good: their story (taken down if it’s published), private feedback and photos, including any in
+            the album. Their link stops working.
+          </p>
+          <p>This can’t be undone. To keep their review but stop their link, use Revoke instead.</p>
+        </>
+      ),
+      confirmLabel: 'Remove guest and review',
+      danger: true,
+      typeToConfirm: 'DELETE',
+    }).then((ok) => ok && erase.mutate(a))
+  }
   // Croot emails the links itself; copying them is the fallback.
   const [sentNote, setSentNote] = useState<string | null>(null)
   const emailAll = useMutation({
@@ -137,7 +163,7 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
 
   const withoutLink = attendees.data?.filter((a) => !a.invitation).length ?? 0
   const allLinksText = issued.map((l) => `${l.name}\t${l.email}\t${l.url}`).join('\n')
-  const rowError = issue.error || revoke.error || remove.error || emailOne.error || emailAll.error
+  const rowError = issue.error || revoke.error || remove.error || erase.error || emailOne.error || emailAll.error
 
   return (
     <div className="stack">
@@ -299,6 +325,17 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
                             }}
                           >
                             Revoke
+                          </button>
+                        )}
+                        {a.responseId && (
+                          <button
+                            type="button"
+                            className="btn ghost small"
+                            disabled={!isOwner || erase.isPending}
+                            title={isOwner ? undefined : 'Only the organisation’s owner can remove a guest who has sent a review'}
+                            onClick={() => removeWithReview(a)}
+                          >
+                            Remove
                           </button>
                         )}
                         {!a.responseId && (
