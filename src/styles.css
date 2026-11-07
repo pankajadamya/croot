@@ -1470,11 +1470,19 @@ table.data th {
   margin: 0;
   accent-color: var(--ok);
 }
-/* The chosen answer shows in green (a calm "chosen", not a warning colour). */
+/* A chosen "Yes" shows in green; a chosen "No" (.is-no) in the terracotta accent. */
 .choice-option.selected {
   border-color: var(--ok);
   background: color-mix(in srgb, var(--ok) 10%, var(--surface, #fff));
   box-shadow: 0 0 0 1px var(--ok);
+}
+.choice-option.is-no input {
+  accent-color: var(--accent, #8e5a43);
+}
+.choice-option.is-no.selected {
+  border-color: var(--accent, #8e5a43);
+  background: color-mix(in srgb, var(--accent, #8e5a43) 8%, var(--surface, #fff));
+  box-shadow: 0 0 0 1px var(--accent, #8e5a43);
 }
 .choice-option:has(input:focus-visible) {
   outline: 2px solid var(--accent, #2f5d46);

@@ -875,7 +875,7 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
                         <input type="radio" name="photo-marketing" checked={c.photoMarketing === true} onChange={() => answerPhotoMarketing(true)} />
                         <span>Yes, they can use them</span>
                       </label>
-                      <label className={`choice-option ${c.photoMarketing === false ? 'selected' : ''}`}>
+                      <label className={`choice-option is-no ${c.photoMarketing === false ? 'selected' : ''}`}>
                         <input type="radio" name="photo-marketing" checked={c.photoMarketing === false} onChange={() => answerPhotoMarketing(false)} />
                         <span>No, just the album</span>
                       </label>
