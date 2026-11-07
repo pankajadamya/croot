@@ -14,6 +14,7 @@ import { storage } from '../lib/storage.js'
 import { dropNameFromLive, dropPhotoFromLive, livePublication, takeDown } from '../lib/publication.js'
 import { hashToken, looksLikeToken } from '../lib/tokens.js'
 import { linkCodeLimiter, linkGuessLimiter, linkLimiter, linkUploadLimiter } from '../middleware/rateLimits.js'
+import { guestInterestSignup, guestInterestView } from '../lib/guestInterest.js'
 
 const albumUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: env.MAX_UPLOAD_BYTES, files: 1 } })
 
@@ -105,6 +106,27 @@ const ownReview = (response: Awaited<ReturnType<typeof resolveReceipt>>) => ({
   retreat: { id: response.retreat.id, organisationId: response.retreat.organisationId, title: response.retreat.title },
   response: { id: response.id, submittedAt: response.submittedAt, verifiedAt: response.verifiedAt },
 })
+
+/** "Notify me about the next retreat", with the guest's address already known (lib/guestInterest.ts). */
+const interestGuest = (response: Awaited<ReturnType<typeof resolveReceipt>>, signedInEmail: string | undefined) => ({
+  ...ownReview(response),
+  orgName: response.retreat.organisation.name,
+  signedIn: Boolean(response.attendee.email && signedInEmail === response.attendee.email),
+})
+receiptsRouter.get(
+  '/:token/interest',
+  route(async (req, res) => {
+    res.set('Cache-Control', 'no-store')
+    res.json(await guestInterestView(interestGuest(await resolveReceipt(req.params.token), req.auth?.emailVerified ? req.auth.user.email : undefined)))
+  }),
+)
+receiptsRouter.post(
+  '/:token/interest',
+  linkCodeLimiter,
+  route(async (req, res) => {
+    res.json(await guestInterestSignup(interestGuest(await resolveReceipt(req.params.token), req.auth?.emailVerified ? req.auth.user.email : undefined), req.body))
+  }),
+)
 
 /** Right after sending: confirm the email here (code to the guest's address), as on the thank-you page. */
 receiptsRouter.post(

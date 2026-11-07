@@ -21,6 +21,7 @@ import { hashToken, receiptTokenFor } from '../lib/tokens.js'
 import { linkCodeLimiter, linkGuessLimiter, linkLimiter, linkUploadLimiter } from '../middleware/rateLimits.js'
 import { emailProven, verifyResponse } from '../lib/verification.js'
 import { newReviewEmail, sendMail } from '../lib/mailer.js'
+import { guestInterestSignup, guestInterestView } from '../lib/guestInterest.js'
 import { MAX_PARTY_SIZE, TRAVELLED_WITH_IDS } from '../../../shared/company.js'
 
 /**
@@ -260,6 +261,23 @@ reviewRoutes.post(
   linkCodeLimiter,
   route(async (req, res) => {
     res.json(await confirmOwnCode(current(res), req.body, res))
+  }),
+)
+
+/** The thank-you page's "Notify me about the next retreat", with the guest's address already known (lib/guestInterest.ts). */
+const interestGuest = (req: Request, r: Review) => ({ ...r, orgName: r.retreat.organisation.name, signedIn: signedInAsGuest(req, r) })
+reviewRoutes.get(
+  '/interest',
+  route(async (req, res) => {
+    res.set('Cache-Control', 'no-store')
+    res.json(await guestInterestView(interestGuest(req, current(res))))
+  }),
+)
+reviewRoutes.post(
+  '/interest',
+  linkCodeLimiter,
+  route(async (req, res) => {
+    res.json(await guestInterestSignup(interestGuest(req, current(res)), req.body))
   }),
 )
 

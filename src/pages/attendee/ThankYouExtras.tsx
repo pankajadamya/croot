@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { post } from '../../lib/api'
+import { get, post } from '../../lib/api'
 import { useAuth, type Session } from '../../lib/auth'
 
 /**
@@ -323,6 +323,96 @@ export function ShareJourney({
         Send {storyPath ? 'your published story' : 'the retreat page'} to friends and family.
       </p>
       {buttons}
+    </section>
+  )
+}
+
+type InterestView = { orgName: string; wording: string; maskedEmail: string | null; needsEmail: boolean; instant: boolean; status: 'subscribed' | 'pending' | null }
+
+/**
+ * "Hear about the next retreat" after sending a review. The guest's address is already known, so it
+ * isn't asked for again: a proven address joins in one tap; one only the organiser entered gets a
+ * confirmation email first (lib/guestInterest.ts on the server). A guest with no address types one.
+ * `refresh` changes when the guest confirms their email, which can make the sign-up one tap.
+ */
+export function GuestInterest({ base, refresh }: { base: string; refresh?: unknown }) {
+  const [view, setView] = useState<InterestView | null>(null)
+  const [agree, setAgree] = useState(false)
+  const [email, setEmail] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [sentTo, setSentTo] = useState<string | null>(null)
+  useEffect(() => {
+    let live = true
+    get<InterestView>(`${base}/interest`).then((v) => live && setView(v), () => undefined)
+    return () => {
+      live = false
+    }
+  }, [base, refresh])
+  if (!view) return null
+
+  async function signUp() {
+    setError(null)
+    if (!agree) return setError('Please tick the box so we can email you.')
+    setBusy(true)
+    try {
+      const r = await post<{ status: 'subscribed' | 'pending'; sentTo?: string }>(`${base}/interest`, view!.needsEmail ? { consent: true, email } : { consent: true })
+      setSentTo(r.sentTo ?? null)
+      setView({ ...view!, status: r.status })
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="card guest-interest" aria-labelledby="guest-interest-title">
+      <h2 id="guest-interest-title" style={{ marginTop: 0, fontSize: '1.2rem' }}>
+        Hear about the next retreat
+      </h2>
+      {view.status === 'subscribed' ? (
+        <p className="notice ok small" role="status" style={{ margin: 0 }}>
+          <span aria-hidden="true">✓</span> You’re on the list. {view.orgName} will let you know when the next one opens.
+        </p>
+      ) : view.status === 'pending' ? (
+        <p className="notice small" role="status" style={{ margin: 0 }}>
+          Nearly there: we’ve emailed {sentTo ? <strong>{sentTo}</strong> : 'you'} a link to confirm. Nothing more is sent until you do.
+        </p>
+      ) : (
+        <div className="stack" style={{ gap: '0.6rem' }}>
+          <p className="muted" style={{ margin: 0 }}>
+            {view.maskedEmail ? (
+              <>
+                {view.orgName} will email <strong>{view.maskedEmail}</strong> when the next retreat opens.
+                {!view.instant && ' We’ll send one email first so you can confirm.'}
+              </>
+            ) : (
+              <>Leave your email and {view.orgName} will let you know when the next one opens.</>
+            )}
+          </p>
+          {view.needsEmail && (
+            <div className="field" style={{ margin: 0 }}>
+              <label htmlFor="guest-interest-email">Your email</label>
+              <input id="guest-interest-email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+          )}
+          <label className="interest-consent">
+            <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
+            <span>{view.wording}</span>
+          </label>
+          {error && (
+            <p className="error small" role="alert" style={{ margin: 0 }}>
+              {error}
+            </p>
+          )}
+          <div className="row">
+            <button type="button" className="btn" onClick={() => void signUp()} disabled={busy || (view.needsEmail && !email.includes('@'))}>
+              {busy ? 'Saving…' : 'Notify me'}
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   )
 }

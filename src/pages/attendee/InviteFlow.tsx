@@ -13,7 +13,7 @@ import { LinkUnavailable, Loading } from '../../components/States'
 import { PhotoPanel } from './PhotoPanel'
 import { AlbumLinkCard, AlbumTeaser, type AlbumSummary } from '../../components/AlbumGallery'
 import { RetreatPageLink } from '../../components/RetreatPageLink'
-import { ShareJourney, VerifyPrompt } from './ThankYouExtras'
+import { GuestInterest, ShareJourney, VerifyPrompt } from './ThankYouExtras'
 import { useChoice, useConfirm } from '../../components/ConfirmDialog'
 
 interface Rating {
@@ -511,6 +511,10 @@ export function ReviewFlow({ base, viaSignIn = false }: { base: string; viaSignI
               )}
               <div style={{ margin: '1.5rem 0' }}>
                 <RetreatPageLink href={view.retreat.publicPagePath} title={view.retreat.title} />
+              </div>
+              {/* Their address is known: no need to type it again (one tap once it's proven). */}
+              <div style={{ margin: '1.5rem 0' }}>
+                <GuestInterest base={base} refresh={view.verification?.verified} />
               </div>
               <div className="row">
                 {view.signIn.signedIn ? (

@@ -9,7 +9,7 @@ import { AlbumLinkCard, type AlbumSummary } from '../../components/AlbumGallery'
 import { GuestHeader } from '../../components/AppHeader'
 import { RetreatPageLink } from '../../components/RetreatPageLink'
 import { useConfirm } from '../../components/ConfirmDialog'
-import { ShareJourney, VerifyPrompt } from './ThankYouExtras'
+import { GuestInterest, ShareJourney, VerifyPrompt } from './ThankYouExtras'
 
 interface ReceiptView {
   retreat: { title: string; organiserName: string; organisationName: string; contactEmail: string | null; privacyNoticePath: string; publicPagePath: string | null }
@@ -161,6 +161,7 @@ export default function Receipt() {
 
         {d.album?.unlocked && <AlbumLinkCard album={d.album} href={`/response/${token}/album`} />}
         {d.status !== 'draft' && <RetreatPageLink href={d.retreat.publicPagePath} title={d.retreat.title} />}
+        {d.status !== 'draft' && <GuestInterest base={base} refresh={d.verification?.verified} />}
 
         <section className="card">
           <div className="spread">
