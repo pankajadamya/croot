@@ -1468,11 +1468,13 @@ table.data th {
   width: 1.15rem;
   height: 1.15rem;
   margin: 0;
-  accent-color: var(--accent, #2f5d46);
+  accent-color: var(--ok);
 }
+/* The chosen answer shows in green (a calm "chosen", not a warning colour). */
 .choice-option.selected {
-  border-color: var(--accent, #2f5d46);
-  background: color-mix(in srgb, var(--accent, #2f5d46) 8%, var(--surface, #fff));
+  border-color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 10%, var(--surface, #fff));
+  box-shadow: 0 0 0 1px var(--ok);
 }
 .choice-option:has(input:focus-visible) {
   outline: 2px solid var(--accent, #2f5d46);
@@ -4113,7 +4115,7 @@ details.advanced summary {
 }
 .guest-photo-row {
   display: grid;
-  grid-template-columns: 96px minmax(100px, 1fr) 142px auto;
+  grid-template-columns: 96px minmax(100px, 1fr) 11rem auto;
   align-items: center;
   gap: 0.7rem;
   min-width: 0;
@@ -4149,7 +4151,8 @@ details.advanced summary {
   color: var(--text);
   font-weight: 600;
   line-height: 1.2;
-  white-space: nowrap;
+  /* "Album · Website & social" wraps onto two lines rather than running into Remove. */
+  max-width: 11rem;
 }
 .guest-photo-share-state.is-allowed::before {
   content: '✓';

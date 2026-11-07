@@ -1073,8 +1073,8 @@ function PhotoManager({
             <div key={p.id} className="guest-photo-row">
               <img className="guest-photo-thumb" src={`${base}/photos/${p.id}/image`} alt={p.altText || `Your photo ${i + 1}`} />
               <div className="guest-photo-description">
-                <Field id={`alt-${p.id}`} label={`Photo ${i + 1} description (for screen readers)`}>
-                  <input id={`alt-${p.id}`} type="text" defaultValue={p.altText} maxLength={300} placeholder="What is in this photo?" onBlur={(e) => e.target.value !== p.altText && void change(p, { altText: e.target.value })} />
+                <Field id={`alt-${p.id}`} label={`Describe photo ${i + 1} (optional)`}>
+                  <input id={`alt-${p.id}`} type="text" defaultValue={p.altText} maxLength={300} placeholder="e.g. Our group at sunrise yoga. Helps screen reader users; fine to leave blank" onBlur={(e) => e.target.value !== p.altText && void change(p, { altText: e.target.value })} />
                 </Field>
               </div>
               <span className={`guest-photo-share-state small ${p.publishConsent || (albumAvailable && p.albumConsent) ? 'is-allowed' : 'is-private'}`}>
