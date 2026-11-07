@@ -61,7 +61,7 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
   const [copyNote, setCopyNote] = useState<{ id: string; text: string; url?: string; showUrl?: boolean } | null>(null)
   const confirm = useConfirm()
   const { session } = useAuth()
-  // Removing a guest who has sent a review erases it too, so it's for owners (as on the Privacy page).
+  // Removing a guest who has sent a review removes it too (to the recycle bin), so it's for owners.
   const isOwner = Boolean(session?.user.isPlatformAdmin || session?.memberships.find((m) => m.slug === orgSlug)?.role === 'owner')
   function copyLink(a: AttendeeRowView) {
     // A guest without an email who has sent their review can't sign in to change it: a new link
@@ -134,9 +134,9 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
     mutationFn: (a: AttendeeRowView) => post(`${orgApi(orgSlug)}/attendees/${a.id}/confirm-guest`),
     onSuccess: refresh,
   })
-  // A guest who has sent a review: removed with everything they sent (the same erasure as the Privacy page).
+  // A guest who has sent a review: removed with everything they sent, into the recycle bin (30 days to restore).
   const erase = useMutation({
-    mutationFn: (a: AttendeeRowView) => post(`${orgApi(orgSlug)}/attendees/${a.id}/erase`, { confirm: 'DELETE', reason: 'Removed from the guest list' }),
+    mutationFn: (a: AttendeeRowView) => post(`${orgApi(orgSlug)}/attendees/${a.id}/bin`),
     onSuccess: refresh,
   })
   function removeWithReview(a: AttendeeRowView) {
@@ -145,15 +145,14 @@ export function InvitationsTab({ orgSlug, retreat }: { orgSlug: string; retreat:
       message: (
         <>
           <p>
-            Everything {a.name} sent is deleted for good: their story (taken down if it’s published), private feedback and photos, including any in
-            the album. Their link stops working.
+            {a.name} and everything they sent go to the recycle bin: their story (taken down if it’s published), private feedback, photos and
+            videos, including any in the album. Their link stops working.
           </p>
-          <p>This can’t be undone. To keep their review but stop their link, use Revoke instead.</p>
+          <p>You can restore it from the recycle bin under Responses for 30 days. To keep their review but stop their link, use Revoke instead.</p>
         </>
       ),
-      confirmLabel: 'Remove guest and review',
+      confirmLabel: 'Move to recycle bin',
       danger: true,
-      typeToConfirm: 'DELETE',
     }).then((ok) => ok && erase.mutate(a))
   }
   // Croot emails the links itself; copying them is the fallback.

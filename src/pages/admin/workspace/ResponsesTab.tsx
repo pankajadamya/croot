@@ -6,6 +6,7 @@ import { formatDate } from '../../../lib/format'
 import { ErrorNotice, Loading } from '../../../components/States'
 import { PublicationBadge, ResponseStatusBadge } from '../adminUi'
 import type { ResponseListItem, Retreat } from '../types'
+import { RecycleBin } from './RecycleBin'
 
 type Filters = { status: string; publication: string; queue: 'all' | 'ready' | 'requests'; q: string }
 
@@ -170,6 +171,7 @@ export function ResponsesTab({ orgSlug, retreat }: { orgSlug: string; retreat: R
           </table>
         </div>
       )}
+      <RecycleBin orgSlug={orgSlug} retreatId={retreat.id} justBinned={urlParams.get('binned') === '1'} />
     </div>
   )
 }

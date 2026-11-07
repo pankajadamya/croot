@@ -139,7 +139,7 @@ export interface ResponseListItem {
 export interface ResponseDetailData {
   id: string
   retreat: { id: string; title: string; slug: string }
-  attendee: { name: string; email: string | null; stay: { start: string | null; end: string | null } | null }
+  attendee: { id: string; name: string; email: string | null; stay: { start: string | null; end: string | null } | null }
   status: ResponseStatus
   submittedAt: string | null
   organiserMessage: string | null

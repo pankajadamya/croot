@@ -103,6 +103,7 @@ responsesRouter.get(
       id: r.id,
       retreat: { id: r.retreat.id, title: r.retreat.title, slug: r.retreat.slug },
       attendee: {
+        id: r.attendee.id,
         name: r.attendee.name,
         email: r.consentFollowUp ? r.attendee.email : null,
         stay: r.retreat.kind === 'property' ? { start: r.attendee.stayStart, end: r.attendee.stayEnd } : null,

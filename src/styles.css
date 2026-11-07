@@ -5603,3 +5603,50 @@ a.review-date:hover {
   margin-top: 0.2rem;
   color: var(--text);
 }
+
+/* Recycle bin under a programme's responses (admin/workspace/RecycleBin.tsx). */
+.bin-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.bin-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+  padding: 0.7rem 0;
+  border-top: 1px solid var(--line, #e3ddd2);
+}
+
+/* Organiser album: a click on a photo or video opens it full size (components/MediaViewer.tsx). */
+.album-tile-img.can-open {
+  cursor: zoom-in;
+}
+.album-tile-view {
+  position: absolute;
+  right: 0.35rem;
+  bottom: 0.35rem;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(15, 26, 25, 0.72);
+  color: #fff;
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.album-tile-view:hover,
+.album-tile-view:focus-visible {
+  background: var(--accent);
+}
+.album-tile.compact .album-tile-view {
+  width: 24px;
+  height: 24px;
+  font-size: 0.75rem;
+}

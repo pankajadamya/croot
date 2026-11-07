@@ -1,7 +1,7 @@
 import { thumb } from '../../lib/thumb'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useParams } from 'react-router'
+import { Link, useNavigate, useParams } from 'react-router'
 import { get, orgApi, post } from '../../lib/api'
 import { formatDate, formatDateTime } from '../../lib/format'
 import { isVerbatimExcerpt } from '../../../shared/excerpt'
@@ -14,6 +14,7 @@ import { AdminShell } from './AdminShell'
 import { fieldError, MutationError, orgKey, programmeDates, PublicationBadge, ResponseStatusBadge, YesNo } from './adminUi'
 import type { ResponseDetailData } from './types'
 import { useConfirm } from '../../components/ConfirmDialog'
+import { useAuth } from '../../lib/auth'
 
 const SCOPE_LABELS: Record<string, string> = {
   publicText: 'Publish written story',
@@ -117,6 +118,54 @@ function VerificationStatus({ orgSlug, r, refresh }: { orgSlug: string; r: Respo
   )
 }
 
+/**
+ * Owners can delete a review: the guest, their review and their photos and videos go to the recycle bin
+ * (under the programme's responses), where it can be restored for 30 days.
+ */
+function DeleteReview({ orgSlug, r }: { orgSlug: string; r: ResponseDetailData }) {
+  const confirm = useConfirm()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const { session } = useAuth()
+  const isOwner = Boolean(session?.user.isPlatformAdmin || session?.memberships.find((m) => m.slug === orgSlug)?.role === 'owner')
+  const bin = useMutation({
+    mutationFn: () => post(`${orgApi(orgSlug)}/attendees/${r.attendee.id}/bin`),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin', orgSlug] })
+      navigate(`/admin/${orgSlug}/retreats/${r.retreat.id}/responses?binned=1`)
+    },
+  })
+  if (!isOwner) return null
+  return (
+    <>
+      <button
+        type="button"
+        className="btn danger small"
+        disabled={bin.isPending}
+        onClick={() =>
+          void confirm({
+            title: `Delete ${r.attendee.name}’s review?`,
+            message: (
+              <>
+                <p>
+                  The review, its photos and videos, and {r.attendee.name} on the guest list go to the recycle bin. A published story comes off your
+                  page and their link stops working.
+                </p>
+                <p>You can restore it from the recycle bin, under this programme’s responses, for 30 days. After that it’s deleted for good.</p>
+              </>
+            ),
+            confirmLabel: 'Move to recycle bin',
+            danger: true,
+          }).then((ok) => ok && bin.mutate())
+        }
+      >
+        {bin.isPending ? 'Deleting…' : 'Delete review'}
+      </button>
+      {bin.error && <MutationError error={bin.error} />}
+    </>
+  )
+}
+
 function Detail({ orgSlug, r, refresh }: { orgSlug: string; r: ResponseDetailData; refresh: () => void }) {
   const story = r.publicStory
   const hasStory = story.text.trim().length > 0
@@ -151,6 +200,7 @@ function Detail({ orgSlug, r, refresh }: { orgSlug: string; r: ResponseDetailDat
               View live story
             </a>
           )}
+          <DeleteReview orgSlug={orgSlug} r={r} />
         </div>
       </div>
 

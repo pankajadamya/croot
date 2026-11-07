@@ -22,6 +22,7 @@ import { MutationError } from '../adminUi'
 import type { OrganiserMedia } from '../types'
 import { formatDateTime, formatDuration } from '../../../lib/format'
 import { useConfirm } from '../../../components/ConfirmDialog'
+import { MediaViewer, type ViewerItem } from '../../../components/MediaViewer'
 
 /**
  * Album photos in the order guests (and the memory film) see them.
@@ -59,6 +60,8 @@ export function AlbumGrid({
   const compact = view === 'photos'
   const setCompact = (on: boolean) => setView(on ? 'photos' : 'details')
   const [choosingTitle, setChoosingTitle] = useState(false)
+  // Clicking a photo or video shows it full size (videos play); a drag still moves it instead.
+  const [viewing, setViewing] = useState<{ list: 'album' | 'out'; index: number } | null>(null)
 
   // Keep the local order in step with the server (new uploads, removals), preserving local moves.
   const includedKey = included.map((m) => m.id).join(',')
@@ -110,6 +113,15 @@ export function AlbumGrid({
   const byId = new Map(media.map((m) => [m.id, m]))
   const ordered = order.map((id) => byId.get(id)).filter((m): m is OrganiserMedia => Boolean(m))
   const active = activeId ? byId.get(activeId) : undefined
+  const asViewerItem = (m: OrganiserMedia): ViewerItem => ({
+    id: m.id,
+    url: m.previewUrl,
+    video: m.isVideo ? m.videoUrl : null,
+    alt: m.caption || m.altText || (m.isVideo ? 'Video' : 'Photo'),
+    caption: m.caption,
+    note: m.kind === 'guest' ? 'Shared by a guest' : undefined,
+  })
+  const viewerItems = viewing ? (viewing.list === 'album' ? ordered : excluded).map(asViewerItem) : []
 
   function commit(next: string[]) {
     setOrder(next)
@@ -255,13 +267,13 @@ export function AlbumGrid({
                         <>
                           {compact ? (
                             <div {...handle} className="album-tile-handle-area" aria-label={`${label}. Press Space to move it.`}>
-                              <TileImage m={m} position={i + 1} isCover={isCover} />
+                              <TileImage m={m} position={i + 1} isCover={isCover} onOpen={() => setViewing({ list: 'album', index: i })} />
                             </div>
                           ) : (
                             <>
                               {/* The photo itself drags (mouse or finger); the handle is for the keyboard. */}
                               <div className="album-tile-img-wrap" {...dragArea}>
-                                <TileImage m={m} position={i + 1} isCover={isCover} />
+                                <TileImage m={m} position={i + 1} isCover={isCover} onOpen={() => setViewing({ list: 'album', index: i })} />
                                 <button type="button" className="album-drag-handle" {...handle} aria-label={`Move ${label}. Press Space to lift, arrows to move.`}>
                                   <svg viewBox="0 0 16 16" aria-hidden="true">
                                     <circle cx="5.5" cy="4" r="1.3" /><circle cx="10.5" cy="4" r="1.3" />
@@ -356,11 +368,9 @@ export function AlbumGrid({
         <details style={{ marginTop: '1rem' }}>
           <summary style={{ cursor: 'pointer' }}>Images not in the album ({excluded.length})</summary>
           <ul className="album-admin-grid" style={{ marginTop: '0.75rem' }}>
-            {excluded.map((m) => (
+            {excluded.map((m, i) => (
               <li key={m.id} className="album-tile is-excluded">
-                <div className="album-tile-img">
-                  <img src={thumb(m.previewUrl)} alt={m.caption || m.altText || 'Image'} loading="lazy" />
-                </div>
+                <TileImage m={m} isCover={false} onOpen={() => setViewing({ list: 'out', index: i })} />
                 <button type="button" className="btn secondary small" disabled={include.isPending} onClick={() => include.mutate({ id: m.id, inAlbum: true })}>
                   Add back
                 </button>
@@ -368,6 +378,9 @@ export function AlbumGrid({
             ))}
           </ul>
         </details>
+      )}
+      {viewing && viewerItems[viewing.index] && (
+        <MediaViewer items={viewerItems} index={viewing.index} onIndex={(index) => setViewing({ ...viewing, index })} onClose={() => setViewing(null)} />
       )}
       <MutationError error={saveOrder.error || setCover.error || include.error || remove.error || moderate.error || clearAll.error || removeDuplicates.error} />
     </div>
@@ -388,13 +401,30 @@ function SortableTile({ id, compact, label, isCover, children }: { id: string; c
   )
 }
 
-function TileImage({ m, position, isCover }: { m: OrganiserMedia; position: number; isCover: boolean }) {
+/** onOpen: a click shows it full size; the small button does the same from the keyboard. */
+function TileImage({ m, position, isCover, onOpen }: { m: OrganiserMedia; position?: number; isCover: boolean; onOpen?: () => void }) {
   return (
-    <div className="album-tile-img">
+    <div className={`album-tile-img ${onOpen ? 'can-open' : ''}`} onClick={onOpen}>
       <img src={thumb(m.previewUrl)} alt={m.caption || m.altText || 'Album photo'} loading="lazy" draggable={false} />
-      <span className="album-tile-pos" aria-hidden="true">
-        {position}
-      </span>
+      {position !== undefined && (
+        <span className="album-tile-pos" aria-hidden="true">
+          {position}
+        </span>
+      )}
+      {onOpen && (
+        <button
+          type="button"
+          className="album-tile-view"
+          aria-label={`${m.isVideo ? 'Play' : 'View'} ${m.caption || (m.isVideo ? 'video' : 'photo')} full size`}
+          onClick={(e) => {
+            e.stopPropagation()
+            onOpen()
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          {m.isVideo ? '▶' : '⤢'}
+        </button>
+      )}
       {isCover && <span className="album-tile-cover">Title photo</span>}
       {m.isVideo && (
         <span className="video-badge" aria-label="Video">

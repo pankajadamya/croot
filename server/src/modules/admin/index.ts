@@ -13,6 +13,7 @@ import { tenantRetreat } from '../../lib/tenant.js'
 import { requireCsrf, requireOrgMember, requireOwner, tenantOf } from '../../middleware/auth.js'
 import { attendeesRouter } from './attendees.js'
 import { privacyRouter } from './privacy.js'
+import { recycleBinRouter } from './recycleBin.js'
 import { responsesRouter } from './responses.js'
 import { verifyRequestAdminRouter } from '../verifyRequests.js'
 import { groupLinkAdminRouter } from '../groupLink.js'
@@ -26,7 +27,7 @@ import { siteRouter } from './site.js'
  */
 export const adminRouter = Router({ mergeParams: true })
 adminRouter.use(requireOrgMember, requireCsrf)
-adminRouter.use(attendeesRouter, responsesRouter, siteRouter, privacyRouter, shareKitRouter, interestRouter, verifyRequestAdminRouter, groupLinkAdminRouter)
+adminRouter.use(attendeesRouter, responsesRouter, siteRouter, privacyRouter, recycleBinRouter, shareKitRouter, interestRouter, verifyRequestAdminRouter, groupLinkAdminRouter)
 
 adminRouter.get(
   '/',
